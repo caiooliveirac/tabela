@@ -1,0 +1,37 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd ~/tabela || git clone git@github.com:caiooliveirac/tabela.git ~/tabela && cd ~/tabela
+
+            git fetch origin main
+            git reset --hard origin/main
+
+            # Build e deploy
+            docker compose build --no-cache
+            docker compose up -d
+
+            # Run migrations
+            docker compose exec -T api node dist/db/migrate.js || true
+
+            # Healthcheck
+            sleep 5
+            curl -sf http://localhost:3001/tabela/api/health || echo "⚠️ Healthcheck failed"
+
+            echo "✅ Deploy complete"
