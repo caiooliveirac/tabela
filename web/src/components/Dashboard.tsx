@@ -208,7 +208,7 @@ export default function Dashboard() {
   };
 
   const Grid = ({ hospitals }: { hospitals: HospitalData[] }) => (
-    <div className="grid grid-cols-[repeat(auto-fill,minmax(270px,1fr))] gap-3 mb-7">
+    <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-3 mb-7">
       {hospitals.map((h) => (
         <HospitalCard
           key={h.id}
@@ -417,7 +417,7 @@ export default function Dashboard() {
       </div>
 
       {/* MAIN */}
-      <div className="px-6 py-[18px] max-w-[1400px] mx-auto">
+      <div className="px-6 py-[18px]">
         {tab === "semaphore" ? (
           <>
             {/* Legend — gradient bar */}
