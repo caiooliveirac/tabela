@@ -217,7 +217,7 @@ export default function Dashboard() {
   };
 
   const Grid = ({ hospitals }: { hospitals: HospitalData[] }) => (
-    <div className="grid gap-3 mb-7 mx-auto" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(min(240px, 100%), 1fr))", maxWidth: "calc(4 * 270px + 3 * 12px)" }}>
+    <div className="grid gap-3 mb-7" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(min(240px, 100%), 1fr))" }}>
       {hospitals.map((h) => (
         <HospitalCard
           key={h.id}
@@ -663,7 +663,7 @@ export default function Dashboard() {
       </div>
 
       {/* MAIN */}
-      <div className="px-6 py-[18px]">
+      <div className="px-6 py-[18px] max-w-[1400px] mx-auto w-full">
         {tab === "semaphore" ? (
           <>
             {/* Legend — gradient bar */}
@@ -698,8 +698,7 @@ export default function Dashboard() {
               {sel && sel.cat === "geral" && (
                 <div
                   ref={detailRef}
-                  className="bg-white border-2 border-slate-200 rounded-[14px] p-5 mb-6 shadow-sm mx-auto animate-[slideDown_0.25s_ease-out]"
-                  style={{ maxWidth: "calc(4 * 270px + 3 * 12px)", width: "100%" }}
+                  className="bg-white border-2 border-slate-200 rounded-[14px] p-5 mb-6 shadow-sm animate-[slideDown_0.25s_ease-out]"
                 >
                   <DetailContent h={sel} />
                 </div>
