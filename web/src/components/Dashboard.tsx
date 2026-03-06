@@ -208,7 +208,7 @@ export default function Dashboard() {
   };
 
   const Grid = ({ hospitals }: { hospitals: HospitalData[] }) => (
-    <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-3 mb-7">
+    <div className="grid gap-3 mb-7" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(min(240px, 100%), 1fr))", maxWidth: "calc(4 * 270px + 3 * 12px)" }}>
       {hospitals.map((h) => (
         <HospitalCard
           key={h.id}
