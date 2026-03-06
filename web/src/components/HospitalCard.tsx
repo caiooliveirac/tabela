@@ -1,5 +1,5 @@
 import type { HospitalData } from "../lib/types";
-import { SM } from "../lib/constants";
+import { scoreToColor, NEUTRAL_STYLE } from "../lib/colors";
 import IntelChip from "./IntelChip";
 
 function fmt(ts: string): string {
@@ -30,7 +30,7 @@ export default function HospitalCard({
   highlight,
 }: HospitalCardProps) {
   const st =
-    h.total === 0 && h.intel.length === 0 ? SM.neutral : SM[h.sem];
+    h.total === 0 && h.intel.length === 0 ? NEUTRAL_STYLE : scoreToColor(h.score);
   const pct = h.total > 0 ? (h.aceitos / h.total) * 100 : 0;
   const alerts = h.intel.filter((i) => i.tipo !== "pretendo_enviar");
   const enviar = h.intel.filter((i) => i.tipo === "pretendo_enviar");
@@ -49,8 +49,8 @@ export default function HospitalCard({
         boxShadow: highlight
           ? "0 0 0 4px #7c3aed44, 0 0 20px #7c3aed22"
           : isSel
-            ? `0 0 0 4px ${st.bd}15`
-            : "0 1px 4px #00000006",
+            ? `0 0 0 4px ${st.bd}15, ${st.glow}`
+            : st.glow,
       }}
     >
       {/* Color bar */}
@@ -73,16 +73,6 @@ export default function HospitalCard({
       >
         <span className="text-[17px] font-black text-slate-900">
           {h.name}
-        </span>
-        <span
-          className="text-[11px] font-extrabold py-[3px] px-[10px] rounded-md whitespace-nowrap"
-          style={{
-            backgroundColor: st.bg,
-            color: st.tx,
-            border: `1.5px solid ${st.bd}`,
-          }}
-        >
-          {st.lb}
         </span>
       </div>
 

@@ -488,7 +488,7 @@ export default function Dashboard() {
                   <div className="flex-1">
                     <h3 className="m-0 text-xl font-black">{sel.name}</h3>
                     <span className="text-[13px] text-slate-500">
-                      Score {sel.score}/100 · {sel.total} regulações ·
+                      {sel.total} regulações ·
                       Taxa:{" "}
                       {sel.taxa !== null
                         ? `${Math.round(sel.taxa * 100)}%`

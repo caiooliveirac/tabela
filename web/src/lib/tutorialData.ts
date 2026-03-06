@@ -466,20 +466,57 @@ export function generateTutorialData(): TutorialDataResult {
     criadoPor: "Karen",
   };
 
-  // ─── Scores definidos manualmente para o ranking ───────
-  // <30 red | 30-54 yellow | ≥55 green
+  // ─── Scores recalculados para v3.1 (half-life 90min ZERO, 120min intel) ───
+  //
+  // v3.1: base=80, ZERO decay half-life=90min, intel decay half-life=120min
+  // cooldown aceite (-20 linear sobre 40min), load bonus
+  // Intel: lotado(-30×decay), aceitando_bem(+15×decay), normalizado(+10×decay)
+  // sem_recurso, sem_especialista, pretendo_enviar NÃO afetam score
+  //
+  // Menandro: 3A (8,48,95min) + aceitando_bem(12min atrás)
+  //   80 + cooldown(-20*(1-8/40)=-16) + load(0, 3 aceitos) + intel(+15*decay(12,120)=+14) = 78
+  //
+  // HGRS: 2A (18,52min) sem intel
+  //   80 + cooldown(-20*(1-18/40)=-11) + load(+2) = 71
+  //
+  // Municipal: 1A(28min) 1Z(68min) + normalizado(8min)
+  //   80 + zero(-60*0.5^(68/90)=-36) + cooldown(-20*(1-28/40)=-6) + load(+5) + intel(+10*0.96=+10) = 53
+  //
+  // Subúrbio: 1A(38min) 1Z(78min) + pretendo_enviar(não afeta)
+  //   80 + zero(-60*0.5^(78/90)=-35) + cooldown(-20*(1-38/40)=-1) + load(+5) = 49
+  //
+  // Eládio: 1Z(55min) sem intel
+  //   80 + zero(-60*0.5^(55/90)=-41) + load(+10) = 49
+  //
+  // HGESF: 1A(88min) 1Z(22min) + sem_especialista(não afeta)
+  //   80 + zero(-60*0.5^(22/90)=-51) + no cooldown + load(+5) = 34
+  //
+  // HGE: 1A(105min) 2Z(12,45min) + lotado(25min) com decay
+  //   80 + z1(-60*0.91=-55) + z2(-35*0.71=-25) + load(+5) + lotado(-30*0.87=-26) = 0 (clamped)
+  //
+  // Metropolitano: 1Z(30min) + sem_recurso(não afeta)
+  //   80 + zero(-60*0.5^(30/90)=-48) + load(+10) = 42
+  //
+  // Juliano Moreira: 1A(40min) psiq
+  //   80 + cooldown(0, 40>=40) + load(+5) = 85
+  //
+  // Mário Leal: sem dados → 50
+  //
+  // Couto Maia: 1Z(50min) infecto
+  //   80 + zero(-60*0.5^(50/90)=-41) + load(+10) = 49
+  //
   const hospitals: HospitalData[] = [
-    buildHospital("menandro", "Menandro", "geral", 82, menandroCases, menandroIntel),
-    buildHospital("hgrs", "HGRS", "geral", 72, hgrsCases, []),
-    buildHospital("municipal", "Municipal", "geral", 62, municipalCases, municipalIntel),
-    buildHospital("suburbio", "Subúrbio", "geral", 48, suburbioCases, suburbioIntel),
-    buildHospital("hgesf", "HGESF", "geral", 42, hgesfCases, hgesfIntel),
-    buildHospital("eladio", "Eládio", "geral", 38, eladioCases, []),
-    buildHospital("hge", "HGE", "geral", 25, hgeCases, hgeIntel),
-    buildHospital("metropolitano", "Metropolitano", "geral", 22, metroCases, metroIntel),
-    buildHospital("juliano_moreira", "Juliano Moreira", "psiq", 65, julianoCases, []),
+    buildHospital("menandro", "Menandro", "geral", 78, menandroCases, menandroIntel),
+    buildHospital("hgrs", "HGRS", "geral", 71, hgrsCases, []),
+    buildHospital("municipal", "Municipal", "geral", 53, municipalCases, municipalIntel),
+    buildHospital("suburbio", "Subúrbio", "geral", 49, suburbioCases, suburbioIntel),
+    buildHospital("eladio", "Eládio", "geral", 49, eladioCases, []),
+    buildHospital("metropolitano", "Metropolitano", "geral", 42, metroCases, metroIntel),
+    buildHospital("hgesf", "HGESF", "geral", 34, hgesfCases, hgesfIntel),
+    buildHospital("hge", "HGE", "geral", 0, hgeCases, hgeIntel),
+    buildHospital("juliano_moreira", "Juliano Moreira", "psiq", 85, julianoCases, []),
     buildHospital("mario_leal", "Mário Leal", "psiq", 50, [], []),
-    buildHospital("couto_maia", "Couto Maia", "infecto", 28, coutoMaiaCases, []),
+    buildHospital("couto_maia", "Couto Maia", "infecto", 49, coutoMaiaCases, []),
   ];
 
   // Todos os cases para a timeline

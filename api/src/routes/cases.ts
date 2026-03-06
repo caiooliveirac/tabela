@@ -15,6 +15,7 @@ const createCaseSchema = z.object({
   medico: z.string().optional().nullable(),
   oc: z.string().optional().nullable(),
   criadoPor: z.string().min(1, "Operador obrigatório"),
+  timestamp: z.string().datetime().optional(), // ISO 8601, optional for seed/import
 });
 
 const updateCaseSchema = z.object({
@@ -61,6 +62,7 @@ router.post("/", async (req: Request, res: Response) => {
         medico: data.medico || null,
         oc: data.oc || null,
         criadoPor: data.criadoPor,
+        ...(data.timestamp ? { timestamp: new Date(data.timestamp) } : {}),
       })
       .returning();
     broadcast({ type: "case:created", payload: row });

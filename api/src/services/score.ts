@@ -1,5 +1,19 @@
 // ═══════════════════════════════════════════════════════════════
-// Score Engine — portado do frontend React
+// Score Engine v3.1 — Decay Exponencial + Intel Decay
+//
+// Lógica:
+//   base = 80 (com dados) ou 50 (sem dados)
+//   - ZERO penalty: -basePenalty × 0.5^(min/90) por cada ZERO
+//     half-life 90min (demorar ~3h para um ZERO "esfriar")
+//     bases decrescentes: [-60, -35, -20, -10]
+//   - Accept cooldown: -20 × (1 - min/40) se último aceite < 40min
+//   - Load bonus: 0 aceitos → +10, 1 → +5, 2 → +2, 3+ → 0
+//   - Intel COM DECAY (half-life 120min):
+//     lotado → -30 × decay, aceitando_bem → +15 × decay,
+//     normalizado → +10 × decay
+//   - Clamp [0, 100]
+//   - Semáforo: ≥60 green, ≥35 yellow, <35 red
+//   - Sort: score DESC → fewer aceitos → older last case
 // ═══════════════════════════════════════════════════════════════
 
 export interface Hospital {
@@ -55,6 +69,7 @@ interface HospitalGroup {
   lc: CaseRow | null; // last case
   lz: CaseRow | null; // last vaga zero
   la: CaseRow | null; // last aceito
+  zeros: CaseRow[];   // all zeros sorted desc
 }
 
 export interface HospitalData extends Hospital {
@@ -71,12 +86,35 @@ export interface HospitalData extends Hospital {
   cases: CaseRow[];
 }
 
-function mAgo(ts: Date): number {
-  return Math.floor((Date.now() - ts.getTime()) / 60000);
+// ── Constantes do motor ──────────────────────────────────────
+
+const HALF_LIFE_ZERO = 90;                    // minutos — half-life do decay de vaga zero
+const HALF_LIFE_INTEL = 120;                  // minutos — half-life do decay de intel
+const ZERO_BASES = [-60, -35, -20, -10];      // penalidade base por ZERO (1º, 2º, 3º, 4º+)
+const COOLDOWN_MAX = -20;                     // penalidade cooldown aceite
+const COOLDOWN_WINDOW = 40;                   // minutos
+const LOAD_BONUS = [10, 5, 2, 0];            // bonus por 0, 1, 2, 3+ aceitos
+const INTEL_SCORE: Record<string, number> = {
+  lotado: -30,
+  aceitando_bem: 15,
+  normalizado: 10,
+};
+const BASE_WITH_DATA = 80;
+const BASE_NO_DATA = 50;
+
+// ── Helpers ──────────────────────────────────────────────────
+
+function minutesAgo(ts: Date): number {
+  return (Date.now() - ts.getTime()) / 60000;
 }
 
-function hAgo(ts: Date): number {
+function hoursAgo(ts: Date): number {
   return (Date.now() - ts.getTime()) / 3600000;
+}
+
+/** Decay exponencial: valor × 0.5^(min/halfLife) */
+function decay(basePenalty: number, minutes: number, halfLife: number): number {
+  return basePenalty * Math.pow(0.5, minutes / halfLife);
 }
 
 /** Calcula timestamp do reset das 7h */
@@ -85,6 +123,49 @@ export function resetTs(): number {
   d.setHours(7, 0, 0, 0);
   if (Date.now() < d.getTime()) d.setDate(d.getDate() - 1);
   return d.getTime();
+}
+
+// ── Score de um hospital ─────────────────────────────────────
+
+function computeHospitalScore(g: HospitalGroup): number {
+  const tot = g.cases.length;
+  const aceitos = tot - g.zeros.length;
+
+  // Sem dados → score neutro
+  if (tot === 0 && g.intel.length === 0) return BASE_NO_DATA;
+
+  let s = BASE_WITH_DATA;
+
+  // 1) ZERO penalty com decay exponencial (half-life 90min)
+  g.zeros.forEach((z, i) => {
+    const base = ZERO_BASES[Math.min(i, ZERO_BASES.length - 1)];
+    const min = minutesAgo(z.timestamp);
+    s += decay(base, min, HALF_LIFE_ZERO);
+  });
+
+  // 2) Cooldown do último aceite (penaliza aceites muito recentes)
+  if (g.la) {
+    const min = minutesAgo(g.la.timestamp);
+    if (min < COOLDOWN_WINDOW) {
+      s += COOLDOWN_MAX * (1 - min / COOLDOWN_WINDOW);
+    }
+  }
+
+  // 3) Load distribution bonus
+  const bonusIdx = Math.min(aceitos, LOAD_BONUS.length - 1);
+  s += LOAD_BONUS[bonusIdx];
+
+  // 4) Intel COM DECAY (half-life 120min) — lotado, aceitando_bem, normalizado
+  g.intel.forEach((i) => {
+    const mod = INTEL_SCORE[i.tipo];
+    if (mod !== undefined) {
+      const min = minutesAgo(i.timestamp);
+      s += decay(mod, min, HALF_LIFE_INTEL);
+    }
+  });
+
+  // 5) Clamp [0, 100]
+  return Math.max(0, Math.min(100, Math.round(s)));
 }
 
 /** Calcula scores e dados agregados para todos os hospitais */
@@ -97,12 +178,12 @@ export function compute(
   const semaphoreCases = activeCases.filter(
     (c) => c.timestamp.getTime() >= rst
   );
-  const timelineCases = activeCases.filter((c) => hAgo(c.timestamp) < 24);
+  const timelineCases = activeCases.filter((c) => hoursAgo(c.timestamp) < 24);
   const activeIntel = allIntel.filter((i) => i.ativo);
 
   const groups: Record<string, HospitalGroup> = {};
   HOSPITALS.forEach((h) => {
-    groups[h.id] = { cases: [], intel: [], lc: null, lz: null, la: null };
+    groups[h.id] = { cases: [], intel: [], lc: null, lz: null, la: null, zeros: [] };
   });
 
   semaphoreCases.forEach((c) => {
@@ -110,16 +191,18 @@ export function compute(
     const g = groups[c.hospitalId];
     g.cases.push(c);
     if (!g.lc || c.timestamp > g.lc.timestamp) g.lc = c;
-    if (
-      c.situacao === "ZERO" &&
-      (!g.lz || c.timestamp > g.lz.timestamp)
-    )
-      g.lz = c;
-    if (
-      c.situacao === "ACEITO" &&
-      (!g.la || c.timestamp > g.la.timestamp)
-    )
+    if (c.situacao === "ZERO") {
+      g.zeros.push(c);
+      if (!g.lz || c.timestamp > g.lz.timestamp) g.lz = c;
+    }
+    if (c.situacao === "ACEITO" && (!g.la || c.timestamp > g.la.timestamp)) {
       g.la = c;
+    }
+  });
+
+  // Ordenar zeros: mais recente primeiro (para indexar ZERO_BASES)
+  Object.values(groups).forEach((g) => {
+    g.zeros.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
   });
 
   activeIntel.forEach((i) => {
@@ -127,58 +210,20 @@ export function compute(
   });
 
   const hospitalData: HospitalData[] = HOSPITALS.map((h) => {
-    const d = groups[h.id];
-    const tot = d.cases.length;
-    const z = d.cases.filter((c) => c.situacao === "ZERO").length;
+    const g = groups[h.id];
+    const tot = g.cases.length;
+    const z = g.zeros.length;
     const a = tot - z;
     const tx = tot > 0 ? a / tot : null;
 
-    let s = 50;
-
-    // Último caso
-    if (d.lc) s += d.lc.situacao === "ACEITO" ? 20 : -25;
-
-    // Vaga zero recente
-    if (d.lz) {
-      const m = mAgo(d.lz.timestamp);
-      if (m < 30) s -= 20;
-      else if (m < 60) s -= 10;
-      else if (m < 120) s -= 5;
-    }
-
-    // Aceite recente
-    if (d.la) {
-      const m = mAgo(d.la.timestamp);
-      if (m < 30) s += 15;
-      else if (m < 60) s += 8;
-    }
-
-    // Taxa de aceite
-    if (tx !== null) {
-      if (tx >= 0.8) s += 10;
-      else if (tx < 0.4) s -= 10;
-    }
-
-    // Intel modifiers
-    d.intel.forEach((i) => {
-      if (i.tipo === "lotado") s -= 20;
-      if (i.tipo === "sem_especialista") s -= 10;
-      if (i.tipo === "sem_recurso") s -= 15;
-      if (i.tipo === "aceitando_bem") s += 15;
-      if (i.tipo === "normalizado") s += 10;
-    });
-
-    // Sem dados = neutro
-    if (tot === 0 && d.intel.length === 0) s = 50;
-
-    s = Math.max(0, Math.min(100, s));
+    const s = computeHospitalScore(g);
 
     let sem: "green" | "yellow" | "red" = "green";
-    if (s < 30) sem = "red";
-    else if (s < 55) sem = "yellow";
+    if (s < 35) sem = "red";
+    else if (s < 60) sem = "yellow";
 
-    // Vaga zero expira em 6h
-    const lzShow = d.lz && hAgo(d.lz.timestamp) < 6 ? d.lz : null;
+    // Vaga zero expira visualmente em 6h
+    const lzShow = g.lz && hoursAgo(g.lz.timestamp) < 6 ? g.lz : null;
 
     return {
       ...h,
@@ -188,12 +233,22 @@ export function compute(
       zeros: z,
       aceitos: a,
       taxa: tx,
-      lc: d.lc,
+      lc: g.lc,
       lz: lzShow,
-      la: d.la,
-      intel: d.intel,
-      cases: d.cases,
+      la: g.la,
+      intel: g.intel,
+      cases: g.cases,
     };
+  });
+
+  // Sort: score DESC → fewer aceitos → older last case
+  hospitalData.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    if (a.aceitos !== b.aceitos) return a.aceitos - b.aceitos;
+    // older lc first (null = never interacted = lowest priority)
+    const aT = a.lc ? new Date(a.lc.timestamp).getTime() : Infinity;
+    const bT = b.lc ? new Date(b.lc.timestamp).getTime() : Infinity;
+    return aT - bT;
   });
 
   return { hospitalData, timelineCases };
