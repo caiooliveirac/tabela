@@ -17,6 +17,16 @@ const createCaseSchema = z.object({
   criadoPor: z.string().min(1, "Operador obrigatório"),
 });
 
+const updateCaseSchema = z.object({
+  hospitalId: z.string().min(1),
+  situacao: z.enum(["ACEITO", "ZERO"]),
+  caso: z.string().optional().nullable(),
+  mr: z.string().optional().nullable(),
+  medico: z.string().optional().nullable(),
+  oc: z.string().optional().nullable(),
+  atualizadoPor: z.string().min(1, "Operador obrigatório"),
+});
+
 const removeCaseSchema = z.object({
   removidoPor: z.string().min(1, "Operador obrigatório"),
 });
@@ -98,6 +108,46 @@ router.delete("/:id", async (req: Request, res: Response) => {
     }
     console.error("DELETE /cases error:", err);
     res.status(500).json({ error: "Erro ao remover caso" });
+  }
+});
+
+// PATCH /api/cases/:id — editar caso ativo
+router.patch("/:id", async (req: Request, res: Response) => {
+  try {
+    const id = parseInt(req.params.id as string, 10);
+    if (isNaN(id)) {
+      res.status(400).json({ error: "ID inválido" });
+      return;
+    }
+
+    const data = updateCaseSchema.parse(req.body);
+    const [row] = await db
+      .update(cases)
+      .set({
+        hospitalId: data.hospitalId,
+        situacao: data.situacao,
+        caso: data.caso || null,
+        mr: data.mr || null,
+        medico: data.medico || null,
+        oc: data.oc || null,
+      })
+      .where(and(eq(cases.id, id), eq(cases.ativo, true)))
+      .returning();
+
+    if (!row) {
+      res.status(404).json({ error: "Caso não encontrado ou já removido" });
+      return;
+    }
+
+    broadcast({ type: "case:updated", payload: row });
+    res.json(row);
+  } catch (err) {
+    if (err instanceof z.ZodError) {
+      res.status(400).json({ error: err.errors });
+      return;
+    }
+    console.error("PATCH /cases error:", err);
+    res.status(500).json({ error: "Erro ao atualizar caso" });
   }
 });
 

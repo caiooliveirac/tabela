@@ -72,6 +72,16 @@ export interface CreateCasePayload {
   criadoPor: string;
 }
 
+export interface UpdateCasePayload {
+  hospitalId: string;
+  situacao: "ACEITO" | "ZERO";
+  caso?: string;
+  mr?: string;
+  medico?: string;
+  oc?: string;
+  atualizadoPor: string;
+}
+
 export interface CreateIntelPayload {
   hospitalId: string;
   tipo: IntelType;
@@ -82,6 +92,7 @@ export interface CreateIntelPayload {
 export type WsEvent =
   | { type: "connected"; clients: number }
   | { type: "case:created"; payload: CaseRow }
+  | { type: "case:updated"; payload: CaseRow }
   | { type: "case:removed"; payload: CaseRow }
   | { type: "intel:created"; payload: IntelRow }
   | { type: "intel:removed"; payload: IntelRow }

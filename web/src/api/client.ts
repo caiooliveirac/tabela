@@ -7,6 +7,7 @@ import type {
   IntelRow,
   HospitalsResponse,
   CreateCasePayload,
+  UpdateCasePayload,
   CreateIntelPayload,
   WsEvent,
 } from "../lib/types";
@@ -41,6 +42,12 @@ export const api = {
   createCase: (data: CreateCasePayload) =>
     request<CaseRow>("/cases", {
       method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  updateCase: (id: number, data: UpdateCasePayload) =>
+    request<CaseRow>(`/cases/${id}`, {
+      method: "PATCH",
       body: JSON.stringify(data),
     }),
 

@@ -5,6 +5,7 @@ let wss: WebSocketServer;
 
 export type WsEvent =
   | { type: "case:created"; payload: unknown }
+  | { type: "case:updated"; payload: unknown }
   | { type: "case:removed"; payload: unknown }
   | { type: "intel:created"; payload: unknown }
   | { type: "intel:removed"; payload: unknown }

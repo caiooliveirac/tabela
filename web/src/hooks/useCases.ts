@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api/client";
-import type { CreateCasePayload } from "../lib/types";
+import type { CreateCasePayload, UpdateCasePayload } from "../lib/types";
 
 export function useCases() {
   return useQuery({
@@ -26,6 +26,18 @@ export function useRemoveCase() {
   return useMutation({
     mutationFn: ({ id, removidoPor }: { id: number; removidoPor: string }) =>
       api.removeCase(id, removidoPor),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["hospitals"] });
+      queryClient.invalidateQueries({ queryKey: ["cases"] });
+    },
+  });
+}
+
+export function useUpdateCase() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: number; data: UpdateCasePayload }) =>
+      api.updateCase(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["hospitals"] });
       queryClient.invalidateQueries({ queryKey: ["cases"] });

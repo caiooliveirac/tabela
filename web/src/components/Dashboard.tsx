@@ -8,11 +8,11 @@ import {
 } from "../lib/constants";
 import { generateTutorialData, type TutorialDataResult } from "../lib/tutorialData";
 import { useHospitals } from "../hooks/useHospitals";
-import { useCreateCase, useRemoveCase } from "../hooks/useCases";
+import { useCreateCase, useRemoveCase, useUpdateCase } from "../hooks/useCases";
 import { useIntel, useCreateIntel, useRemoveIntel } from "../hooks/useIntel";
 import HospitalCard from "./HospitalCard";
 import OperatorGate from "./OperatorGate";
-import NewCaseModal from "./NewCaseModal";
+import NewCaseModal, { type CaseFormInput } from "./NewCaseModal";
 import IntelModal from "./IntelModal";
 import ConfirmDialog from "./ConfirmDialog";
 import Tutorial from "./Tutorial";
@@ -61,6 +61,7 @@ export default function Dashboard() {
   const { data: hospitalsData, isLoading, error } = useHospitals();
   const { data: allIntel = [] } = useIntel();
   const createCase = useCreateCase();
+  const updateCase = useUpdateCase();
   const removeCase = useRemoveCase();
   const createIntel = useCreateIntel();
   const removeIntel = useRemoveIntel();
@@ -68,6 +69,7 @@ export default function Dashboard() {
   // UI state
   const [selH, setSelH] = useState<string | null>(null);
   const [showNew, setShowNew] = useState(false);
+  const [editingCase, setEditingCase] = useState<CaseRow | null>(null);
   const [showIntel, setShowIntel] = useState(false);
   const [op, setOp] = useState("");
   const [tab, setTab] = useState<"semaphore" | "timeline">("semaphore");
@@ -165,6 +167,39 @@ export default function Dashboard() {
         setConfirm(null);
       },
     });
+  };
+
+  const handleOpenEditCase = (c: CaseRow) => {
+    if (tutActive || !c.ativo) return;
+    setEditingCase(c);
+    setShowNew(true);
+  };
+
+  const handleSubmitCase = (data: CaseFormInput) => {
+    if (!op.trim()) return;
+
+    if (editingCase) {
+      updateCase.mutate({
+        id: editingCase.id,
+        data: {
+          ...data,
+          atualizadoPor: op,
+        },
+      });
+    } else {
+      createCase.mutate({
+        ...data,
+        criadoPor: op,
+      });
+    }
+
+    setShowNew(false);
+    setEditingCase(null);
+  };
+
+  const handleCloseCaseModal = () => {
+    setShowNew(false);
+    setEditingCase(null);
   };
 
   const Grid = ({ hospitals }: { hospitals: HospitalData[] }) => (
@@ -298,7 +333,11 @@ export default function Dashboard() {
           <OperatorGate operador={op}>
             <button
               data-tutorial-id="btn-new-case"
-              onClick={() => { if (!tutActive) setShowNew(true); }}
+              onClick={() => {
+                if (tutActive) return;
+                setEditingCase(null);
+                setShowNew(true);
+              }}
               className="py-[7px] px-[14px] text-xs rounded-[10px] border-none bg-blue-700 text-white font-bold cursor-pointer"
             >
               + Caso
@@ -495,10 +534,10 @@ export default function Dashboard() {
                               onClick={() => {
                                 if (tutActive) return;
                                 op.trim() &&
-                                removeIntel.mutate({
-                                  id: i.id,
-                                  removidoPor: op,
-                                });
+                                  removeIntel.mutate({
+                                    id: i.id,
+                                    removidoPor: op,
+                                  });
                               }}
                               className="px-[10px] py-1 text-[11px] rounded-[10px] bg-red-50 text-red-700 border border-red-300 font-bold cursor-pointer"
                             >
@@ -609,14 +648,24 @@ export default function Dashboard() {
                             </td>
                             <td className="p-[6px]">
                               <OperatorGate operador={op}>
-                                <button
-                                  onClick={() =>
-                                    handleRemoveCase(c)
-                                  }
-                                  className="bg-transparent border border-red-300 rounded-md text-red-600 cursor-pointer py-[3px] px-2 text-xs font-bold"
-                                >
-                                  ✕
-                                </button>
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    onClick={() =>
+                                      handleOpenEditCase(c)
+                                    }
+                                    className="bg-transparent border border-blue-300 rounded-md text-blue-700 cursor-pointer py-[3px] px-2 text-xs font-bold"
+                                  >
+                                    ✎
+                                  </button>
+                                  <button
+                                    onClick={() =>
+                                      handleRemoveCase(c)
+                                    }
+                                    className="bg-transparent border border-red-300 rounded-md text-red-600 cursor-pointer py-[3px] px-2 text-xs font-bold"
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
                               </OperatorGate>
                             </td>
                           </tr>
@@ -683,6 +732,7 @@ export default function Dashboard() {
                       "MR",
                       "Médico",
                       "OC",
+                      "Ações",
                     ].map((c) => (
                       <th
                         key={c}
@@ -735,6 +785,30 @@ export default function Dashboard() {
                           <td className="py-[10px] px-3 text-slate-400">
                             {c.oc || "—"}
                           </td>
+                          <td className="py-[10px] px-3">
+                            {c.ativo && (
+                              <OperatorGate operador={op}>
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    onClick={() =>
+                                      handleOpenEditCase(c)
+                                    }
+                                    className="bg-transparent border border-blue-300 rounded-md text-blue-700 cursor-pointer py-[3px] px-2 text-xs font-bold"
+                                  >
+                                    ✎
+                                  </button>
+                                  <button
+                                    onClick={() =>
+                                      handleRemoveCase(c)
+                                    }
+                                    className="bg-transparent border border-red-300 rounded-md text-red-600 cursor-pointer py-[3px] px-2 text-xs font-bold"
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
+                              </OperatorGate>
+                            )}
+                          </td>
                         </tr>
                       );
                     })}
@@ -749,11 +823,11 @@ export default function Dashboard() {
       {showNew && (
         <NewCaseModal
           operador={op}
-          onSubmit={(data) => {
-            createCase.mutate(data);
-            setShowNew(false);
-          }}
-          onClose={() => setShowNew(false)}
+          initialData={editingCase}
+          title={editingCase ? "Editar Regulação" : "Registrar Regulação"}
+          submitLabel={editingCase ? "Salvar" : "Registrar"}
+          onSubmit={handleSubmitCase}
+          onClose={handleCloseCaseModal}
         />
       )}
 

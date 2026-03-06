@@ -10,6 +10,7 @@ export function useHospitals() {
     const unsub = onWsEvent((event) => {
       if (
         event.type === "case:created" ||
+        event.type === "case:updated" ||
         event.type === "case:removed" ||
         event.type === "intel:created" ||
         event.type === "intel:removed" ||

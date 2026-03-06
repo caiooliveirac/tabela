@@ -1,15 +1,30 @@
-import { useState } from "react";
-import type { CreateCasePayload } from "../lib/types";
-import { HOSPITALS, CAT_META, MRS } from "../lib/constants";
+import { useEffect, useState } from "react";
+import type { CaseRow } from "../lib/types";
+import { HOSPITALS, CAT_META } from "../lib/constants";
+
+export interface CaseFormInput {
+  hospitalId: string;
+  situacao: "ACEITO" | "ZERO";
+  caso?: string;
+  mr?: string;
+  medico?: string;
+  oc?: string;
+}
 
 interface NewCaseModalProps {
   operador: string;
-  onSubmit: (data: CreateCasePayload) => void;
+  initialData?: CaseRow | null;
+  title?: string;
+  submitLabel?: string;
+  onSubmit: (data: CaseFormInput) => void;
   onClose: () => void;
 }
 
 export default function NewCaseModal({
   operador,
+  initialData,
+  title = "Registrar Regulação",
+  submitLabel = "Registrar",
   onSubmit,
   onClose,
 }: NewCaseModalProps) {
@@ -22,6 +37,40 @@ export default function NewCaseModal({
     oc: "",
   });
 
+  useEffect(() => {
+    if (!initialData) {
+      setForm({
+        hospital: "",
+        situacao: "ACEITO",
+        caso: "",
+        mr: "",
+        medico: "",
+        oc: "",
+      });
+      return;
+    }
+
+    setForm({
+      hospital: initialData.hospitalId,
+      situacao: initialData.situacao,
+      caso: initialData.caso || "",
+      mr: initialData.mr || "",
+      medico: initialData.medico || "",
+      oc: initialData.oc || "",
+    });
+  }, [initialData]);
+
+  useEffect(() => {
+    if (initialData) return;
+    const op = operador.trim();
+    if (!op) return;
+    setForm((prev) => {
+      const next = { ...prev };
+      if (!next.mr.trim()) next.mr = op;
+      return next;
+    });
+  }, [operador]);
+
   const handleSubmit = () => {
     if (!form.hospital) return;
     onSubmit({
@@ -31,7 +80,6 @@ export default function NewCaseModal({
       mr: form.mr || undefined,
       medico: form.medico || undefined,
       oc: form.oc || undefined,
-      criadoPor: operador,
     });
   };
 
@@ -42,10 +90,14 @@ export default function NewCaseModal({
   return (
     <div
       className="fixed inset-0 bg-black/30 flex items-center justify-center z-[200] p-5"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
+      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="bg-white rounded-2xl p-6 w-full max-w-[480px] shadow-2xl">
-        <h3 className="text-lg font-black mb-4">Registrar Regulação</h3>
+      <div
+        className="bg-white rounded-2xl p-6 w-full max-w-[480px] shadow-2xl"
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="text-lg font-black mb-4">{title}</h3>
         <div className="flex flex-col gap-3">
           <div className="grid grid-cols-2 gap-[10px]">
             <div>
@@ -120,20 +172,14 @@ export default function NewCaseModal({
               <label className="text-[11px] font-bold text-slate-500 uppercase">
                 MR
               </label>
-              <select
+              <input
+                placeholder={operador.trim() || "Nome do MR"}
                 value={form.mr}
                 onChange={(e) =>
                   setForm({ ...form, mr: e.target.value })
                 }
-                className={sel}
-              >
-                <option value="">Opcional...</option>
-                {MRS.map((m) => (
-                  <option key={m} value={m}>
-                    {m}
-                  </option>
-                ))}
-              </select>
+                className={inp}
+              />
             </div>
             <div>
               <label className="text-[11px] font-bold text-slate-500 uppercase">
@@ -154,7 +200,6 @@ export default function NewCaseModal({
               Médico que recebeu
             </label>
             <input
-              placeholder="Nome do médico"
               value={form.medico}
               onChange={(e) =>
                 setForm({ ...form, medico: e.target.value })
@@ -167,7 +212,7 @@ export default function NewCaseModal({
               onClick={handleSubmit}
               className="px-5 py-[10px] rounded-[10px] border-none bg-blue-700 text-white text-sm font-bold cursor-pointer"
             >
-              Registrar
+              {submitLabel}
             </button>
             <button
               onClick={onClose}
