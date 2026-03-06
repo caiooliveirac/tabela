@@ -9,6 +9,9 @@ export type WsEvent =
   | { type: "case:removed"; payload: unknown }
   | { type: "intel:created"; payload: unknown }
   | { type: "intel:removed"; payload: unknown }
+  | { type: "chefia:created"; payload: unknown }
+  | { type: "chefia:updated"; payload: unknown }
+  | { type: "chefia:removed"; payload: unknown }
   | { type: "refresh" };
 
 export function setupWebSocket(server: Server): WebSocketServer {

@@ -14,11 +14,15 @@ export function useHospitals() {
         event.type === "case:removed" ||
         event.type === "intel:created" ||
         event.type === "intel:removed" ||
+        event.type === "chefia:created" ||
+        event.type === "chefia:updated" ||
+        event.type === "chefia:removed" ||
         event.type === "refresh"
       ) {
         queryClient.invalidateQueries({ queryKey: ["hospitals"] });
         queryClient.invalidateQueries({ queryKey: ["cases"] });
         queryClient.invalidateQueries({ queryKey: ["intel"] });
+        queryClient.invalidateQueries({ queryKey: ["chefia"] });
       }
     });
     return unsub;

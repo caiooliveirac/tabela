@@ -52,7 +52,7 @@ export default function IntelModal({
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div className="bg-white rounded-2xl p-6 w-full max-w-[500px] shadow-2xl max-h-[90vh] overflow-y-auto">
-        <h3 className="text-lg font-black mb-[6px]">Intel Qualitativa</h3>
+        <h3 className="text-lg font-black mb-[6px]">Alertas</h3>
         <p className="text-[13px] text-slate-500 mb-4">
           Registre condições que afetam a regulação.
         </p>
@@ -138,7 +138,7 @@ export default function IntelModal({
               onClick={handleSubmit}
               className="px-5 py-[10px] rounded-[10px] border-none bg-amber-500 text-amber-900 text-sm font-bold cursor-pointer"
             >
-              Registrar Intel
+              Registrar Alerta
             </button>
             <button
               onClick={onClose}
@@ -153,7 +153,7 @@ export default function IntelModal({
         {activeIntel.length > 0 && (
           <div className="mt-[18px] border-t border-slate-200 pt-[14px]">
             <div className="text-[11px] font-extrabold text-slate-600 uppercase mb-2">
-              Intel ativa ({activeIntel.length})
+              Alertas ativos ({activeIntel.length})
             </div>
             {activeIntel.map((i) => {
               const h = HOSPITALS.find((x) => x.id === i.hospitalId);

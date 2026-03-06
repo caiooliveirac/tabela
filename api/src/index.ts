@@ -9,6 +9,7 @@ import { setupWebSocket } from "./ws/handler.js";
 import casesRouter from "./routes/cases.js";
 import intelRouter from "./routes/intel.js";
 import hospitalsRouter from "./routes/hospitals.js";
+import chefiaRouter from "./routes/chefia.js";
 
 const PORT = parseInt(process.env.PORT || "3000", 10);
 const DATABASE_URL =
@@ -32,6 +33,7 @@ app.get("/tabela/api/health", (_req, res) => {
 app.use("/tabela/api/cases", casesRouter);
 app.use("/tabela/api/intel", intelRouter);
 app.use("/tabela/api/hospitals", hospitalsRouter);
+app.use("/tabela/api/chefia", chefiaRouter);
 
 // HTTP + WebSocket server
 const server = createServer(app);

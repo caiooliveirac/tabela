@@ -5,10 +5,13 @@
 import type {
   CaseRow,
   IntelRow,
+  ChefiaAlert,
   HospitalsResponse,
   CreateCasePayload,
   UpdateCasePayload,
   CreateIntelPayload,
+  CreateChefiaPayload,
+  UpdateChefiaPayload,
   WsEvent,
 } from "../lib/types";
 
@@ -70,6 +73,27 @@ export const api = {
     request<IntelRow>(`/intel/${id}`, {
       method: "DELETE",
       body: JSON.stringify({ removidoPor }),
+    }),
+
+  // ── Chefia ──
+  getChefia: () => request<ChefiaAlert[]>("/chefia"),
+
+  createChefia: (data: CreateChefiaPayload) =>
+    request<ChefiaAlert>("/chefia", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  removeChefia: (id: number, removidoPor: string) =>
+    request<ChefiaAlert>(`/chefia/${id}`, {
+      method: "DELETE",
+      body: JSON.stringify({ removidoPor }),
+    }),
+
+  updateChefia: (id: number, data: UpdateChefiaPayload) =>
+    request<ChefiaAlert>(`/chefia/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
     }),
 
   // ── Hospitals (scores) ──

@@ -13,7 +13,7 @@
 //     normalizado → +10 × decay
 //   - Clamp [0, 100]
 //   - Semáforo: ≥60 green, ≥35 yellow, <35 red
-//   - Sort: score DESC → fewer aceitos → older last case
+//   - Sort: sem dados primeiro (ordem fixa gerais) → score DESC → fewer aceitos → older last case
 // ═══════════════════════════════════════════════════════════════
 
 export interface Hospital {
@@ -101,6 +101,21 @@ const INTEL_SCORE: Record<string, number> = {
 };
 const BASE_WITH_DATA = 80;
 const BASE_NO_DATA = 50;
+
+const NO_INFO_GERAL_ORDER = [
+  "municipal",
+  "hgrs",
+  "suburbio",
+  "hgesf",
+  "hge",
+  "eladio",
+  "metropolitano",
+  "menandro",
+] as const;
+
+const NO_INFO_GERAL_ORDER_INDEX: Record<string, number> = Object.fromEntries(
+  NO_INFO_GERAL_ORDER.map((id, idx) => [id, idx])
+);
 
 // ── Helpers ──────────────────────────────────────────────────
 
@@ -215,12 +230,15 @@ export function compute(
     const z = g.zeros.length;
     const a = tot - z;
     const tx = tot > 0 ? a / tot : null;
+    const noInfo = tot === 0 && g.intel.length === 0;
 
     const s = computeHospitalScore(g);
 
     let sem: "green" | "yellow" | "red" = "green";
-    if (s < 35) sem = "red";
-    else if (s < 60) sem = "yellow";
+    if (!noInfo) {
+      if (s < 35) sem = "red";
+      else if (s < 60) sem = "yellow";
+    }
 
     // Vaga zero expira visualmente em 6h
     const lzShow = g.lz && hoursAgo(g.lz.timestamp) < 6 ? g.lz : null;
@@ -243,6 +261,17 @@ export function compute(
 
   // Sort: score DESC → fewer aceitos → older last case
   hospitalData.sort((a, b) => {
+    const aNoInfo = a.total === 0 && a.intel.length === 0;
+    const bNoInfo = b.total === 0 && b.intel.length === 0;
+
+    if (aNoInfo !== bNoInfo) return aNoInfo ? -1 : 1;
+
+    if (aNoInfo && bNoInfo && a.cat === "geral" && b.cat === "geral") {
+      const aIdx = NO_INFO_GERAL_ORDER_INDEX[a.id] ?? Number.MAX_SAFE_INTEGER;
+      const bIdx = NO_INFO_GERAL_ORDER_INDEX[b.id] ?? Number.MAX_SAFE_INTEGER;
+      if (aIdx !== bIdx) return aIdx - bIdx;
+    }
+
     if (b.score !== a.score) return b.score - a.score;
     if (a.aceitos !== b.aceitos) return a.aceitos - b.aceitos;
     // older lc first (null = never interacted = lowest priority)

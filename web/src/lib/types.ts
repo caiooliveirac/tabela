@@ -89,6 +89,26 @@ export interface CreateIntelPayload {
   autor: string;
 }
 
+export interface ChefiaAlert {
+  id: number;
+  mensagem: string;
+  autor: string;
+  timestamp: string;
+  ativo: boolean;
+  removidoPor: string | null;
+  removidoEm: string | null;
+}
+
+export interface CreateChefiaPayload {
+  mensagem: string;
+  autor: string;
+}
+
+export interface UpdateChefiaPayload {
+  mensagem: string;
+  autor: string;
+}
+
 export type WsEvent =
   | { type: "connected"; clients: number }
   | { type: "case:created"; payload: CaseRow }
@@ -96,4 +116,7 @@ export type WsEvent =
   | { type: "case:removed"; payload: CaseRow }
   | { type: "intel:created"; payload: IntelRow }
   | { type: "intel:removed"; payload: IntelRow }
+  | { type: "chefia:created"; payload: ChefiaAlert }
+  | { type: "chefia:updated"; payload: ChefiaAlert }
+  | { type: "chefia:removed"; payload: ChefiaAlert }
   | { type: "refresh" };

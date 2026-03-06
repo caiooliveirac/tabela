@@ -33,3 +33,13 @@ export const intel = pgTable("intel", {
   removidoPor: varchar("removido_por", { length: 100 }),
   removidoEm: timestamp("removido_em", { withTimezone: true }),
 });
+
+export const chefiaAlerts = pgTable("chefia_alerts", {
+  id: serial("id").primaryKey(),
+  mensagem: text("mensagem").notNull(),
+  autor: varchar("autor", { length: 100 }).notNull(),
+  timestamp: timestamp("timestamp", { withTimezone: true }).notNull().defaultNow(),
+  ativo: boolean("ativo").notNull().default(true),
+  removidoPor: varchar("removido_por", { length: 100 }),
+  removidoEm: timestamp("removido_em", { withTimezone: true }),
+});

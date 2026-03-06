@@ -108,8 +108,8 @@ export function scoreToColor(score: number): ScoreColorSet {
 
 /** Neutral style for hospitals without data */
 export const NEUTRAL_STYLE: ScoreColorSet = {
-  bd: "#cbd5e1",
-  bg: "#f8fafc",
-  tx: "#64748b",
-  glow: "none",
+  bd: "#22c55e",
+  bg: "#ecfdf3",
+  tx: "#166534",
+  glow: "0 0 10px rgba(34, 197, 94, 0.20)",
 };

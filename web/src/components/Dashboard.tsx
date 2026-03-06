@@ -11,10 +11,12 @@ import { generateTutorialData, type TutorialDataResult } from "../lib/tutorialDa
 import { useHospitals } from "../hooks/useHospitals";
 import { useCreateCase, useRemoveCase, useUpdateCase } from "../hooks/useCases";
 import { useIntel, useCreateIntel, useRemoveIntel } from "../hooks/useIntel";
+import { useChefia, useCreateChefia, useRemoveChefia, useUpdateChefia } from "../hooks/useChefia";
 import HospitalCard from "./HospitalCard";
 import OperatorGate from "./OperatorGate";
 import NewCaseModal, { type CaseFormInput } from "./NewCaseModal";
 import IntelModal from "./IntelModal";
+import ChefiaModal from "./ChefiaModal";
 import ConfirmDialog from "./ConfirmDialog";
 import Tutorial from "./Tutorial";
 import SummaryDrawer from "./SummaryDrawer";
@@ -31,6 +33,40 @@ function fAgo(ts: string): string {
   const h = Math.floor(m / 60);
   const r = m % 60;
   return r > 0 ? `${h}h${String(r).padStart(2, "0")}` : `${h}h`;
+}
+
+const NO_INFO_GERAL_ORDER = [
+  "municipal",
+  "hgrs",
+  "suburbio",
+  "hgesf",
+  "hge",
+  "eladio",
+  "metropolitano",
+  "menandro",
+] as const;
+
+const NO_INFO_GERAL_ORDER_INDEX: Record<string, number> = Object.fromEntries(
+  NO_INFO_GERAL_ORDER.map((id, idx) => [id, idx])
+);
+
+function isNoInfoHospital(h: HospitalData): boolean {
+  return h.total === 0 && h.intel.length === 0;
+}
+
+function compareHospitals(a: HospitalData, b: HospitalData): number {
+  const aNoInfo = isNoInfoHospital(a);
+  const bNoInfo = isNoInfoHospital(b);
+
+  if (aNoInfo !== bNoInfo) return aNoInfo ? -1 : 1;
+
+  if (aNoInfo && bNoInfo && a.cat === "geral" && b.cat === "geral") {
+    const aIdx = NO_INFO_GERAL_ORDER_INDEX[a.id] ?? Number.MAX_SAFE_INTEGER;
+    const bIdx = NO_INFO_GERAL_ORDER_INDEX[b.id] ?? Number.MAX_SAFE_INTEGER;
+    if (aIdx !== bIdx) return aIdx - bIdx;
+  }
+
+  return b.score - a.score;
 }
 
 const Badge = ({
@@ -62,27 +98,42 @@ export default function Dashboard() {
   // API data
   const { data: hospitalsData, isLoading, error } = useHospitals();
   const { data: allIntel = [] } = useIntel();
+  const { data: chefiaAlerts = [] } = useChefia();
   const createCase = useCreateCase();
   const updateCase = useUpdateCase();
   const removeCase = useRemoveCase();
   const createIntel = useCreateIntel();
   const removeIntel = useRemoveIntel();
+  const createChefia = useCreateChefia();
+  const removeChefia = useRemoveChefia();
+  const updateChefia = useUpdateChefia();
 
   // UI state
   const [selH, setSelH] = useState<string | null>(null);
   const [showNew, setShowNew] = useState(false);
   const [editingCase, setEditingCase] = useState<CaseRow | null>(null);
   const [showIntel, setShowIntel] = useState(false);
-  const [op, setOp] = useState("");
-  const [tab, setTab] = useState<"semaphore" | "timeline">("semaphore");
+  const [showChefia, setShowChefia] = useState(false);
+  const [editingChefia, setEditingChefia] = useState<typeof chefiaAlerts[number] | null>(null);
+  const [op, setOp] = useState(() => localStorage.getItem("tabela:op") || "");
+  const [tab, setTab] = useState<"semaphore" | "timeline">(
+    () => (localStorage.getItem("tabela:tab") as "semaphore" | "timeline") || "semaphore"
+  );
   const [confirm, setConfirm] = useState<{
     msg: string;
     detail?: string;
     onConfirm: () => void;
   } | null>(null);
 
-  // Summary drawer state
-  const [showSummary, setShowSummary] = useState(false);
+  // Summary drawer state — persisted in localStorage
+  const [showSummary, setShowSummary] = useState(
+    () => localStorage.getItem("tabela:showSummary") === "true"
+  );
+
+  // Persist op, tab, showSummary to localStorage
+  useEffect(() => { localStorage.setItem("tabela:op", op); }, [op]);
+  useEffect(() => { localStorage.setItem("tabela:tab", tab); }, [tab]);
+  useEffect(() => { localStorage.setItem("tabela:showSummary", String(showSummary)); }, [showSummary]);
 
   // Tutorial state
   const [tutActive, setTutActive] = useState(false);
@@ -103,18 +154,18 @@ export default function Dashboard() {
     () =>
       hospitals
         .filter((h) => h.cat === "geral")
-        .sort((a, b) => b.score - a.score),
+        .sort(compareHospitals),
     [hospitals]
   );
   const psiq = useMemo(
     () =>
       hospitals
         .filter((h) => h.cat === "psiq")
-        .sort((a, b) => b.score - a.score),
+        .sort(compareHospitals),
     [hospitals]
   );
   const infecto = useMemo(
-    () => hospitals.filter((h) => h.cat === "infecto"),
+    () => hospitals.filter((h) => h.cat === "infecto").sort(compareHospitals),
     [hospitals]
   );
 
@@ -601,9 +652,21 @@ export default function Dashboard() {
               onClick={() => { if (!tutActive) setShowIntel(true); }}
               className="py-[7px] px-[14px] text-xs rounded-[10px] border-none bg-amber-500 text-amber-900 font-bold cursor-pointer"
             >
-              ⚠ Intel
+              ⚠ Alertas
             </button>
           </OperatorGate>
+          <button
+            onClick={() => { if (!tutActive) setShowChefia(true); }}
+            className="py-[7px] px-[14px] text-xs rounded-[10px] border-none font-bold cursor-pointer relative"
+            style={{ backgroundColor: "#dc2626", color: "#fff" }}
+          >
+            🚨 Chefia
+            {chefiaAlerts.filter((a) => a.ativo).length > 0 && (
+              <span className="absolute -top-1 -right-1 w-[16px] h-[16px] rounded-full bg-white text-red-600 text-[9px] font-black flex items-center justify-center shadow">
+                {chefiaAlerts.filter((a) => a.ativo).length}
+              </span>
+            )}
+          </button>
           <OperatorGate operador={op}>
             <button
               data-tutorial-id="btn-new-case"
@@ -649,254 +712,299 @@ export default function Dashboard() {
 
       {/* BODY = content + drawer side by side (desktop) or stacked (mobile) */}
       <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
-      {/* Left: main content */}
-      <div className="flex-1 min-w-0 overflow-y-auto flex flex-col">
+        {/* Left: main content */}
+        <div className="flex-1 min-w-0 overflow-y-auto flex flex-col">
 
-      {/* KPIs */}
-      <div className="flex gap-[1px] bg-slate-200 border-b border-slate-200">
-        {[
-          { l: "Regulações", v: String(totC), c: "#1a56db" },
-          { l: "Vagas Zero", v: String(totZ), c: "#dc2626" },
-          {
-            l: "Taxa aceite",
-            v: `${txG}%`,
-            c: txG >= 60 ? "#16a34a" : "#ca8a04",
-          },
-          {
-            l: "Aceitando",
-            v: `${geral.filter((h) => h.sem === "green").length}/${geral.length}`,
-            c: "#16a34a",
-          },
-        ].map((k, i) => (
-          <div
-            key={i}
-            className="flex-1 py-[10px] px-4 bg-white flex items-baseline gap-2"
-          >
-            <span
-              className="text-2xl font-black"
-              style={{ color: k.c }}
-            >
-              {k.v}
-            </span>
-            <span className="text-[11px] font-semibold text-slate-500 uppercase">
-              {k.l}
-            </span>
-          </div>
-        ))}
-      </div>
-
-      {/* MAIN */}
-      <div className="px-6 py-[18px] max-w-[1400px] mx-auto w-full">
-        {tab === "semaphore" ? (
-          <>
-            {/* Legend — gradient bar */}
-            <div className="flex gap-4 mb-[18px] flex-wrap items-center py-2 px-[14px] bg-white rounded-[10px] border border-slate-200">
-              <span className="text-[11px] font-extrabold text-slate-600 uppercase">
-                Legenda:
-              </span>
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] font-bold" style={{ color: "hsl(0,85%,33%)" }}>Negando</span>
-                <div
-                  className="w-36 h-[10px] rounded-full"
-                  style={{
-                    background: "linear-gradient(to right, hsl(0,85%,33%), hsl(12,80%,38%), hsl(30,72%,40%), hsl(45,68%,42%), hsl(55,65%,40%), hsl(75,62%,40%), hsl(110,70%,40%), hsl(140,75%,38%))",
-                  }}
-                />
-                <span className="text-[11px] font-bold" style={{ color: "hsl(140,75%,30%)" }}>Aceitando</span>
-              </div>
-              <span className="text-[11px] text-slate-500">
-                🚫 vaga zero · 🚑 envio planejado · ⚠️ alerta
-              </span>
-            </div>
-
-            <div data-tutorial-id="section-geral">
-              <SH
-                icon="🏥"
-                label="Emergência Geral — para onde regular?"
-                n={geral.length}
-              />
-              <Grid hospitals={geral} />
-
-              {/* DETAIL PANEL — aparece logo abaixo dos cards gerais */}
-              {visibleSel && visibleSel.cat === "geral" && (
-                <div
-                  ref={detailRef}
-                  className={`bg-white border-2 border-slate-200 rounded-[14px] p-5 mb-6 shadow-sm origin-top ${detailClass}`}
+          {/* KPIs */}
+          <div className="flex gap-[1px] bg-slate-200 border-b border-slate-200">
+            {[
+              { l: "Regulações", v: String(totC), c: "#1a56db" },
+              { l: "Vagas Zero", v: String(totZ), c: "#dc2626" },
+              {
+                l: "Taxa aceite",
+                v: `${txG}%`,
+                c: txG >= 60 ? "#16a34a" : "#ca8a04",
+              },
+              {
+                l: "Aceitando",
+                v: `${geral.filter((h) => h.sem === "green").length}/${geral.length}`,
+                c: "#16a34a",
+              },
+            ].map((k, i) => (
+              <div
+                key={i}
+                className="flex-1 py-[10px] px-4 bg-white flex items-baseline gap-2"
+              >
+                <span
+                  className="text-2xl font-black"
+                  style={{ color: k.c }}
                 >
-                  <DetailContent h={visibleSel} />
-                </div>
-              )}
-            </div>
-
-            <div data-tutorial-id="section-specialty" className="grid grid-cols-2 gap-6">
-              <div>
-                <SH icon="🧠" label="Psiquiatria" n={psiq.length} />
-                <div className="flex flex-col gap-[10px]">
-                  {psiq.map((h) => (
-                    <HospitalCard
-                      key={h.id}
-                      h={h}
-                      onSelect={setSelH}
-                      isSel={selH === h.id}
-                    />
-                  ))}
-                </div>
-                {/* Detail panel psiq */}
-                {visibleSel && visibleSel.cat === "psiq" && (
-                  <div
-                    ref={detailRef}
-                    className={`bg-white border-2 border-slate-200 rounded-[14px] p-5 mt-3 shadow-sm origin-top ${detailClass}`}
-                  >
-                    <DetailContent h={visibleSel} />
-                  </div>
-                )}
+                  {k.v}
+                </span>
+                <span className="text-[11px] font-semibold text-slate-500 uppercase">
+                  {k.l}
+                </span>
               </div>
-              <div>
-                <SH
-                  icon="🦠"
-                  label="Infectologia (HIV/TB)"
-                  n={infecto.length}
-                />
-                <div className="flex flex-col gap-[10px]">
-                  {infecto.map((h) => (
-                    <HospitalCard
-                      key={h.id}
-                      h={h}
-                      onSelect={setSelH}
-                      isSel={selH === h.id}
-                    />
-                  ))}
-                </div>
-                {/* Detail panel infecto */}
-                {visibleSel && visibleSel.cat === "infecto" && (
-                  <div
-                    ref={detailRef}
-                    className={`bg-white border-2 border-slate-200 rounded-[14px] p-5 mt-3 shadow-sm origin-top ${detailClass}`}
-                  >
-                    <DetailContent h={visibleSel} />
-                  </div>
-                )}
-              </div>
-            </div>
-          </>
-        ) : (
-          /* TIMELINE TAB */
-          <div className="bg-white rounded-[14px] border-2 border-slate-200 overflow-hidden">
-            <div className="py-3 px-[18px] border-b-2 border-slate-200 flex justify-between">
-              <h2 className="m-0 text-[15px] font-extrabold">
-                Casos — últimas 24h
-              </h2>
-              <span className="text-xs text-slate-400">
-                {timelineCases.length} regulações
-              </span>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-[13px]">
-                <thead>
-                  <tr className="border-b-2 border-slate-200 bg-slate-50">
-                    {[
-                      "Hora",
-                      "Hospital",
-                      "Resultado",
-                      "Caso",
-                      "MR",
-                      "Médico",
-                      "OC",
-                      "Ações",
-                    ].map((c) => (
-                      <th
-                        key={c}
-                        className="text-left py-[10px] px-3 text-slate-500 font-bold text-[11px] uppercase"
-                      >
-                        {c}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {[...timelineCases]
-                    .sort(
-                      (a, b) =>
-                        new Date(b.timestamp).getTime() -
-                        new Date(a.timestamp).getTime()
-                    )
-                    .map((c) => {
-                      const hosp = HOSPITALS.find(
-                        (hh) => hh.id === c.hospitalId
-                      );
-                      return (
-                        <tr
-                          key={c.id}
-                          className="border-b border-slate-100"
-                          style={{ opacity: c.ativo ? 1 : 0.4 }}
-                        >
-                          <td className="py-[10px] px-3 font-bold">
-                            {fmt(c.timestamp)}
-                          </td>
-                          <td className="py-[10px] px-3 font-bold">
-                            {hosp?.name}
-                          </td>
-                          <td className="py-[10px] px-3">
-                            {c.situacao === "ACEITO" ? (
-                              <Badge v="aceito">✅ Aceito</Badge>
-                            ) : (
-                              <Badge v="zero">🚫 Vaga Zero</Badge>
-                            )}
-                          </td>
-                          <td className="py-[10px] px-3 max-w-[250px]">
-                            {c.caso || "—"}
-                          </td>
-                          <td className="py-[10px] px-3">
-                            {c.mr || "—"}
-                          </td>
-                          <td className="py-[10px] px-3">
-                            {c.medico || "—"}
-                          </td>
-                          <td className="py-[10px] px-3 text-slate-400">
-                            {c.oc || "—"}
-                          </td>
-                          <td className="py-[10px] px-3">
-                            {c.ativo && (
-                              <OperatorGate operador={op}>
-                                <div className="flex items-center gap-1">
-                                  <button
-                                    onClick={() =>
-                                      handleOpenEditCase(c)
-                                    }
-                                    className="bg-transparent border border-blue-300 rounded-md text-blue-700 cursor-pointer py-[3px] px-2 text-xs font-bold"
-                                  >
-                                    ✎
-                                  </button>
-                                  <button
-                                    onClick={() =>
-                                      handleRemoveCase(c)
-                                    }
-                                    className="bg-transparent border border-red-300 rounded-md text-red-600 cursor-pointer py-[3px] px-2 text-xs font-bold"
-                                  >
-                                    ✕
-                                  </button>
-                                </div>
-                              </OperatorGate>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                </tbody>
-              </table>
-            </div>
+            ))}
           </div>
-        )}
-      </div>
 
-      </div>{/* end left content */}
+          {/* MAIN */}
+          <div className="px-6 py-[18px] max-w-[1400px] mx-auto w-full">
 
-      {/* Right: summary drawer (inline, no overlap) */}
-      <SummaryDrawer
-        open={showSummary}
-        onClose={() => setShowSummary(false)}
-        hospitals={hospitals}
-      />
+            {/* CHEFIA ALERT BANNER — glass, inside content column */}
+            {chefiaAlerts.filter((a) => a.ativo).length > 0 && (
+              <div className="mb-[14px] space-y-2">
+                {chefiaAlerts
+                  .filter((a) => a.ativo)
+                  .map((a) => (
+                    <div
+                      key={a.id}
+                      className="flex items-start gap-[10px] w-full rounded-[10px] border border-red-200 px-4 py-[10px] backdrop-blur"
+                      style={{ backgroundColor: "rgba(220, 38, 38, 0.07)" }}
+                    >
+                      <span className="text-base leading-none mt-[2px] flex-shrink-0">🚨</span>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-[11px] font-black text-red-600 uppercase tracking-wide">
+                          Alerta da chefia:{" "}
+                        </span>
+                        <span className="text-[13px] font-bold text-red-900 leading-snug">
+                          {a.mensagem}
+                        </span>
+                        <div className="text-[10px] text-red-400 mt-[3px] font-semibold">
+                          {a.autor} · {fmt(a.timestamp)}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 flex-shrink-0 mt-[2px]">
+                        <button
+                          onClick={() => { setEditingChefia(a); setShowChefia(true); }}
+                          className="text-blue-300 hover:text-blue-600 text-xs font-bold bg-transparent border border-blue-200 rounded-md px-[6px] py-[2px] cursor-pointer"
+                          title="Editar alerta"
+                        >
+                          ✎
+                        </button>
+                        <button
+                          onClick={() => removeChefia.mutate({ id: a.id, removidoPor: op || "sistema" })}
+                          className="text-red-300 hover:text-red-600 text-xs font-bold bg-transparent border border-red-200 rounded-md px-[6px] py-[2px] cursor-pointer"
+                          title="Remover alerta"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            )}
+
+            {tab === "semaphore" ? (
+              <>
+                {/* Legend — gradient bar */}
+                <div className="flex gap-4 mb-[18px] flex-wrap items-center py-2 px-[14px] bg-white rounded-[10px] border border-slate-200">
+                  <span className="text-[11px] font-extrabold text-slate-600 uppercase">
+                    Legenda:
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-bold" style={{ color: "hsl(0,85%,33%)" }}>Negando</span>
+                    <div
+                      className="w-36 h-[10px] rounded-full"
+                      style={{
+                        background: "linear-gradient(to right, hsl(0,85%,33%), hsl(12,80%,38%), hsl(30,72%,40%), hsl(45,68%,42%), hsl(55,65%,40%), hsl(75,62%,40%), hsl(110,70%,40%), hsl(140,75%,38%))",
+                      }}
+                    />
+                    <span className="text-[11px] font-bold" style={{ color: "hsl(140,75%,30%)" }}>Aceitando</span>
+                  </div>
+                  <span className="text-[11px] text-slate-500">
+                    🚫 vaga zero · 🚑 envio planejado · ⚠️ alerta
+                  </span>
+                </div>
+
+                <div data-tutorial-id="section-geral">
+                  <SH
+                    icon="🏥"
+                    label="Emergência Geral — para onde regular?"
+                    n={geral.length}
+                  />
+                  <Grid hospitals={geral} />
+
+                  {/* DETAIL PANEL — aparece logo abaixo dos cards gerais */}
+                  {visibleSel && visibleSel.cat === "geral" && (
+                    <div
+                      ref={detailRef}
+                      className={`bg-white border-2 border-slate-200 rounded-[14px] p-5 mb-6 shadow-sm origin-top ${detailClass}`}
+                    >
+                      <DetailContent h={visibleSel} />
+                    </div>
+                  )}
+                </div>
+
+                <div data-tutorial-id="section-specialty" className="grid grid-cols-2 gap-6">
+                  <div>
+                    <SH icon="🧠" label="Psiquiatria" n={psiq.length} />
+                    <div className="flex flex-col gap-[10px]">
+                      {psiq.map((h) => (
+                        <HospitalCard
+                          key={h.id}
+                          h={h}
+                          onSelect={setSelH}
+                          isSel={selH === h.id}
+                        />
+                      ))}
+                    </div>
+                    {/* Detail panel psiq */}
+                    {visibleSel && visibleSel.cat === "psiq" && (
+                      <div
+                        ref={detailRef}
+                        className={`bg-white border-2 border-slate-200 rounded-[14px] p-5 mt-3 shadow-sm origin-top ${detailClass}`}
+                      >
+                        <DetailContent h={visibleSel} />
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <SH
+                      icon="🦠"
+                      label="Infectologia (HIV/TB)"
+                      n={infecto.length}
+                    />
+                    <div className="flex flex-col gap-[10px]">
+                      {infecto.map((h) => (
+                        <HospitalCard
+                          key={h.id}
+                          h={h}
+                          onSelect={setSelH}
+                          isSel={selH === h.id}
+                        />
+                      ))}
+                    </div>
+                    {/* Detail panel infecto */}
+                    {visibleSel && visibleSel.cat === "infecto" && (
+                      <div
+                        ref={detailRef}
+                        className={`bg-white border-2 border-slate-200 rounded-[14px] p-5 mt-3 shadow-sm origin-top ${detailClass}`}
+                      >
+                        <DetailContent h={visibleSel} />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </>
+            ) : (
+              /* TIMELINE TAB */
+              <div className="bg-white rounded-[14px] border-2 border-slate-200 overflow-hidden">
+                <div className="py-3 px-[18px] border-b-2 border-slate-200 flex justify-between">
+                  <h2 className="m-0 text-[15px] font-extrabold">
+                    Casos — últimas 24h
+                  </h2>
+                  <span className="text-xs text-slate-400">
+                    {timelineCases.length} regulações
+                  </span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse text-[13px]">
+                    <thead>
+                      <tr className="border-b-2 border-slate-200 bg-slate-50">
+                        {[
+                          "Hora",
+                          "Hospital",
+                          "Resultado",
+                          "Caso",
+                          "MR",
+                          "Médico",
+                          "OC",
+                          "Ações",
+                        ].map((c) => (
+                          <th
+                            key={c}
+                            className="text-left py-[10px] px-3 text-slate-500 font-bold text-[11px] uppercase"
+                          >
+                            {c}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[...timelineCases]
+                        .sort(
+                          (a, b) =>
+                            new Date(b.timestamp).getTime() -
+                            new Date(a.timestamp).getTime()
+                        )
+                        .map((c) => {
+                          const hosp = HOSPITALS.find(
+                            (hh) => hh.id === c.hospitalId
+                          );
+                          return (
+                            <tr
+                              key={c.id}
+                              className="border-b border-slate-100"
+                              style={{ opacity: c.ativo ? 1 : 0.4 }}
+                            >
+                              <td className="py-[10px] px-3 font-bold">
+                                {fmt(c.timestamp)}
+                              </td>
+                              <td className="py-[10px] px-3 font-bold">
+                                {hosp?.name}
+                              </td>
+                              <td className="py-[10px] px-3">
+                                {c.situacao === "ACEITO" ? (
+                                  <Badge v="aceito">✅ Aceito</Badge>
+                                ) : (
+                                  <Badge v="zero">🚫 Vaga Zero</Badge>
+                                )}
+                              </td>
+                              <td className="py-[10px] px-3 max-w-[250px]">
+                                {c.caso || "—"}
+                              </td>
+                              <td className="py-[10px] px-3">
+                                {c.mr || "—"}
+                              </td>
+                              <td className="py-[10px] px-3">
+                                {c.medico || "—"}
+                              </td>
+                              <td className="py-[10px] px-3 text-slate-400">
+                                {c.oc || "—"}
+                              </td>
+                              <td className="py-[10px] px-3">
+                                {c.ativo && (
+                                  <OperatorGate operador={op}>
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        onClick={() =>
+                                          handleOpenEditCase(c)
+                                        }
+                                        className="bg-transparent border border-blue-300 rounded-md text-blue-700 cursor-pointer py-[3px] px-2 text-xs font-bold"
+                                      >
+                                        ✎
+                                      </button>
+                                      <button
+                                        onClick={() =>
+                                          handleRemoveCase(c)
+                                        }
+                                        className="bg-transparent border border-red-300 rounded-md text-red-600 cursor-pointer py-[3px] px-2 text-xs font-bold"
+                                      >
+                                        ✕
+                                      </button>
+                                    </div>
+                                  </OperatorGate>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+
+        </div>{/* end left content */}
+
+        {/* Right: summary drawer (inline, no overlap) */}
+        <SummaryDrawer
+          open={showSummary}
+          onClose={() => setShowSummary(false)}
+          hospitals={hospitals}
+        />
       </div>{/* end flex body */}
 
       {/* MODALS */}
@@ -924,6 +1032,25 @@ export default function Dashboard() {
             }
           }}
           onClose={() => setShowIntel(false)}
+        />
+      )}
+
+      {showChefia && (
+        <ChefiaModal
+          operador={op}
+          alerts={chefiaAlerts}
+          editingAlert={editingChefia}
+          onSubmit={(data) => {
+            createChefia.mutate(data);
+          }}
+          onUpdate={(id, data) => {
+            updateChefia.mutate({ id, data });
+            setEditingChefia(null);
+          }}
+          onRemove={(id) => {
+            removeChefia.mutate({ id, removidoPor: op || "sistema" });
+          }}
+          onClose={() => { setShowChefia(false); setEditingChefia(null); }}
         />
       )}
 
