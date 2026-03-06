@@ -15,19 +15,19 @@ interface HospitalSummary {
   total: number;
 }
 
-// Cores fixas por hospital — replicam a planilha original
-const HOSPITAL_COLORS: Record<string, string> = {
-  municipal: "#4a90d9",      // azul claro
-  hge: "#c0392b",            // vermelho
-  hgrs: "#2c3e80",           // azul marinho
-  suburbio: "#e67e22",       // laranja
-  hgesf: "#d63384",          // rosa/magenta
-  metropolitano: "#27ae60",  // verde
-  menandro: "#d4a017",       // amarelo ouro
-  eladio: "#7b2d8e",         // roxo
-  juliano_moreira: "#7f8c8d",// cinza
-  couto_maia: "#8b5e3c",     // marrom
-  mario_leal: "#e8a0bf",     // rosa claro
+// Cores fixas por hospital — replicam a planilha original (background da célula nome)
+const HOSPITAL_COLORS: Record<string, { bg: string; tx: string }> = {
+  municipal:        { bg: "#3b6fb5", tx: "#ffffff" },  // azul intermediária→escura
+  hge:              { bg: "#fef9c3", tx: "#78650d" },  // amarelo bem claro
+  hgrs:             { bg: "#fbc4b5", tx: "#7c2d12" },  // salmão bem claro
+  suburbio:         { bg: "#d1d5db", tx: "#374151" },  // cinza
+  hgesf:            { bg: "#fdba74", tx: "#7c2d12" },  // laranja
+  metropolitano:    { bg: "#d4608a", tx: "#ffffff" },  // rosa sério
+  menandro:         { bg: "#2a7a6d", tx: "#ffffff" },  // verde azulado escuro
+  eladio:           { bg: "#8b6aae", tx: "#ffffff" },  // roxo legível
+  juliano_moreira:  { bg: "#d1fae5", tx: "#065f46" },  // verde clarinho
+  couto_maia:       { bg: "#c9a84c", tx: "#3f2b00" },  // amarelo amarronzado
+  mario_leal:       { bg: "#dbeafe", tx: "#1e3a5f" },  // azul claro quase branco
 };
 
 /** Cor de fundo da coluna TOTAL — gradiente vermelho→laranja→verde baseado na proporção */
@@ -78,21 +78,14 @@ export default function SummaryDrawer({
     pctAce >= 60 ? "#16a34a" : pctAce >= 40 ? "#ca8a04" : "#dc2626";
 
   const Row = ({ r }: { r: HospitalSummary }) => {
-    const barColor = HOSPITAL_COLORS[r.id] || "#94a3b8";
+    const hc = HOSPITAL_COLORS[r.id] || { bg: "#e2e8f0", tx: "#334155" };
     return (
-      <tr
-        style={{
-          backgroundColor: r.zeros > 0 ? "#fef2f2" : undefined,
-        }}
-      >
-        <td className="py-[6px] pr-2 text-[12px] font-bold text-slate-800 whitespace-nowrap">
-          <div className="flex items-center gap-[6px]">
-            <div
-              className="w-[4px] h-[18px] rounded-sm flex-shrink-0"
-              style={{ backgroundColor: barColor }}
-            />
-            {r.name.toUpperCase()}
-          </div>
+      <tr>
+        <td
+          className="py-[6px] px-2 text-[12px] font-bold whitespace-nowrap"
+          style={{ backgroundColor: hc.bg, color: hc.tx }}
+        >
+          {r.name.toUpperCase()}
         </td>
         <td
           className="py-[6px] px-2 text-[12px] text-center tabular-nums font-semibold"
