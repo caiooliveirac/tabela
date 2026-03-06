@@ -6,6 +6,7 @@ import {
   TUTORIAL_STEPS,
   getIntelType,
 } from "../lib/constants";
+import { scoreToColor, NEUTRAL_STYLE } from "../lib/colors";
 import { generateTutorialData, type TutorialDataResult } from "../lib/tutorialData";
 import { useHospitals } from "../hooks/useHospitals";
 import { useCreateCase, useRemoveCase, useUpdateCase } from "../hooks/useCases";
@@ -16,6 +17,7 @@ import NewCaseModal, { type CaseFormInput } from "./NewCaseModal";
 import IntelModal from "./IntelModal";
 import ConfirmDialog from "./ConfirmDialog";
 import Tutorial from "./Tutorial";
+import SummaryDrawer from "./SummaryDrawer";
 
 function fmt(ts: string): string {
   const d = new Date(ts);
@@ -78,6 +80,9 @@ export default function Dashboard() {
     detail?: string;
     onConfirm: () => void;
   } | null>(null);
+
+  // Summary drawer state
+  const [showSummary, setShowSummary] = useState(false);
 
   // Tutorial state
   const [tutActive, setTutActive] = useState(false);
@@ -344,6 +349,17 @@ export default function Dashboard() {
             </button>
           </OperatorGate>
 
+          <button
+            onClick={() => setShowSummary((v) => !v)}
+            className="py-[7px] px-[14px] text-xs rounded-lg border border-white/20 font-bold cursor-pointer transition-colors"
+            style={{
+              backgroundColor: showSummary ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.1)",
+              color: showSummary ? "#fff" : "#94a3b8",
+            }}
+          >
+            📊 Resumo
+          </button>
+
           {tutActive ? (
             <button
               onClick={endTutorial}
@@ -399,32 +415,21 @@ export default function Dashboard() {
       <div className="px-6 py-[18px] max-w-[1400px] mx-auto">
         {tab === "semaphore" ? (
           <>
-            {/* Legend */}
+            {/* Legend — gradient bar */}
             <div className="flex gap-4 mb-[18px] flex-wrap items-center py-2 px-[14px] bg-white rounded-[10px] border border-slate-200">
               <span className="text-[11px] font-extrabold text-slate-600 uppercase">
                 Legenda:
               </span>
-              {[
-                { c: "#16a34a", l: "Aceitando" },
-                { c: "#d97706", l: "Atenção" },
-                { c: "#dc2626", l: "Negando" },
-              ].map((x) => (
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-bold" style={{ color: "hsl(0,85%,33%)" }}>Negando</span>
                 <div
-                  key={x.c}
-                  className="flex items-center gap-1"
-                >
-                  <div
-                    className="w-1 h-[18px] rounded-sm"
-                    style={{ backgroundColor: x.c }}
-                  />
-                  <span
-                    className="text-[11px] font-bold"
-                    style={{ color: x.c }}
-                  >
-                    {x.l}
-                  </span>
-                </div>
-              ))}
+                  className="w-36 h-[10px] rounded-full"
+                  style={{
+                    background: "linear-gradient(to right, hsl(0,85%,33%), hsl(12,80%,38%), hsl(30,72%,40%), hsl(45,68%,42%), hsl(55,65%,40%), hsl(75,62%,40%), hsl(110,70%,40%), hsl(140,75%,38%))",
+                  }}
+                />
+                <span className="text-[11px] font-bold" style={{ color: "hsl(140,75%,30%)" }}>Aceitando</span>
+              </div>
               <span className="text-[11px] text-slate-500">
                 🚫 vaga zero · 🚑 envio planejado · ⚠️ alerta
               </span>
@@ -478,7 +483,7 @@ export default function Dashboard() {
                 <div className="flex items-center gap-3 mb-4">
                   <div
                     className="w-2 h-11 rounded"
-                    style={{ backgroundColor: SM[sel.sem].bd }}
+                    style={{ backgroundColor: scoreToColor(sel.score).bd }}
                   />
                   <div className="flex-1">
                     <h3 className="m-0 text-xl font-black">{sel.name}</h3>
@@ -864,6 +869,12 @@ export default function Dashboard() {
           onExit={endTutorial}
         />
       )}
+
+      <SummaryDrawer
+        open={showSummary}
+        onClose={() => setShowSummary(false)}
+        hospitals={hospitals}
+      />
     </div>
   );
 }
