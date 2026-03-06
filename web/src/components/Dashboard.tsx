@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import type { HospitalData, CaseRow, IntelRow } from "../lib/types";
 import {
   HOSPITALS,
@@ -119,6 +119,15 @@ export default function Dashboard() {
   );
 
   const sel = hospitals.find((h) => h.id === selH);
+  const detailRef = useRef<HTMLDivElement>(null);
+  const prevSelH = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (selH && selH !== prevSelH.current && detailRef.current) {
+      detailRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+    prevSelH.current = selH;
+  }, [selH]);
 
   const semaphoreCases = useMemo(() => {
     const rst = effectiveData?.resetTimestamp ?? 0;
@@ -208,7 +217,7 @@ export default function Dashboard() {
   };
 
   const Grid = ({ hospitals }: { hospitals: HospitalData[] }) => (
-    <div className="grid gap-3 mb-7" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(min(240px, 100%), 1fr))", maxWidth: "calc(4 * 270px + 3 * 12px)" }}>
+    <div className="grid gap-3 mb-7 mx-auto" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(min(240px, 100%), 1fr))", maxWidth: "calc(4 * 270px + 3 * 12px)" }}>
       {hospitals.map((h) => (
         <HospitalCard
           key={h.id}
@@ -237,6 +246,243 @@ export default function Dashboard() {
       <h2 className="m-0 text-base font-black">{label}</h2>
       <span className="text-xs text-slate-400 font-semibold">({n})</span>
     </div>
+  );
+
+  /** Conteúdo interno do painel de detalhes — reutilizado em geral/psiq/infecto */
+  const DetailContent = ({ h }: { h: HospitalData }) => (
+    <>
+      <div className="flex items-center gap-3 mb-4">
+        <div
+          className="w-2 h-11 rounded"
+          style={{ backgroundColor: scoreToColor(h.score).bd }}
+        />
+        <div className="flex-1">
+          <h3 className="m-0 text-xl font-black">{h.name}</h3>
+          <span className="text-[13px] text-slate-500">
+            {h.total} regulações ·
+            Taxa:{" "}
+            {h.taxa !== null
+              ? `${Math.round(h.taxa * 100)}%`
+              : "N/A"}
+          </span>
+        </div>
+        <button
+          onClick={() => setSelH(null)}
+          className="bg-transparent border-none cursor-pointer text-[22px] text-slate-400"
+        >
+          ✕
+        </button>
+      </div>
+
+      {/* Active intel */}
+      {h.intel.length > 0 && (
+        <div data-tutorial-id="detail-intel" className="mb-[14px]">
+          <div className="text-[11px] font-extrabold text-slate-600 mb-[6px] uppercase">
+            Intel ativa
+          </div>
+          {h.intel.map((i) => {
+            const t = getIntelType(i.tipo);
+            return (
+              <div
+                key={i.id}
+                className="flex items-center gap-2 p-[10px] rounded-lg mb-1"
+                style={{
+                  backgroundColor: t.bg,
+                  border: `1px solid ${t.bd}`,
+                }}
+              >
+                <span className="text-[15px]">{t.icon}</span>
+                <div className="flex-1">
+                  <div
+                    className="text-[13px] font-bold"
+                    style={{ color: t.color }}
+                  >
+                    {t.label}
+                    {i.nota ? `: ${i.nota}` : ""}
+                  </div>
+                  <div className="text-[11px] text-slate-400">
+                    {i.autor} · {fmt(i.timestamp)} (
+                    {fAgo(i.timestamp)} atrás)
+                  </div>
+                </div>
+                <OperatorGate operador={op}>
+                  <button
+                    onClick={() => {
+                      if (tutActive) return;
+                      op.trim() &&
+                        removeIntel.mutate({
+                          id: i.id,
+                          removidoPor: op,
+                        });
+                    }}
+                    className="px-[10px] py-1 text-[11px] rounded-[10px] bg-red-50 text-red-700 border border-red-300 font-bold cursor-pointer"
+                  >
+                    ✕ Remover
+                  </button>
+                </OperatorGate>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Removed intel log */}
+      {(() => {
+        const rm = displayIntel.filter(
+          (i) => !i.ativo && i.hospitalId === h.id
+        );
+        if (!rm.length) return null;
+        return (
+          <div className="mb-[14px] p-[10px] rounded-lg bg-slate-50 border border-slate-200">
+            <div className="text-[10px] font-extrabold text-slate-400 uppercase mb-1">
+              Histórico de remoções
+            </div>
+            {rm.map((i) => {
+              const t = getIntelType(i.tipo);
+              return (
+                <div
+                  key={i.id}
+                  className="text-[11px] text-slate-400 mb-[2px]"
+                >
+                  <span className="line-through">
+                    {t.icon} {t.label}
+                    {i.nota ? `: ${i.nota}` : ""} (
+                    {i.autor} às {fmt(i.timestamp)})
+                  </span>
+                  <span className="font-bold text-slate-500">
+                    {" "}
+                    → removido por {i.removidoPor} às{" "}
+                    {i.removidoEm
+                      ? fmt(i.removidoEm)
+                      : "?"}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
+
+      {/* Cases table */}
+      <div data-tutorial-id="detail-cases" className="overflow-x-auto">
+        <table className="w-full border-collapse text-[13px]">
+          <thead>
+            <tr className="border-b-2 border-slate-200">
+              {[
+                "Hora",
+                "Resultado",
+                "Caso",
+                "MR",
+                "Médico",
+                "OC",
+                "",
+              ].map((c) => (
+                <th
+                  key={c}
+                  className="text-left p-2 text-slate-500 font-bold text-[11px] uppercase"
+                >
+                  {c}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {[...h.cases]
+              .sort(
+                (a, b) =>
+                  new Date(b.timestamp).getTime() -
+                  new Date(a.timestamp).getTime()
+              )
+              .map((c) => (
+                <tr
+                  key={c.id}
+                  className="border-b border-slate-100"
+                >
+                  <td className="p-2 font-bold">
+                    {fmt(c.timestamp)}
+                  </td>
+                  <td className="p-2">
+                    {c.situacao === "ACEITO" ? (
+                      <Badge v="aceito">
+                        ✅ Aceito
+                      </Badge>
+                    ) : (
+                      <Badge v="zero">
+                        🚫 Vaga Zero
+                      </Badge>
+                    )}
+                  </td>
+                  <td className="p-2 max-w-[200px]">
+                    {c.caso || "—"}
+                  </td>
+                  <td className="p-2">{c.mr || "—"}</td>
+                  <td className="p-2">
+                    {c.medico || "—"}
+                  </td>
+                  <td className="p-2 text-slate-400">
+                    {c.oc || "—"}
+                  </td>
+                  <td className="p-[6px]">
+                    <OperatorGate operador={op}>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() =>
+                            handleOpenEditCase(c)
+                          }
+                          className="bg-transparent border border-blue-300 rounded-md text-blue-700 cursor-pointer py-[3px] px-2 text-xs font-bold"
+                        >
+                          ✎
+                        </button>
+                        <button
+                          onClick={() =>
+                            handleRemoveCase(c)
+                          }
+                          className="bg-transparent border border-red-300 rounded-md text-red-600 cursor-pointer py-[3px] px-2 text-xs font-bold"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </OperatorGate>
+                  </td>
+                </tr>
+              ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Removed cases log */}
+      {(() => {
+        const rm = (effectiveData?.timelineCases ?? []).filter(
+          (c) => !c.ativo && c.hospitalId === h.id
+        );
+        if (!rm.length) return null;
+        return (
+          <div className="mt-3 p-[10px] rounded-lg bg-red-50 border border-red-200">
+            <div className="text-[10px] font-extrabold text-red-700 uppercase mb-1">
+              Casos removidos
+            </div>
+            {rm.map((c) => (
+              <div
+                key={c.id}
+                className="text-[11px] text-slate-400 mb-[2px]"
+              >
+                <span className="line-through">
+                  {fmt(c.timestamp)} · {c.situacao} ·{" "}
+                  {c.caso || "—"} · MR: {c.mr || "—"}
+                </span>
+                <span className="font-bold text-red-700">
+                  {" "}
+                  → removido por {c.removidoPor} às{" "}
+                  {c.removidoEm
+                    ? fmt(c.removidoEm)
+                    : "?"}
+                </span>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
+    </>
   );
 
   if (isLoading && !tutActive) {
@@ -447,6 +693,17 @@ export default function Dashboard() {
                 n={geral.length}
               />
               <Grid hospitals={geral} />
+
+              {/* DETAIL PANEL — aparece logo abaixo dos cards gerais */}
+              {sel && sel.cat === "geral" && (
+                <div
+                  ref={detailRef}
+                  className="bg-white border-2 border-slate-200 rounded-[14px] p-5 mb-6 shadow-sm mx-auto animate-[slideDown_0.25s_ease-out]"
+                  style={{ maxWidth: "calc(4 * 270px + 3 * 12px)", width: "100%" }}
+                >
+                  <DetailContent h={sel} />
+                </div>
+              )}
             </div>
 
             <div data-tutorial-id="section-specialty" className="grid grid-cols-2 gap-6">
@@ -462,6 +719,15 @@ export default function Dashboard() {
                     />
                   ))}
                 </div>
+                {/* Detail panel psiq */}
+                {sel && sel.cat === "psiq" && (
+                  <div
+                    ref={detailRef}
+                    className="bg-white border-2 border-slate-200 rounded-[14px] p-5 mt-3 shadow-sm animate-[slideDown_0.25s_ease-out]"
+                  >
+                    <DetailContent h={sel} />
+                  </div>
+                )}
               </div>
               <div>
                 <SH
@@ -479,245 +745,17 @@ export default function Dashboard() {
                     />
                   ))}
                 </div>
-              </div>
-            </div>
-
-            {/* DETAIL PANEL */}
-            {sel && (
-              <div className="bg-white border-2 border-slate-200 rounded-[14px] p-5 mt-6 shadow-sm">
-                <div className="flex items-center gap-3 mb-4">
+                {/* Detail panel infecto */}
+                {sel && sel.cat === "infecto" && (
                   <div
-                    className="w-2 h-11 rounded"
-                    style={{ backgroundColor: scoreToColor(sel.score).bd }}
-                  />
-                  <div className="flex-1">
-                    <h3 className="m-0 text-xl font-black">{sel.name}</h3>
-                    <span className="text-[13px] text-slate-500">
-                      {sel.total} regulações ·
-                      Taxa:{" "}
-                      {sel.taxa !== null
-                        ? `${Math.round(sel.taxa * 100)}%`
-                        : "N/A"}
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => setSelH(null)}
-                    className="bg-transparent border-none cursor-pointer text-[22px] text-slate-400"
+                    ref={detailRef}
+                    className="bg-white border-2 border-slate-200 rounded-[14px] p-5 mt-3 shadow-sm animate-[slideDown_0.25s_ease-out]"
                   >
-                    ✕
-                  </button>
-                </div>
-
-                {/* Active intel */}
-                {sel.intel.length > 0 && (
-                  <div data-tutorial-id="detail-intel" className="mb-[14px]">
-                    <div className="text-[11px] font-extrabold text-slate-600 mb-[6px] uppercase">
-                      Intel ativa
-                    </div>
-                    {sel.intel.map((i) => {
-                      const t = getIntelType(i.tipo);
-                      return (
-                        <div
-                          key={i.id}
-                          className="flex items-center gap-2 p-[10px] rounded-lg mb-1"
-                          style={{
-                            backgroundColor: t.bg,
-                            border: `1px solid ${t.bd}`,
-                          }}
-                        >
-                          <span className="text-[15px]">{t.icon}</span>
-                          <div className="flex-1">
-                            <div
-                              className="text-[13px] font-bold"
-                              style={{ color: t.color }}
-                            >
-                              {t.label}
-                              {i.nota ? `: ${i.nota}` : ""}
-                            </div>
-                            <div className="text-[11px] text-slate-400">
-                              {i.autor} · {fmt(i.timestamp)} (
-                              {fAgo(i.timestamp)} atrás)
-                            </div>
-                          </div>
-                          <OperatorGate operador={op}>
-                            <button
-                              onClick={() => {
-                                if (tutActive) return;
-                                op.trim() &&
-                                  removeIntel.mutate({
-                                    id: i.id,
-                                    removidoPor: op,
-                                  });
-                              }}
-                              className="px-[10px] py-1 text-[11px] rounded-[10px] bg-red-50 text-red-700 border border-red-300 font-bold cursor-pointer"
-                            >
-                              ✕ Remover
-                            </button>
-                          </OperatorGate>
-                        </div>
-                      );
-                    })}
+                    <DetailContent h={sel} />
                   </div>
                 )}
-
-                {/* Removed intel log */}
-                {(() => {
-                  const rm = displayIntel.filter(
-                    (i) => !i.ativo && i.hospitalId === sel.id
-                  );
-                  if (!rm.length) return null;
-                  return (
-                    <div className="mb-[14px] p-[10px] rounded-lg bg-slate-50 border border-slate-200">
-                      <div className="text-[10px] font-extrabold text-slate-400 uppercase mb-1">
-                        Histórico de remoções
-                      </div>
-                      {rm.map((i) => {
-                        const t = getIntelType(i.tipo);
-                        return (
-                          <div
-                            key={i.id}
-                            className="text-[11px] text-slate-400 mb-[2px]"
-                          >
-                            <span className="line-through">
-                              {t.icon} {t.label}
-                              {i.nota ? `: ${i.nota}` : ""} (
-                              {i.autor} às {fmt(i.timestamp)})
-                            </span>
-                            <span className="font-bold text-slate-500">
-                              {" "}
-                              → removido por {i.removidoPor} às{" "}
-                              {i.removidoEm
-                                ? fmt(i.removidoEm)
-                                : "?"}
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  );
-                })()}
-
-                {/* Cases table */}
-                <div data-tutorial-id="detail-cases" className="overflow-x-auto">
-                  <table className="w-full border-collapse text-[13px]">
-                    <thead>
-                      <tr className="border-b-2 border-slate-200">
-                        {[
-                          "Hora",
-                          "Resultado",
-                          "Caso",
-                          "MR",
-                          "Médico",
-                          "OC",
-                          "",
-                        ].map((c) => (
-                          <th
-                            key={c}
-                            className="text-left p-2 text-slate-500 font-bold text-[11px] uppercase"
-                          >
-                            {c}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {[...sel.cases]
-                        .sort(
-                          (a, b) =>
-                            new Date(b.timestamp).getTime() -
-                            new Date(a.timestamp).getTime()
-                        )
-                        .map((c) => (
-                          <tr
-                            key={c.id}
-                            className="border-b border-slate-100"
-                          >
-                            <td className="p-2 font-bold">
-                              {fmt(c.timestamp)}
-                            </td>
-                            <td className="p-2">
-                              {c.situacao === "ACEITO" ? (
-                                <Badge v="aceito">
-                                  ✅ Aceito
-                                </Badge>
-                              ) : (
-                                <Badge v="zero">
-                                  🚫 Vaga Zero
-                                </Badge>
-                              )}
-                            </td>
-                            <td className="p-2 max-w-[200px]">
-                              {c.caso || "—"}
-                            </td>
-                            <td className="p-2">{c.mr || "—"}</td>
-                            <td className="p-2">
-                              {c.medico || "—"}
-                            </td>
-                            <td className="p-2 text-slate-400">
-                              {c.oc || "—"}
-                            </td>
-                            <td className="p-[6px]">
-                              <OperatorGate operador={op}>
-                                <div className="flex items-center gap-1">
-                                  <button
-                                    onClick={() =>
-                                      handleOpenEditCase(c)
-                                    }
-                                    className="bg-transparent border border-blue-300 rounded-md text-blue-700 cursor-pointer py-[3px] px-2 text-xs font-bold"
-                                  >
-                                    ✎
-                                  </button>
-                                  <button
-                                    onClick={() =>
-                                      handleRemoveCase(c)
-                                    }
-                                    className="bg-transparent border border-red-300 rounded-md text-red-600 cursor-pointer py-[3px] px-2 text-xs font-bold"
-                                  >
-                                    ✕
-                                  </button>
-                                </div>
-                              </OperatorGate>
-                            </td>
-                          </tr>
-                        ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Removed cases log */}
-                {(() => {
-                  const rm = (effectiveData?.timelineCases ?? []).filter(
-                    (c) => !c.ativo && c.hospitalId === sel.id
-                  );
-                  if (!rm.length) return null;
-                  return (
-                    <div className="mt-3 p-[10px] rounded-lg bg-red-50 border border-red-200">
-                      <div className="text-[10px] font-extrabold text-red-700 uppercase mb-1">
-                        Casos removidos
-                      </div>
-                      {rm.map((c) => (
-                        <div
-                          key={c.id}
-                          className="text-[11px] text-slate-400 mb-[2px]"
-                        >
-                          <span className="line-through">
-                            {fmt(c.timestamp)} · {c.situacao} ·{" "}
-                            {c.caso || "—"} · MR: {c.mr || "—"}
-                          </span>
-                          <span className="font-bold text-red-700">
-                            {" "}
-                            → removido por {c.removidoPor} às{" "}
-                            {c.removidoEm
-                              ? fmt(c.removidoEm)
-                              : "?"}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  );
-                })()}
               </div>
-            )}
+            </div>
           </>
         ) : (
           /* TIMELINE TAB */
