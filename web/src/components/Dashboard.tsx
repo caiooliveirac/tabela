@@ -122,12 +122,35 @@ export default function Dashboard() {
   const detailRef = useRef<HTMLDivElement>(null);
   const prevSelH = useRef<string | null>(null);
 
+  // Exit animation: keep previous hospital visible while fading out
+  const [visibleH, setVisibleH] = useState<string | null>(null);
+  const [detailPhase, setDetailPhase] = useState<"enter" | "exit" | null>(null);
+
   useEffect(() => {
-    if (selH && selH !== prevSelH.current && detailRef.current) {
-      detailRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    if (selH) {
+      // Opening or switching
+      setVisibleH(selH);
+      setDetailPhase("enter");
+      // Scroll into view after paint
+      requestAnimationFrame(() => {
+        if (detailRef.current) {
+          detailRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        }
+      });
+    } else if (prevSelH.current && !selH) {
+      // Closing — play exit then unmount
+      setDetailPhase("exit");
+      const timer = setTimeout(() => {
+        setVisibleH(null);
+        setDetailPhase(null);
+      }, 300);
+      return () => clearTimeout(timer);
     }
     prevSelH.current = selH;
   }, [selH]);
+
+  const visibleSel = hospitals.find((h) => h.id === visibleH);
+  const detailClass = detailPhase === "enter" ? "detail-enter" : detailPhase === "exit" ? "detail-exit" : "";
 
   const semaphoreCases = useMemo(() => {
     const rst = effectiveData?.resetTimestamp ?? 0;
@@ -695,12 +718,12 @@ export default function Dashboard() {
               <Grid hospitals={geral} />
 
               {/* DETAIL PANEL — aparece logo abaixo dos cards gerais */}
-              {sel && sel.cat === "geral" && (
+              {visibleSel && visibleSel.cat === "geral" && (
                 <div
                   ref={detailRef}
-                  className="bg-white border-2 border-slate-200 rounded-[14px] p-5 mb-6 shadow-sm animate-[slideDown_0.25s_ease-out]"
+                  className={`bg-white border-2 border-slate-200 rounded-[14px] p-5 mb-6 shadow-sm origin-top ${detailClass}`}
                 >
-                  <DetailContent h={sel} />
+                  <DetailContent h={visibleSel} />
                 </div>
               )}
             </div>
@@ -719,12 +742,12 @@ export default function Dashboard() {
                   ))}
                 </div>
                 {/* Detail panel psiq */}
-                {sel && sel.cat === "psiq" && (
+                {visibleSel && visibleSel.cat === "psiq" && (
                   <div
                     ref={detailRef}
-                    className="bg-white border-2 border-slate-200 rounded-[14px] p-5 mt-3 shadow-sm animate-[slideDown_0.25s_ease-out]"
+                    className={`bg-white border-2 border-slate-200 rounded-[14px] p-5 mt-3 shadow-sm origin-top ${detailClass}`}
                   >
-                    <DetailContent h={sel} />
+                    <DetailContent h={visibleSel} />
                   </div>
                 )}
               </div>
@@ -745,12 +768,12 @@ export default function Dashboard() {
                   ))}
                 </div>
                 {/* Detail panel infecto */}
-                {sel && sel.cat === "infecto" && (
+                {visibleSel && visibleSel.cat === "infecto" && (
                   <div
                     ref={detailRef}
-                    className="bg-white border-2 border-slate-200 rounded-[14px] p-5 mt-3 shadow-sm animate-[slideDown_0.25s_ease-out]"
+                    className={`bg-white border-2 border-slate-200 rounded-[14px] p-5 mt-3 shadow-sm origin-top ${detailClass}`}
                   >
-                    <DetailContent h={sel} />
+                    <DetailContent h={visibleSel} />
                   </div>
                 )}
               </div>
