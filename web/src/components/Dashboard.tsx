@@ -260,7 +260,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="font-sans bg-slate-50 min-h-screen text-slate-900">
+    <div className="font-sans bg-slate-50 h-screen flex flex-col text-slate-900 overflow-hidden">
       {/* HEADER */}
       <header
         className="px-6 py-3 flex items-center justify-between flex-wrap gap-[10px] sticky top-0 z-[100] shadow-lg"
@@ -377,6 +377,11 @@ export default function Dashboard() {
           )}
         </div>
       </header>
+
+      {/* BODY = content + drawer side by side (desktop) or stacked (mobile) */}
+      <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
+      {/* Left: main content */}
+      <div className="flex-1 min-w-0 overflow-y-auto flex flex-col">
 
       {/* KPIs */}
       <div className="flex gap-[1px] bg-slate-200 border-b border-slate-200">
@@ -824,6 +829,16 @@ export default function Dashboard() {
         )}
       </div>
 
+      </div>{/* end left content */}
+
+      {/* Right: summary drawer (inline, no overlap) */}
+      <SummaryDrawer
+        open={showSummary}
+        onClose={() => setShowSummary(false)}
+        hospitals={hospitals}
+      />
+      </div>{/* end flex body */}
+
       {/* MODALS */}
       {showNew && (
         <NewCaseModal
@@ -870,11 +885,6 @@ export default function Dashboard() {
         />
       )}
 
-      <SummaryDrawer
-        open={showSummary}
-        onClose={() => setShowSummary(false)}
-        hospitals={hospitals}
-      />
     </div>
   );
 }

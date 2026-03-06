@@ -1,5 +1,19 @@
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import type { HospitalData } from "../lib/types";
+
+function useIsMobile(breakpoint = 768) {
+  const [mobile, setMobile] = useState(
+    typeof window !== "undefined" ? window.innerWidth < breakpoint : false,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia(`(max-width: ${breakpoint - 1}px)`);
+    const handler = (e: MediaQueryListEvent) => setMobile(e.matches);
+    setMobile(mq.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, [breakpoint]);
+  return mobile;
+}
 
 interface SummaryDrawerProps {
   open: boolean;
@@ -126,12 +140,24 @@ export default function SummaryDrawer({
     </tr>
   );
 
+  const isMobile = useIsMobile();
+
   return (
     <div
-      className="fixed top-0 right-0 bottom-0 z-[70] bg-white shadow-2xl flex flex-col transition-transform duration-200 ease-out w-[320px] max-md:w-full"
-      style={{
-        transform: open ? "translateX(0)" : "translateX(100%)",
-      }}
+      className="bg-white shadow-lg flex flex-col flex-shrink-0 transition-all duration-200 ease-out overflow-hidden"
+      style={
+        isMobile
+          ? {
+              width: "100%",
+              maxHeight: open ? "50vh" : 0,
+              borderTop: open ? "1px solid #e2e8f0" : "none",
+            }
+          : {
+              width: open ? 320 : 0,
+              minWidth: open ? 320 : 0,
+              borderLeft: open ? "1px solid #e2e8f0" : "none",
+            }
+      }
     >
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 bg-slate-50/80">
