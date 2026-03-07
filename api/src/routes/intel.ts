@@ -4,6 +4,7 @@ import { z } from "zod";
 import { db } from "../index.js";
 import { intel } from "../db/schema.js";
 import { broadcast } from "../ws/handler.js";
+import { expireStaleIntel } from "../services/intel-policy.js";
 
 const router = Router();
 
@@ -28,6 +29,8 @@ const removeIntelSchema = z.object({
 // GET /api/intel — toda intel (ativa e inativa para histórico)
 router.get("/", async (_req: Request, res: Response) => {
   try {
+    await expireStaleIntel(db);
+
     const rows = await db
       .select()
       .from(intel)

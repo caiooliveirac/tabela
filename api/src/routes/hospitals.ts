@@ -3,12 +3,15 @@ import { gte, desc } from "drizzle-orm";
 import { db } from "../index.js";
 import { cases, intel } from "../db/schema.js";
 import { compute, resetTs, HOSPITALS } from "../services/score.js";
+import { expireStaleIntel } from "../services/intel-policy.js";
 
 const router = Router();
 
 // GET /api/hospitals — lista hospitais com scores calculados
 router.get("/", async (_req: Request, res: Response) => {
   try {
+    await expireStaleIntel(db);
+
     const rst = resetTs();
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
 

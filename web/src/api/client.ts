@@ -12,6 +12,8 @@ import type {
   CreateIntelPayload,
   CreateChefiaPayload,
   UpdateChefiaPayload,
+  ReportRequestPayload,
+  ReportPreviewResponse,
   WsEvent,
 } from "../lib/types";
 
@@ -93,6 +95,12 @@ export const api = {
   updateChefia: (id: number, data: UpdateChefiaPayload) =>
     request<ChefiaAlert>(`/chefia/${id}`, {
       method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+
+  previewReport: (data: ReportRequestPayload) =>
+    request<ReportPreviewResponse>("/reports/preview", {
+      method: "POST",
       body: JSON.stringify(data),
     }),
 

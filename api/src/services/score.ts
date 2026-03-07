@@ -119,6 +119,8 @@ const NO_INFO_GERAL_ORDER_INDEX: Record<string, number> = Object.fromEntries(
 
 // ── Helpers ──────────────────────────────────────────────────
 
+const OPERATIONAL_OFFSET_MS = -3 * 60 * 60 * 1000;
+
 function minutesAgo(ts: Date): number {
   return (Date.now() - ts.getTime()) / 60000;
 }
@@ -133,11 +135,14 @@ function decay(basePenalty: number, minutes: number, halfLife: number): number {
 }
 
 /** Calcula timestamp do reset das 7h */
-export function resetTs(): number {
-  const d = new Date();
-  d.setHours(7, 0, 0, 0);
-  if (Date.now() < d.getTime()) d.setDate(d.getDate() - 1);
-  return d.getTime();
+export function resetTs(nowMs = Date.now()): number {
+  const operationalNow = new Date(nowMs + OPERATIONAL_OFFSET_MS);
+  const operationalReset = new Date(operationalNow.getTime());
+  operationalReset.setUTCHours(7, 0, 0, 0);
+  if (operationalNow.getTime() < operationalReset.getTime()) {
+    operationalReset.setUTCDate(operationalReset.getUTCDate() - 1);
+  }
+  return operationalReset.getTime() - OPERATIONAL_OFFSET_MS;
 }
 
 // ── Score de um hospital ─────────────────────────────────────

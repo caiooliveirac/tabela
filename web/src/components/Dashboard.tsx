@@ -17,6 +17,7 @@ import OperatorGate from "./OperatorGate";
 import NewCaseModal, { type CaseFormInput } from "./NewCaseModal";
 import IntelModal from "./IntelModal";
 import ChefiaModal from "./ChefiaModal";
+import ReportModal from "./ReportModal";
 import ConfirmDialog from "./ConfirmDialog";
 import Tutorial from "./Tutorial";
 import SummaryDrawer from "./SummaryDrawer";
@@ -114,6 +115,7 @@ export default function Dashboard() {
   const [editingCase, setEditingCase] = useState<CaseRow | null>(null);
   const [showIntel, setShowIntel] = useState(false);
   const [showChefia, setShowChefia] = useState(false);
+  const [showReport, setShowReport] = useState(false);
   const [editingChefia, setEditingChefia] = useState<typeof chefiaAlerts[number] | null>(null);
   const [op, setOp] = useState(() => localStorage.getItem("tabela:op") || "");
   const [tab, setTab] = useState<"semaphore" | "timeline">(
@@ -682,6 +684,14 @@ export default function Dashboard() {
           </OperatorGate>
 
           <button
+            onClick={() => { if (!tutActive) setShowReport(true); }}
+            className="py-[7px] px-[12px] text-xs rounded-lg border border-white/20 bg-white/[.12] text-slate-200 font-bold cursor-pointer"
+            title="Gerar relatório do plantão"
+          >
+            📄 Relatório
+          </button>
+
+          <button
             onClick={() => setShowSummary((v) => !v)}
             className="py-[7px] px-[14px] text-xs rounded-lg border border-white/20 font-bold cursor-pointer transition-colors"
             style={{
@@ -1051,6 +1061,13 @@ export default function Dashboard() {
             removeChefia.mutate({ id, removidoPor: op || "sistema" });
           }}
           onClose={() => { setShowChefia(false); setEditingChefia(null); }}
+        />
+      )}
+
+      {showReport && (
+        <ReportModal
+          operador={op}
+          onClose={() => setShowReport(false)}
         />
       )}
 

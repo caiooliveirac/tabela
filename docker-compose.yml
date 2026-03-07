@@ -29,7 +29,9 @@ services:
       PORT: "3000"
       NODE_ENV: production
     networks:
-      - internal
+      internal:
+        aliases:
+          - tabela-api
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/tabela/api/health"]
       interval: 10s

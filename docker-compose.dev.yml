@@ -34,7 +34,9 @@ services:
     ports:
       - "3001:3000"
     networks:
-      - internal
+      internal:
+        aliases:
+          - tabela-api
 
   web:
     image: node:20-alpine

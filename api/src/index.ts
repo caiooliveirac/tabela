@@ -10,6 +10,7 @@ import casesRouter from "./routes/cases.js";
 import intelRouter from "./routes/intel.js";
 import hospitalsRouter from "./routes/hospitals.js";
 import chefiaRouter from "./routes/chefia.js";
+import reportsRouter from "./routes/reports.js";
 
 const PORT = parseInt(process.env.PORT || "3000", 10);
 const DATABASE_URL =
@@ -34,6 +35,7 @@ app.use("/tabela/api/cases", casesRouter);
 app.use("/tabela/api/intel", intelRouter);
 app.use("/tabela/api/hospitals", hospitalsRouter);
 app.use("/tabela/api/chefia", chefiaRouter);
+app.use("/tabela/api/reports", reportsRouter);
 
 // HTTP + WebSocket server
 const server = createServer(app);
