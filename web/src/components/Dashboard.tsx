@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from "react";
+import UpasView from "./UpasView";
 import type { HospitalData, CaseRow, IntelRow } from "../lib/types";
 import {
   HOSPITALS,
@@ -118,9 +119,11 @@ export default function Dashboard() {
   const [showReport, setShowReport] = useState(false);
   const [editingChefia, setEditingChefia] = useState<typeof chefiaAlerts[number] | null>(null);
   const [op, setOp] = useState(() => localStorage.getItem("tabela:op") || "");
-  const [tab, setTab] = useState<"semaphore" | "timeline">(
-    () => (localStorage.getItem("tabela:tab") as "semaphore" | "timeline") || "semaphore"
-  );
+  const [tab, setTab] = useState<"semaphore" | "timeline" | "upas">(() => {
+    const fromUrl = new URLSearchParams(window.location.search).get("tab");
+    if (fromUrl === "upas" || fromUrl === "semaphore" || fromUrl === "timeline") return fromUrl;
+    return (localStorage.getItem("tabela:tab") as "semaphore" | "timeline" | "upas") || "semaphore";
+  });
   const [confirm, setConfirm] = useState<{
     msg: string;
     detail?: string;
@@ -631,6 +634,7 @@ export default function Dashboard() {
               [
                 ["semaphore", "Semáforo"],
                 ["timeline", "Casos"],
+                ["upas", "UPAs"],
               ] as const
             ).map(([k, l]) => (
               <button
@@ -805,7 +809,9 @@ export default function Dashboard() {
               </div>
             )}
 
-            {tab === "semaphore" ? (
+            {tab === "upas" ? (
+              <UpasView />
+            ) : tab === "semaphore" ? (
               <>
                 {/* Legend — gradient bar */}
                 <div className="flex gap-4 mb-[18px] flex-wrap items-center py-2 px-[14px] bg-white rounded-[10px] border border-slate-200">

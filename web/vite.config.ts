@@ -7,13 +7,20 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
+      // docker-compose.dev.yml expõe a API em 3001
       "/tabela/api": {
-        target: "http://localhost:3000",
+        target: "http://localhost:3001",
         changeOrigin: true,
       },
       "/tabela/ws": {
-        target: "ws://localhost:3000",
+        target: "ws://localhost:3001",
         ws: true,
+      },
+      // Aba UPAs consome a API pública do giro-de-leitos em produção
+      "/tabela/upas/api": {
+        target: "https://mnrs.com.br",
+        changeOrigin: true,
+        secure: true,
       },
     },
   },

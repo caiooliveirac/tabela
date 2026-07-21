@@ -37,3 +37,5 @@ npm-debug.log*
 # Prompt files (dev only)
 prompt-scaffold-opus.md
 regulacao-dashboard.jsx
+web/tsconfig.tsbuildinfo
+.env.production-copy
