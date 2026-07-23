@@ -11,7 +11,8 @@ import intelRouter from "./routes/intel.js";
 import hospitalsRouter from "./routes/hospitals.js";
 import chefiaRouter from "./routes/chefia.js";
 import reportsRouter from "./routes/reports.js";
-import { chefiaPinConfigured, initChefiaSecurity } from "./lib/chefiaPin.js";
+import { initChefiaSecurity } from "./lib/chefiaPin.js";
+import { startChefiaBot } from "./bot/chefiaBot.js";
 
 const PORT = parseInt(process.env.PORT || "3000", 10);
 const DATABASE_URL =
@@ -45,17 +46,12 @@ app.use("/tabela/api/reports", reportsRouter);
 const server = createServer(app);
 setupWebSocket(server);
 
-// Segurança do PIN: cria tabela de bloqueios e carrega IPs bloqueados
-initChefiaSecurity().catch((e) => console.error("initChefiaSecurity:", e));
+// Segurança do PIN: cria tabelas, semeia PINs e sobe o bot de comandos.
+initChefiaSecurity()
+  .then(() => startChefiaBot())
+  .catch((e) => console.error("initChefiaSecurity:", e));
 
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 API running on http://0.0.0.0:${PORT}`);
   console.log(`📡 WebSocket on ws://0.0.0.0:${PORT}/tabela/ws`);
-  if (chefiaPinConfigured()) {
-    console.log("🔒 PIN da chefia configurado — exclusão/edição de alertas protegidas");
-  } else {
-    console.warn(
-      "⚠️  CHEFIA_PIN não configurado — exclusão/edição de alertas de chefia estão BLOQUEADAS até definir o PIN no .env"
-    );
-  }
 });

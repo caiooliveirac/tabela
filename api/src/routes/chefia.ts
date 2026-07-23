@@ -24,21 +24,21 @@ async function enforceChefiaPin(req: Request, res: Response, pin: string): Promi
     const ip = clientIp(req);
 
     // IP bloqueado de vez (5 erros em curto espaço) — nem tenta validar.
-    if (isBlocked(ip)) {
+    if (await isBlocked(ip)) {
         res.status(403).json({
             error: "Este dispositivo foi bloqueado por tentativas de PIN. Contate o administrador.",
         });
         return false;
     }
 
-    if (!chefiaPinConfigured()) {
+    if (!(await chefiaPinConfigured())) {
         res.status(503).json({
             error: "PIN da chefia não configurado no servidor. Contate o administrador.",
         });
         return false;
     }
 
-    if (!verifyChefiaPin(pin)) {
+    if (!(await verifyChefiaPin(pin))) {
         await registerPinFailure(ip); // pode bloquear o IP e avisar o admin
         res.status(403).json({ error: "PIN incorreto." });
         return false;
