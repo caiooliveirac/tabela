@@ -31,6 +31,7 @@ interface UnitRow {
   payload?: { data?: { rooms?: Record<string, Room> } } | null;
 }
 interface HistEvent { payload?: Record<string, unknown> }
+interface KpiName { nome: string; n?: number }
 
 const API = "/tabela/upas/api";
 const GRN = "hsl(140,75%,32%)";
@@ -38,6 +39,11 @@ const RED = "hsl(0,85%,38%)";
 
 const norm = (s: string | null | undefined) =>
   (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+// tom claro derivado de uma cor hsl(H,S%,L%) — pra fundo de chip mantendo o matiz
+const tint = (c: string, l = 95) => {
+  const m = c.match(/hsl\((\d+),\s*(\d+)%/);
+  return m ? `hsl(${m[1]},${Math.min(+m[2], 65)}%,${l}%)` : "hsl(210,20%,96%)";
+};
 const room = (u: UnitRow, k: string): Room | null => u.payload?.data?.rooms?.[k] ?? null;
 const vac = (o?: number | null, c?: number | null) =>
   c == null || o == null ? null : Math.max(c - o, 0);
@@ -77,13 +83,15 @@ function Chip({ rot, o, c }: { rot: string; o?: number | null; c?: number | null
   if (v == null) return null;
   return (
     <span
-      className="inline-flex items-center gap-[3px] text-[11px] font-bold px-[6px] py-[1px] rounded-md border"
+      className="inline-flex items-center gap-1 text-[12px] font-extrabold px-[7px] py-[2px] rounded-md border"
       style={v > 0
-        ? { borderColor: "hsl(140,50%,80%)", background: "hsl(140,60%,96%)", color: GRN }
-        : { borderColor: "hsl(0,60%,88%)", background: "hsl(0,70%,97%)", color: RED }}
+        ? { borderColor: "hsl(140,50%,72%)", background: "hsl(140,60%,95%)", color: GRN }
+        : { borderColor: "hsl(0,60%,84%)", background: "hsl(0,70%,96%)", color: RED }}
       title={`${o} ocupados / ${c} capacidade`}
     >
-      {rot} {o}/{c}
+      <span className="text-[13px] leading-none">{rot}</span>
+      <span>{v > 0 ? `${v} livre${v === 1 ? "" : "s"}` : "lotada"}</span>
+      <span className="opacity-60 font-bold">{o}/{c}</span>
     </span>
   );
 }
@@ -92,8 +100,8 @@ function UnitCard({ u, isSel, onSelect }: { u: UnitRow; isSel: boolean; onSelect
   const rv = vac(u.red_occupied, u.red_capacity);
   const a = ageMin(u.updated_at);
   const cor = u.is_critical || rv === 0 ? RED : rv != null && rv > 0 ? GRN : "#94a3b8";
-  const esp = ([["🔪", u.has_surgeon], ["🧠", u.has_psychiatrist], ["🦴", u.has_orthopedist]] as const)
-    .filter(([, on]) => on);
+  const esp = ([["🔪", "Cirurgião", u.has_surgeon], ["🧠", "Psiquiatra", u.has_psychiatrist], ["🦴", "Ortopedista", u.has_orthopedist]] as const)
+    .filter(([, , on]) => on);
   return (
     <button
       onClick={() => onSelect(u.unit_key)}
@@ -120,9 +128,11 @@ function UnitCard({ u, isSel, onSelect }: { u: UnitRow; isSel: boolean; onSelect
         {salas(u).map((s) => <Chip key={s.rot} {...s} />)}
       </div>
       <div className="flex justify-between items-center w-full">
-        <span className="flex gap-1">
-          {esp.map(([e]) => (
-            <span key={e} className="text-[11px] px-[6px] py-[1px] rounded-md border border-blue-200 bg-blue-50">{e}</span>
+        <span className="flex gap-1 flex-wrap">
+          {esp.map(([e, l]) => (
+            <span key={e} className="inline-flex items-center gap-[3px] text-[11px] font-bold px-[6px] py-[2px] rounded-md border border-indigo-200 bg-indigo-50 text-indigo-700">
+              <span className="text-[13px] leading-none">{e}</span>{l}
+            </span>
           ))}
         </span>
         <span className={`text-[10px] ${a != null && a > 360 ? "text-amber-600 font-bold" : "text-slate-400"}`}>
@@ -211,18 +221,23 @@ export default function UpasView() {
         + (vac(u.isolation_female_occupied, u.isolation_female_capacity) ?? 0)
         + (vac(u.isolation_pediatric_occupied, u.isolation_pediatric_capacity) ?? 0)
       : vac(u.isolation_total_occupied, u.isolation_total_capacity);
-    const nomesCom = (f: (u: UnitRow) => number | null) =>
-      units.filter((u) => (f(u) ?? 0) > 0).map((u) => `${nome(u)} — ${f(u)}`).join("\n");
-    const nomesFlag = (f: keyof UnitRow) => units.filter((u) => u[f]).map(nome).join("\n");
+    // lista de UPAs com vaga na categoria, ordenada por quem tem mais vaga, com o nº de vagas
+    const listaCom = (f: (u: UnitRow) => number | null): KpiName[] =>
+      units.filter((u) => (f(u) ?? 0) > 0)
+        .sort((a, b) => (f(b) ?? 0) - (f(a) ?? 0))
+        .map((u) => ({ nome: nome(u), n: f(u) ?? undefined }));
+    // lista de UPAs que têm o especialista de plantão
+    const listaFlag = (f: keyof UnitRow): KpiName[] =>
+      units.filter((u) => u[f]).map((u) => ({ nome: nome(u) }));
     const comVagaRed = units.filter((u) => (vac(u.red_occupied, u.red_capacity) ?? 0) > 0);
     return [
-      { l: "Vagas vermelha", v: soma((u) => vac(u.red_occupied, u.red_capacity)), c: RED, t: nomesCom((u) => vac(u.red_occupied, u.red_capacity)) },
-      { l: "UPAs c/ vaga 🔴", v: `${comVagaRed.length}/${units.length}`, c: comVagaRed.length > 0 ? GRN : RED, t: comVagaRed.map(nome).join("\n") },
-      { l: "Vagas amarela", v: soma(amarela), c: "hsl(45,80%,35%)", t: nomesCom(amarela) },
-      { l: "Vagas isolamento", v: soma(iso), c: "hsl(200,80%,35%)", t: nomesCom(iso) },
-      { l: "🔪 Cirurgião", v: units.filter((u) => u.has_surgeon).length, c: "hsl(220,70%,40%)", t: nomesFlag("has_surgeon") },
-      { l: "🧠 Psiquiatra", v: units.filter((u) => u.has_psychiatrist).length, c: "hsl(270,60%,45%)", t: nomesFlag("has_psychiatrist") },
-      { l: "🦴 Ortopedista", v: units.filter((u) => u.has_orthopedist).length, c: "hsl(30,75%,40%)", t: nomesFlag("has_orthopedist") },
+      { l: "Vagas vermelha", v: soma((u) => vac(u.red_occupied, u.red_capacity)), c: RED, names: listaCom((u) => vac(u.red_occupied, u.red_capacity)) },
+      { l: "UPAs c/ vaga 🔴", v: `${comVagaRed.length}/${units.length}`, c: comVagaRed.length > 0 ? GRN : RED, names: comVagaRed.map((u) => ({ nome: nome(u), n: vac(u.red_occupied, u.red_capacity) ?? undefined })) },
+      { l: "Vagas amarela", v: soma(amarela), c: "hsl(45,80%,35%)", names: listaCom(amarela) },
+      { l: "Vagas isolamento", v: soma(iso), c: "hsl(200,80%,35%)", names: listaCom(iso) },
+      { l: "🔪 Cirurgião", v: units.filter((u) => u.has_surgeon).length, c: "hsl(220,70%,40%)", names: listaFlag("has_surgeon") },
+      { l: "🧠 Psiquiatra", v: units.filter((u) => u.has_psychiatrist).length, c: "hsl(270,60%,45%)", names: listaFlag("has_psychiatrist") },
+      { l: "🦴 Ortopedista", v: units.filter((u) => u.has_orthopedist).length, c: "hsl(30,75%,40%)", names: listaFlag("has_orthopedist") },
     ];
   }, [units]);
 
@@ -243,16 +258,33 @@ export default function UpasView() {
         </span>
       </div>
 
-      {/* KPI strip — mesma linguagem do painel: linha única, células brancas */}
+      {/* KPI strip — número + rótulo e, embaixo, os nomes das UPAs de cada categoria */}
       <div className="flex flex-wrap gap-[1px] bg-slate-200 border border-slate-200 rounded-[10px] overflow-hidden mb-4">
         {kpis.map((k) => (
           <div
             key={k.l}
-            className="flex-1 min-w-[130px] py-2 px-3 bg-white flex items-baseline gap-2"
-            title={k.t || undefined}
+            className="flex-1 min-w-[190px] py-2 px-3 bg-white flex flex-col gap-[6px]"
           >
-            <span className="text-xl font-black" style={{ color: k.c }}>{k.v}</span>
-            <span className="text-[10px] font-semibold text-slate-500 uppercase whitespace-nowrap">{k.l}</span>
+            <div className="flex items-baseline gap-2">
+              <span className="text-xl font-black" style={{ color: k.c }}>{k.v}</span>
+              <span className="text-[10px] font-semibold text-slate-500 uppercase whitespace-nowrap">{k.l}</span>
+            </div>
+            {k.names.length > 0 ? (
+              <div className="flex flex-wrap gap-1">
+                {k.names.map((nm) => (
+                  <span
+                    key={nm.nome}
+                    className="inline-flex items-center gap-1 text-[10px] font-bold px-[6px] py-[1px] rounded-md border"
+                    style={{ color: k.c, borderColor: tint(k.c, 82), background: tint(k.c, 96) }}
+                  >
+                    {nm.nome}
+                    {nm.n != null && <span className="opacity-70 font-black">{nm.n}</span>}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <span className="text-[10px] text-slate-300 italic">nenhuma</span>
+            )}
           </div>
         ))}
       </div>
