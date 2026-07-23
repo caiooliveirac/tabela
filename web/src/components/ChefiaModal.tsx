@@ -122,8 +122,9 @@ export default function ChefiaModal({
                                             </button>
                                             <button
                                                 onClick={() => onRemove(a.id)}
-                                                className="text-red-400 hover:text-red-700 text-xs font-bold bg-transparent border border-red-300 rounded-md px-2 py-1 cursor-pointer"
-                                                title="Remover alerta"
+                                                disabled={!operador.trim()}
+                                                className="text-red-400 hover:text-red-700 text-xs font-bold bg-transparent border border-red-300 rounded-md px-2 py-1 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                                                title={operador.trim() ? "Remover alerta" : "Preencha seu nome no cabeçalho para remover"}
                                             >
                                                 ✕
                                             </button>

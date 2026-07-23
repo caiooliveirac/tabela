@@ -28,6 +28,10 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER:-tabela}:${POSTGRES_PASSWORD:-tabela}@db:5432/${POSTGRES_DB:-tabela}
       PORT: "3000"
       NODE_ENV: production
+      # PIN da chefia (obrigatório para apagar/editar alertas). Sem ele, exclusões ficam bloqueadas.
+      CHEFIA_PIN: ${CHEFIA_PIN:-}
+      # PIN anterior — mantenha preenchido durante a janela de rotação, depois esvazie.
+      CHEFIA_PIN_PREV: ${CHEFIA_PIN_PREV:-}
     networks:
       internal:
         aliases:

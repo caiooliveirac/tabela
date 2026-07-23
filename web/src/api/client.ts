@@ -86,16 +86,16 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
-  removeChefia: (id: number, removidoPor: string) =>
+  removeChefia: (id: number, removidoPor: string, pin: string) =>
     request<ChefiaAlert>(`/chefia/${id}`, {
       method: "DELETE",
-      body: JSON.stringify({ removidoPor }),
+      body: JSON.stringify({ removidoPor, pin }),
     }),
 
-  updateChefia: (id: number, data: UpdateChefiaPayload) =>
+  updateChefia: (id: number, data: UpdateChefiaPayload, pin: string) =>
     request<ChefiaAlert>(`/chefia/${id}`, {
       method: "PATCH",
-      body: JSON.stringify(data),
+      body: JSON.stringify({ ...data, pin }),
     }),
 
   previewReport: (data: ReportRequestPayload) =>

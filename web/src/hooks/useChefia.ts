@@ -23,8 +23,8 @@ export function useCreateChefia() {
 export function useRemoveChefia() {
     const queryClient = useQueryClient();
     return useMutation({
-        mutationFn: ({ id, removidoPor }: { id: number; removidoPor: string }) =>
-            api.removeChefia(id, removidoPor),
+        mutationFn: ({ id, removidoPor, pin }: { id: number; removidoPor: string; pin: string }) =>
+            api.removeChefia(id, removidoPor, pin),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["chefia"] });
         },
@@ -34,8 +34,8 @@ export function useRemoveChefia() {
 export function useUpdateChefia() {
     const queryClient = useQueryClient();
     return useMutation({
-        mutationFn: ({ id, data }: { id: number; data: UpdateChefiaPayload }) =>
-            api.updateChefia(id, data),
+        mutationFn: ({ id, data, pin }: { id: number; data: UpdateChefiaPayload; pin: string }) =>
+            api.updateChefia(id, data, pin),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["chefia"] });
         },

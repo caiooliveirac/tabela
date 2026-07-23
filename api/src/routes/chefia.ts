@@ -4,21 +4,78 @@ import { z } from "zod";
 import { db } from "../index.js";
 import { chefiaAlerts } from "../db/schema.js";
 import { broadcast } from "../ws/handler.js";
+import {
+    chefiaPinConfigured,
+    verifyChefiaPin,
+    checkPinRateLimit,
+    registerPinFailure,
+    registerPinSuccess,
+} from "../lib/chefiaPin.js";
 
 const router = Router();
 
+function clientIp(req: Request): string {
+    return req.ip || req.socket.remoteAddress || "unknown";
+}
+
+// Garante que a ação foi autorizada por um PIN de chefia válido.
+// Responde e retorna false se bloqueada; retorna true para prosseguir.
+function enforceChefiaPin(req: Request, res: Response, pin: string): boolean {
+    const ip = clientIp(req);
+
+    const rl = checkPinRateLimit(ip);
+    if (!rl.ok) {
+        res.status(429).json({
+            error: `Muitas tentativas. Aguarde ${Math.ceil(rl.retryAfterMs / 1000)}s e tente de novo.`,
+        });
+        return false;
+    }
+
+    if (!chefiaPinConfigured()) {
+        res.status(503).json({
+            error: "PIN da chefia não configurado no servidor. Contate o administrador.",
+        });
+        return false;
+    }
+
+    if (!verifyChefiaPin(pin)) {
+        registerPinFailure(ip);
+        res.status(403).json({ error: "PIN incorreto." });
+        return false;
+    }
+
+    registerPinSuccess(ip);
+    return true;
+}
+
+// Nomes reservados/placeholder que não identificam uma pessoa real.
+// Bloqueados no servidor para que exclusões/edições fiquem sempre atribuíveis,
+// mesmo vindas de um frontend em cache ou de chamada direta à API.
+const RESERVED_NAMES = ["sistema", "tutorial"];
+const realName = (label: string) =>
+    z
+        .string()
+        .trim()
+        .min(1, `${label} obrigatório`)
+        .refine(
+            (v) => !RESERVED_NAMES.includes(v.toLowerCase()),
+            `${label} inválido (nome reservado)`
+        );
+
 const createChefiaSchema = z.object({
     mensagem: z.string().min(1, "Mensagem obrigatória"),
-    autor: z.string().min(1, "Nome obrigatório"),
+    autor: realName("Nome"),
 });
 
 const updateChefiaSchema = z.object({
     mensagem: z.string().min(1, "Mensagem obrigatória"),
-    autor: z.string().min(1, "Nome obrigatório"),
+    autor: realName("Nome"),
+    pin: z.string().min(1, "PIN obrigatório"),
 });
 
 const removeChefiaSchema = z.object({
-    removidoPor: z.string().min(1, "Operador obrigatório"),
+    removidoPor: realName("Operador"),
+    pin: z.string().min(1, "PIN obrigatório"),
 });
 
 // GET /api/chefia — todos os alertas ativos
@@ -68,6 +125,7 @@ router.delete("/:id", async (req: Request, res: Response) => {
             return;
         }
         const data = removeChefiaSchema.parse(req.body);
+        if (!enforceChefiaPin(req, res, data.pin)) return;
         const [row] = await db
             .update(chefiaAlerts)
             .set({
@@ -104,6 +162,7 @@ router.patch("/:id", async (req: Request, res: Response) => {
             return;
         }
         const data = updateChefiaSchema.parse(req.body);
+        if (!enforceChefiaPin(req, res, data.pin)) return;
         const [row] = await db
             .update(chefiaAlerts)
             .set({

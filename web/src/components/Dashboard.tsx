@@ -20,6 +20,7 @@ import IntelModal from "./IntelModal";
 import ChefiaModal from "./ChefiaModal";
 import ReportModal from "./ReportModal";
 import ConfirmDialog from "./ConfirmDialog";
+import PinDialog from "./PinDialog";
 import Tutorial from "./Tutorial";
 import SummaryDrawer from "./SummaryDrawer";
 
@@ -130,20 +131,42 @@ export default function Dashboard() {
     onConfirm: () => void;
   } | null>(null);
 
+  // PIN da chefia — ação pendente de autorização (apagar ou editar alerta)
+  const [pinAction, setPinAction] = useState<
+    | { kind: "delete"; id: number; detail: string }
+    | { kind: "edit"; id: number; data: { mensagem: string; autor: string }; detail: string }
+    | null
+  >(null);
+  const [pinError, setPinError] = useState<string | null>(null);
+  const [pinBusy, setPinBusy] = useState(false);
+  // Cache em memória do último PIN válido (some ao recarregar a página)
+  const chefiaPinCache = useRef("");
+
   // Summary drawer state — persisted in localStorage
   const [showSummary, setShowSummary] = useState(
     () => localStorage.getItem("tabela:showSummary") === "true"
   );
 
-  // Persist op, tab, showSummary to localStorage
-  useEffect(() => { localStorage.setItem("tabela:op", op); }, [op]);
-  useEffect(() => { localStorage.setItem("tabela:tab", tab); }, [tab]);
-  useEffect(() => { localStorage.setItem("tabela:showSummary", String(showSummary)); }, [showSummary]);
-
   // Tutorial state
   const [tutActive, setTutActive] = useState(false);
   const [tutStep, setTutStep] = useState(0);
   const [tutorialData, setTutorialData] = useState<TutorialDataResult | null>(null);
+  // Marca se o nome "Tutorial" foi atribuído automaticamente, para reverter ao sair
+  const tutOpApplied = useRef(false);
+
+  // Limpa nome "Tutorial" preso em clientes de sessões anteriores (bug antigo)
+  useEffect(() => {
+    if (op === "Tutorial") setOp("");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Persist op, tab, showSummary to localStorage
+  // Nunca persiste o nome enquanto o tutorial está ativo — evita vazar "Tutorial"
+  useEffect(() => {
+    if (!tutActive && op !== "Tutorial") localStorage.setItem("tabela:op", op);
+  }, [op, tutActive]);
+  useEffect(() => { localStorage.setItem("tabela:tab", tab); }, [tab]);
+  useEffect(() => { localStorage.setItem("tabela:showSummary", String(showSummary)); }, [showSummary]);
 
   // Derived data — substitui fonte quando tutorial ativo
   const effectiveData = tutActive && tutorialData
@@ -228,7 +251,10 @@ export default function Dashboard() {
     setTutActive(true);
     setSelH(null);
     setTab("semaphore");
-    if (!op.trim()) setOp("Tutorial");
+    if (!op.trim()) {
+      setOp("Tutorial");
+      tutOpApplied.current = true;
+    }
   };
   const endTutorial = () => {
     setTutActive(false);
@@ -236,6 +262,11 @@ export default function Dashboard() {
     setSelH(null);
     setTab("semaphore");
     setTutorialData(null);
+    // Reverte o nome "Tutorial" atribuído automaticamente ao iniciar
+    if (tutOpApplied.current) {
+      setOp("");
+      tutOpApplied.current = false;
+    }
   };
   const tutNavigate = (idx: number) => {
     const step = TUTORIAL_STEPS[idx];
@@ -266,6 +297,42 @@ export default function Dashboard() {
     if (tutActive || !c.ativo) return;
     setEditingCase(c);
     setShowNew(true);
+  };
+
+  // Remoção de alerta da chefia — bloqueia tutorial, exige operador identificado
+  // (sem fallback "sistema") e PIN da chefia (validado no servidor).
+  const handleRemoveChefia = (a: typeof chefiaAlerts[number]) => {
+    if (tutActive) return; // nunca mutar dados reais no tutorial
+    if (!op.trim()) return; // exige nome real — remove o fallback "sistema"
+    setPinError(null);
+    setPinAction({
+      kind: "delete",
+      id: a.id,
+      detail: `Remover: ${a.autor} · ${fmt(a.timestamp)} · ${a.mensagem}`,
+    });
+  };
+
+  // Executa a ação pendente (apagar/editar) usando o PIN informado.
+  const submitPin = async (pin: string) => {
+    if (!pinAction || !op.trim()) return;
+    setPinBusy(true);
+    setPinError(null);
+    try {
+      if (pinAction.kind === "delete") {
+        await removeChefia.mutateAsync({ id: pinAction.id, removidoPor: op, pin });
+      } else {
+        await updateChefia.mutateAsync({ id: pinAction.id, data: pinAction.data, pin });
+        setEditingChefia(null);
+        setShowChefia(false);
+      }
+      chefiaPinCache.current = pin; // guarda o PIN válido p/ próximas ações da sessão
+      setPinAction(null);
+    } catch (e) {
+      chefiaPinCache.current = ""; // PIN pode estar errado — não reaproveita
+      setPinError(e instanceof Error ? e.message : "Falha ao validar o PIN");
+    } finally {
+      setPinBusy(false);
+    }
   };
 
   const handleSubmitCase = (data: CaseFormInput) => {
@@ -797,9 +864,10 @@ export default function Dashboard() {
                           ✎
                         </button>
                         <button
-                          onClick={() => removeChefia.mutate({ id: a.id, removidoPor: op || "sistema" })}
-                          className="text-red-300 hover:text-red-600 text-xs font-bold bg-transparent border border-red-200 rounded-md px-[6px] py-[2px] cursor-pointer"
-                          title="Remover alerta"
+                          onClick={() => handleRemoveChefia(a)}
+                          disabled={noOp}
+                          className="text-red-300 hover:text-red-600 text-xs font-bold bg-transparent border border-red-200 rounded-md px-[6px] py-[2px] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                          title={noOp ? "Preencha seu nome para remover" : "Remover alerta"}
                         >
                           ✕
                         </button>
@@ -1057,14 +1125,23 @@ export default function Dashboard() {
           alerts={chefiaAlerts}
           editingAlert={editingChefia}
           onSubmit={(data) => {
+            if (tutActive || !op.trim()) return;
             createChefia.mutate(data);
           }}
           onUpdate={(id, data) => {
-            updateChefia.mutate({ id, data });
-            setEditingChefia(null);
+            if (tutActive || !op.trim()) return;
+            setPinError(null);
+            setPinAction({ kind: "edit", id, data, detail: `Editar alerta: ${data.mensagem}` });
           }}
           onRemove={(id) => {
-            removeChefia.mutate({ id, removidoPor: op || "sistema" });
+            if (tutActive || !op.trim()) return; // exige nome real — sem fallback "sistema"
+            const a = chefiaAlerts.find((x) => x.id === id);
+            setPinError(null);
+            setPinAction({
+              kind: "delete",
+              id,
+              detail: a ? `Remover: ${a.autor} · ${a.mensagem}` : "Remover alerta de chefia",
+            });
           }}
           onClose={() => { setShowChefia(false); setEditingChefia(null); }}
         />
@@ -1083,6 +1160,17 @@ export default function Dashboard() {
           detail={confirm.detail}
           onConfirm={confirm.onConfirm}
           onCancel={() => setConfirm(null)}
+        />
+      )}
+
+      {pinAction && (
+        <PinDialog
+          detail={pinAction.detail}
+          initialPin={chefiaPinCache.current}
+          error={pinError}
+          busy={pinBusy}
+          onConfirm={submitPin}
+          onCancel={() => { setPinAction(null); setPinError(null); }}
         />
       )}
 

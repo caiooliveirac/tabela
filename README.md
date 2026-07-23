@@ -124,6 +124,11 @@ git clone git@github.com:caiooliveirac/tabela.git
 cd tabela
 cp .env.example .env     # configurar senhas reais!
 
+# ⚠️ Defina o PIN da chefia no .env — sem ele, apagar/editar alertas
+# de chefia fica BLOQUEADO (fail-closed):
+#   CHEFIA_PIN=<pin-secreto>
+# (opcional durante rotação: CHEFIA_PIN_PREV=<pin-anterior>)
+
 # Build e start
 docker compose build
 docker compose up -d

@@ -11,6 +11,7 @@ import intelRouter from "./routes/intel.js";
 import hospitalsRouter from "./routes/hospitals.js";
 import chefiaRouter from "./routes/chefia.js";
 import reportsRouter from "./routes/reports.js";
+import { chefiaPinConfigured } from "./lib/chefiaPin.js";
 
 const PORT = parseInt(process.env.PORT || "3000", 10);
 const DATABASE_URL =
@@ -22,6 +23,9 @@ export const db = drizzle(sql);
 
 // Express
 const app = express();
+// Atrás do nginx: confia no X-Forwarded-For para que req.ip seja o IP real
+// (necessário para o rate limit do PIN funcionar por cliente).
+app.set("trust proxy", true);
 app.use(cors());
 app.use(express.json());
 
@@ -44,4 +48,11 @@ setupWebSocket(server);
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 API running on http://0.0.0.0:${PORT}`);
   console.log(`📡 WebSocket on ws://0.0.0.0:${PORT}/tabela/ws`);
+  if (chefiaPinConfigured()) {
+    console.log("🔒 PIN da chefia configurado — exclusão/edição de alertas protegidas");
+  } else {
+    console.warn(
+      "⚠️  CHEFIA_PIN não configurado — exclusão/edição de alertas de chefia estão BLOQUEADAS até definir o PIN no .env"
+    );
+  }
 });
