@@ -70,6 +70,7 @@ export interface CreateCasePayload {
   medico?: string;
   oc?: string;
   criadoPor: string;
+  timestamp?: string; // ISO 8601 — horário do caso (quando informado)
 }
 
 export interface UpdateCasePayload {
@@ -80,6 +81,7 @@ export interface UpdateCasePayload {
   medico?: string;
   oc?: string;
   atualizadoPor: string;
+  timestamp?: string; // ISO 8601 — horário do caso (quando corrigido)
 }
 
 export interface CreateIntelPayload {

@@ -9,6 +9,15 @@ export interface CaseFormInput {
   mr?: string;
   medico?: string;
   oc?: string;
+  timestamp?: string; // ISO 8601 — horário do caso
+}
+
+/** Date → "YYYY-MM-DDTHH:MM" no fuso local, para <input type="datetime-local"> */
+function toLocalInput(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
+    d.getHours()
+  )}:${pad(d.getMinutes())}`;
 }
 
 interface NewCaseModalProps {
@@ -35,6 +44,7 @@ export default function NewCaseModal({
     mr: "",
     medico: "",
     oc: "",
+    dataHora: toLocalInput(new Date()),
   });
 
   useEffect(() => {
@@ -46,6 +56,7 @@ export default function NewCaseModal({
         mr: "",
         medico: "",
         oc: "",
+        dataHora: toLocalInput(new Date()),
       });
       return;
     }
@@ -57,6 +68,7 @@ export default function NewCaseModal({
       mr: initialData.mr || "",
       medico: initialData.medico || "",
       oc: initialData.oc || "",
+      dataHora: toLocalInput(new Date(initialData.timestamp)),
     });
   }, [initialData]);
 
@@ -80,6 +92,9 @@ export default function NewCaseModal({
       mr: form.mr || undefined,
       medico: form.medico || undefined,
       oc: form.oc || undefined,
+      timestamp: form.dataHora
+        ? new Date(form.dataHora).toISOString()
+        : undefined,
     });
   };
 
@@ -153,6 +168,22 @@ export default function NewCaseModal({
                 ))}
               </div>
             </div>
+          </div>
+          <div>
+            <label className="text-[11px] font-bold text-slate-500 uppercase">
+              Horário do caso *
+            </label>
+            <input
+              type="datetime-local"
+              value={form.dataHora}
+              onChange={(e) =>
+                setForm({ ...form, dataHora: e.target.value })
+              }
+              className={`${inp} cursor-pointer`}
+            />
+            <p className="text-[11px] text-slate-400 mt-1">
+              Ajuste se o caso foi registrado depois da hora real.
+            </p>
           </div>
           <div>
             <label className="text-[11px] font-bold text-slate-500 uppercase">

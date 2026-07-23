@@ -26,6 +26,7 @@ const updateCaseSchema = z.object({
   medico: z.string().optional().nullable(),
   oc: z.string().optional().nullable(),
   atualizadoPor: z.string().min(1, "Operador obrigatório"),
+  timestamp: z.string().datetime().optional(), // ISO 8601 — corrigir horário do caso
 });
 
 const removeCaseSchema = z.object({
@@ -132,6 +133,7 @@ router.patch("/:id", async (req: Request, res: Response) => {
         mr: data.mr || null,
         medico: data.medico || null,
         oc: data.oc || null,
+        ...(data.timestamp ? { timestamp: new Date(data.timestamp) } : {}),
       })
       .where(and(eq(cases.id, id), eq(cases.ativo, true)))
       .returning();
