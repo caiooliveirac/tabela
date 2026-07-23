@@ -32,6 +32,9 @@ services:
       CHEFIA_PIN: ${CHEFIA_PIN:-}
       # PIN anterior — mantenha preenchido durante a janela de rotação, depois esvazie.
       CHEFIA_PIN_PREV: ${CHEFIA_PIN_PREV:-}
+      # Alerta de bloqueio de IP vai para o privado do admin (mesmo bot do notifier).
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_ADMIN_CHAT_ID: ${TELEGRAM_ADMIN_CHAT_ID:-}
     networks:
       internal:
         aliases:

@@ -7,7 +7,7 @@ import { broadcast } from "../ws/handler.js";
 import {
     chefiaPinConfigured,
     verifyChefiaPin,
-    checkPinRateLimit,
+    isBlocked,
     registerPinFailure,
     registerPinSuccess,
 } from "../lib/chefiaPin.js";
@@ -20,13 +20,13 @@ function clientIp(req: Request): string {
 
 // Garante que a ação foi autorizada por um PIN de chefia válido.
 // Responde e retorna false se bloqueada; retorna true para prosseguir.
-function enforceChefiaPin(req: Request, res: Response, pin: string): boolean {
+async function enforceChefiaPin(req: Request, res: Response, pin: string): Promise<boolean> {
     const ip = clientIp(req);
 
-    const rl = checkPinRateLimit(ip);
-    if (!rl.ok) {
-        res.status(429).json({
-            error: `Muitas tentativas. Aguarde ${Math.ceil(rl.retryAfterMs / 1000)}s e tente de novo.`,
+    // IP bloqueado de vez (5 erros em curto espaço) — nem tenta validar.
+    if (isBlocked(ip)) {
+        res.status(403).json({
+            error: "Este dispositivo foi bloqueado por tentativas de PIN. Contate o administrador.",
         });
         return false;
     }
@@ -39,7 +39,7 @@ function enforceChefiaPin(req: Request, res: Response, pin: string): boolean {
     }
 
     if (!verifyChefiaPin(pin)) {
-        registerPinFailure(ip);
+        await registerPinFailure(ip); // pode bloquear o IP e avisar o admin
         res.status(403).json({ error: "PIN incorreto." });
         return false;
     }
@@ -125,7 +125,7 @@ router.delete("/:id", async (req: Request, res: Response) => {
             return;
         }
         const data = removeChefiaSchema.parse(req.body);
-        if (!enforceChefiaPin(req, res, data.pin)) return;
+        if (!(await enforceChefiaPin(req, res, data.pin))) return;
         const [row] = await db
             .update(chefiaAlerts)
             .set({
@@ -162,7 +162,7 @@ router.patch("/:id", async (req: Request, res: Response) => {
             return;
         }
         const data = updateChefiaSchema.parse(req.body);
-        if (!enforceChefiaPin(req, res, data.pin)) return;
+        if (!(await enforceChefiaPin(req, res, data.pin))) return;
         const [row] = await db
             .update(chefiaAlerts)
             .set({

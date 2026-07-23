@@ -11,7 +11,7 @@ import intelRouter from "./routes/intel.js";
 import hospitalsRouter from "./routes/hospitals.js";
 import chefiaRouter from "./routes/chefia.js";
 import reportsRouter from "./routes/reports.js";
-import { chefiaPinConfigured } from "./lib/chefiaPin.js";
+import { chefiaPinConfigured, initChefiaSecurity } from "./lib/chefiaPin.js";
 
 const PORT = parseInt(process.env.PORT || "3000", 10);
 const DATABASE_URL =
@@ -44,6 +44,9 @@ app.use("/tabela/api/reports", reportsRouter);
 // HTTP + WebSocket server
 const server = createServer(app);
 setupWebSocket(server);
+
+// Segurança do PIN: cria tabela de bloqueios e carrega IPs bloqueados
+initChefiaSecurity().catch((e) => console.error("initChefiaSecurity:", e));
 
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 API running on http://0.0.0.0:${PORT}`);
