@@ -14,6 +14,9 @@ import type {
   UpdateChefiaPayload,
   ReportRequestPayload,
   ReportPreviewResponse,
+  UpaRestriction,
+  UpaRestrictionsResponse,
+  CreateUpaRestrictionPayload,
   WsEvent,
 } from "../lib/types";
 
@@ -106,6 +109,22 @@ export const api = {
 
   // ── Hospitals (scores) ──
   getHospitals: () => request<HospitalsResponse>("/hospitals"),
+
+  // ── Restrições de UPA (escrita exige PIN da chefia) ──
+  getUpaRestrictions: () =>
+    request<UpaRestrictionsResponse>("/upas/restrictions").then((r) => r.restrictions),
+
+  restrictUpa: (data: CreateUpaRestrictionPayload, pin: string) =>
+    request<UpaRestriction>("/upas/restrictions", {
+      method: "POST",
+      body: JSON.stringify({ ...data, pin }),
+    }),
+
+  liberateUpa: (id: number, removidoPor: string, pin: string) =>
+    request<UpaRestriction>(`/upas/restrictions/${id}`, {
+      method: "DELETE",
+      body: JSON.stringify({ removidoPor, pin }),
+    }),
 };
 
 // ── WebSocket ──

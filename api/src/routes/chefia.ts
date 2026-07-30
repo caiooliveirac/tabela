@@ -4,63 +4,9 @@ import { z } from "zod";
 import { db } from "../index.js";
 import { chefiaAlerts } from "../db/schema.js";
 import { broadcast } from "../ws/handler.js";
-import {
-    chefiaPinConfigured,
-    verifyChefiaPin,
-    isBlocked,
-    registerPinFailure,
-    registerPinSuccess,
-} from "../lib/chefiaPin.js";
+import { enforceChefiaPin, realName } from "../lib/chefiaGuard.js";
 
 const router = Router();
-
-function clientIp(req: Request): string {
-    return req.ip || req.socket.remoteAddress || "unknown";
-}
-
-// Garante que a ação foi autorizada por um PIN de chefia válido.
-// Responde e retorna false se bloqueada; retorna true para prosseguir.
-async function enforceChefiaPin(req: Request, res: Response, pin: string): Promise<boolean> {
-    const ip = clientIp(req);
-
-    // IP bloqueado de vez (5 erros em curto espaço) — nem tenta validar.
-    if (await isBlocked(ip)) {
-        res.status(403).json({
-            error: "Este dispositivo foi bloqueado por tentativas de PIN. Contate o administrador.",
-        });
-        return false;
-    }
-
-    if (!(await chefiaPinConfigured())) {
-        res.status(503).json({
-            error: "PIN da chefia não configurado no servidor. Contate o administrador.",
-        });
-        return false;
-    }
-
-    if (!(await verifyChefiaPin(pin))) {
-        await registerPinFailure(ip); // pode bloquear o IP e avisar o admin
-        res.status(403).json({ error: "PIN incorreto." });
-        return false;
-    }
-
-    registerPinSuccess(ip);
-    return true;
-}
-
-// Nomes reservados/placeholder que não identificam uma pessoa real.
-// Bloqueados no servidor para que exclusões/edições fiquem sempre atribuíveis,
-// mesmo vindas de um frontend em cache ou de chamada direta à API.
-const RESERVED_NAMES = ["sistema", "tutorial"];
-const realName = (label: string) =>
-    z
-        .string()
-        .trim()
-        .min(1, `${label} obrigatório`)
-        .refine(
-            (v) => !RESERVED_NAMES.includes(v.toLowerCase()),
-            `${label} inválido (nome reservado)`
-        );
 
 const createChefiaSchema = z.object({
     mensagem: z.string().min(1, "Mensagem obrigatória"),

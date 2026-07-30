@@ -31,10 +31,26 @@ Procedimentos completos: `~/labctl/README.md` no servidor magalu.
 - **Exigem aprovação explícita**: migrations no banco de produção, mexer no
   `tabela-notifier`, qualquer escrita manual no banco `tabela`.
 
+## Dois bots de Telegram — não confundir
+
+- **Bot regulador** (este repo): token `TELEGRAM_BOT_TOKEN`. Dois processos com o
+  MESMO token — `api/src/bot/chefiaBot.ts` (long-polling, único consumidor de
+  `getUpdates`) e o `tabela-notifier` (só envia). Comando novo do lado regulador
+  entra no `chefiaBot.ts`; um poller novo roubaria os updates dele.
+- **Bot Plantões SAMU** (repo `plantoes`): outro token, outro grupo, webhook.
+  Registra chegada/saída de plantonista. Só **lê** deste repo, via
+  `GET /tabela/api/upas/restrictions`.
+- Restrição de UPA (célula vermelha + PIN + avisos no grupo):
+  [docs/upa-restricoes.md](docs/upa-restricoes.md).
+
 ## Pegadinhas conhecidas
 
 - A API devolve **camelCase** (`hospitalId`, `criadoPor`) — o bug histórico do
   notifier foi ler snake_case.
+- Tabelas de PIN e de restrição de UPA são criadas no **boot** da API
+  (`initChefiaSecurity` / `initUpaRestrictions`), não pelo `db:migrate` — o
+  deploy não roda migrations. A migration em `drizzle/migrations` é
+  `IF NOT EXISTS` justamente para ser um no-op depois.
 - Dev local no Mac: o db do compose dev colide com a porta 5433 (túnel ssh) —
   usar override de porta. No LAB do servidor o 5433 é do próprio LAB.
 - `docker-compose.yml.bak-*` no LIVE são backups intencionais (untracked).

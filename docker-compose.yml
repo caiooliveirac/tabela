@@ -35,6 +35,9 @@ services:
       # Alerta de bloqueio de IP vai para o privado do admin (mesmo bot do notifier).
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_ADMIN_CHAT_ID: ${TELEGRAM_ADMIN_CHAT_ID:-}
+      # Grupo dos reguladores (o mesmo do tabela-notifier): recebe os avisos de
+      # UPA restrita e responde /upas. Vazio = avisos no grupo desligados.
+      TELEGRAM_REGULADORES_CHAT_ID: ${TELEGRAM_REGULADORES_CHAT_ID:-}
     networks:
       internal:
         aliases:

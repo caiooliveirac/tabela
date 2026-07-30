@@ -12,6 +12,7 @@ export type WsEvent =
   | { type: "chefia:created"; payload: unknown }
   | { type: "chefia:updated"; payload: unknown }
   | { type: "chefia:removed"; payload: unknown }
+  | { type: "upa-restriction:changed"; payload: unknown }
   | { type: "refresh" };
 
 export function setupWebSocket(server: Server): WebSocketServer {
