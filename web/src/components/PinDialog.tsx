@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 
 interface PinDialogProps {
   title?: string;
+  /** O que exatamente exige o PIN — muda por ação (alerta, restrição de UPA). */
+  subtitle?: string;
   detail?: string;
   initialPin?: string;
   error?: string | null;
@@ -12,6 +14,7 @@ interface PinDialogProps {
 
 export default function PinDialog({
   title = "PIN da chefia necessário",
+  subtitle = "Apagar ou editar um alerta de chefia exige o PIN.",
   detail,
   initialPin = "",
   error,
@@ -43,9 +46,7 @@ export default function PinDialog({
         onMouseDown={(e) => e.stopPropagation()}
       >
         <h3 className="text-[17px] font-black text-red-700 mb-2">🔒 {title}</h3>
-        <p className="text-sm text-slate-700 font-semibold mb-[6px]">
-          Apagar ou editar um alerta de chefia exige o PIN.
-        </p>
+        <p className="text-sm text-slate-700 font-semibold mb-[6px]">{subtitle}</p>
         {detail && (
           <p className="text-[13px] text-slate-500 bg-slate-50 p-3 rounded-lg border border-slate-200 mb-4">
             {detail}

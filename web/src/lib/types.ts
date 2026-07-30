@@ -201,8 +201,36 @@ export interface ReportPreviewResponse {
   markdown: string;
 }
 
+// ── Restrição de UPA ──
+// Decisão da chefia (com PIN) de que uma UPA não deve receber pacientes até um
+// prazo. `until` é o instante ISO; `untilLabel` já vem pronto do servidor no
+// fuso de Salvador ("hoje 19:00"), para o painel e o bot falarem igual.
+export interface UpaRestriction {
+  id: number;
+  unitKey: string;
+  unitName: string;
+  until: string;
+  untilLabel: string;
+  autor: string;
+  since: string;
+}
+
+export interface UpaRestrictionsResponse {
+  ok: boolean;
+  generatedAt: string;
+  restrictions: UpaRestriction[];
+}
+
+export interface CreateUpaRestrictionPayload {
+  unitKey: string;
+  unitName: string;
+  until: string;
+  autor: string;
+}
+
 export type WsEvent =
   | { type: "connected"; clients: number }
+  | { type: "upa-restriction:changed"; payload: UpaRestriction }
   | { type: "case:created"; payload: CaseRow }
   | { type: "case:updated"; payload: CaseRow }
   | { type: "case:removed"; payload: CaseRow }

@@ -878,7 +878,7 @@ export default function Dashboard() {
             )}
 
             {tab === "upas" ? (
-              <UpasView />
+              <UpasView operador={op} />
             ) : tab === "semaphore" ? (
               <>
                 {/* Legend — gradient bar */}

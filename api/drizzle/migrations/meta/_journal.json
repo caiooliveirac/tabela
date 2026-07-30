@@ -15,6 +15,13 @@
       "when": 1772829321758,
       "tag": "0001_living_sabretooth",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1785426138367,
+      "tag": "0002_friendly_toad_men",
+      "breakpoints": true
     }
   ]
 }

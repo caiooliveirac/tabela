@@ -1,9 +1,17 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import type { UpaRestriction } from "../lib/types";
+import { useUpaRestrictions, useRestrictUpa, useLiberateUpa } from "../hooks/useUpaRestrictions";
+import UpaRestrictionModal from "./UpaRestrictionModal";
+import PinDialog from "./PinDialog";
 
 // Aba UPAs — visão da cidade do Giro de Leitos, consumindo a API pública do
 // giro-de-leitos montada em /tabela/upas/api (nginx). Mesma linguagem visual do
 // Painel de Vagas: KPI strip horizontal, grid único de cards compactos com
 // barra lateral semáforo e detail panel full-width abaixo do grid.
+//
+// Sobreposto a isso vem a RESTRIÇÃO da chefia (banco do próprio tabela, não do
+// giro): célula vermelha + prazo. É a mesma informação que o bot regulador
+// repete no grupo e que entra na chegada do regulador no bot Plantões SAMU.
 
 interface Room { occupied?: number | null; capacity?: number | null }
 interface UnitRow {
@@ -96,34 +104,69 @@ function Chip({ rot, o, c }: { rot: string; o?: number | null; c?: number | null
   );
 }
 
-function UnitCard({ u, isSel, onSelect }: { u: UnitRow; isSel: boolean; onSelect: (k: string) => void }) {
+function UnitCard({
+  u,
+  isSel,
+  restricted,
+  onSelect,
+  onToggleRestriction,
+}: {
+  u: UnitRow;
+  isSel: boolean;
+  restricted: UpaRestriction | null;
+  onSelect: (k: string) => void;
+  onToggleRestriction: (u: UnitRow) => void;
+}) {
   const rv = vac(u.red_occupied, u.red_capacity);
   const a = ageMin(u.updated_at);
-  const cor = u.is_critical || rv === 0 ? RED : rv != null && rv > 0 ? GRN : "#94a3b8";
+  // Restrição da chefia manda no semáforo: mesmo com vaga na vermelha, a célula
+  // fica vermelha — a decisão de não encaminhar não depende de ter leito livre.
+  const cor = restricted || u.is_critical || rv === 0 ? RED : rv != null && rv > 0 ? GRN : "#94a3b8";
   const esp = ([["🔪", "Cirurgião", u.has_surgeon], ["🧠", "Psiquiatra", u.has_psychiatrist], ["🦴", "Ortopedista", u.has_orthopedist]] as const)
     .filter(([, , on]) => on);
   return (
-    <button
+    <div
       onClick={() => onSelect(u.unit_key)}
-      className="flex flex-col gap-[6px] rounded-[14px] cursor-pointer transition-all text-left outline-none w-full relative overflow-hidden bg-white"
+      className="flex flex-col gap-[6px] rounded-[14px] cursor-pointer transition-all text-left outline-none w-full relative overflow-hidden"
       style={{
         padding: "12px 14px 10px 16px",
-        border: isSel ? `3px solid ${cor}` : `2px solid ${cor}66`,
+        background: restricted ? "hsl(0,75%,96%)" : "#fff",
+        border: isSel || restricted ? `3px solid ${cor}` : `2px solid ${cor}66`,
         boxShadow: isSel ? `0 0 0 4px ${cor}15, 0 0 10px ${cor}33` : `0 0 8px ${cor}22`,
       }}
     >
       <div className="absolute left-0 top-0 bottom-0 w-[5px]" style={{ backgroundColor: cor }} />
       <div className="flex justify-between items-start gap-2 w-full">
         <h3 className="m-0 text-[13px] font-black text-slate-900 leading-tight">{nome(u)}</h3>
-        {rv != null && (
-          <span
-            className="text-[10px] font-black px-2 py-[2px] rounded-full whitespace-nowrap flex-shrink-0"
-            style={rv > 0 ? { background: "hsl(140,60%,94%)", color: GRN } : { background: "hsl(0,70%,96%)", color: RED }}
+        <span className="flex items-center gap-1 flex-shrink-0">
+          {rv != null && (
+            <span
+              className="text-[10px] font-black px-2 py-[2px] rounded-full whitespace-nowrap"
+              style={rv > 0 ? { background: "hsl(140,60%,94%)", color: GRN } : { background: "hsl(0,70%,96%)", color: RED }}
+            >
+              {rv > 0 ? `${rv} vaga${rv === 1 ? "" : "s"} 🔴` : "lotada"}
+            </span>
+          )}
+          <button
+            onClick={(e) => { e.stopPropagation(); onToggleRestriction(u); }}
+            title={restricted ? "Restrição da chefia — alterar prazo ou liberar" : "Restringir esta UPA (PIN da chefia)"}
+            className="text-[11px] leading-none px-[6px] py-[3px] rounded-md border cursor-pointer"
+            style={restricted
+              ? { background: RED, borderColor: RED, color: "#fff" }
+              : { background: "transparent", borderColor: "hsl(0,40%,88%)", color: "hsl(0,30%,60%)" }}
           >
-            {rv > 0 ? `${rv} vaga${rv === 1 ? "" : "s"} 🔴` : "lotada"}
-          </span>
-        )}
+            🚫
+          </button>
+        </span>
       </div>
+      {restricted && (
+        <div
+          className="w-full rounded-md px-2 py-1 text-[10px] font-black text-white tracking-wide"
+          style={{ background: RED }}
+        >
+          RESTRITA até {restricted.untilLabel}
+        </div>
+      )}
       <div className="flex gap-1 flex-wrap">
         {salas(u).map((s) => <Chip key={s.rot} {...s} />)}
       </div>
@@ -139,7 +182,7 @@ function UnitCard({ u, isSel, onSelect }: { u: UnitRow; isSel: boolean; onSelect
           {ageLabel(a)}
         </span>
       </div>
-    </button>
+    </div>
   );
 }
 
@@ -155,12 +198,72 @@ function Linha({ rot, o, c }: { rot: string; o?: number | null; c?: number | nul
   );
 }
 
-export default function UpasView() {
+export default function UpasView({ operador = "" }: { operador?: string }) {
   const [units, setUnits] = useState<UnitRow[]>([]);
   const [hist, setHist] = useState<HistEvent[]>([]);
   const [busca, setBusca] = useState("");
   const [stamp, setStamp] = useState<string>("");
   const [sel, setSel] = useState<string | null>(null);
+
+  // ── Restrições da chefia ──
+  const { data: restrictions = [] } = useUpaRestrictions();
+  const restrictUpa = useRestrictUpa();
+  const liberateUpa = useLiberateUpa();
+  const [restrTarget, setRestrTarget] = useState<{ unitKey: string; unitName: string } | null>(null);
+  // Ação aguardando PIN (o modal de prazo fecha e o PinDialog assume).
+  const [pinAction, setPinAction] = useState<
+    | { kind: "restrict"; unitKey: string; unitName: string; until: string; detail: string }
+    | { kind: "liberate"; id: number; unitName: string; detail: string }
+    | null
+  >(null);
+  const [pinError, setPinError] = useState<string | null>(null);
+  const [pinBusy, setPinBusy] = useState(false);
+  // Cache em memória do último PIN válido (some ao recarregar), como no painel.
+  const pinCache = useRef("");
+
+  const restrictionByUnit = useMemo(() => {
+    const map = new Map<string, UpaRestriction>();
+    for (const r of restrictions) map.set(r.unitKey, r);
+    return map;
+  }, [restrictions]);
+
+  const abrirRestricao = useCallback((u: UnitRow) => {
+    setRestrTarget({ unitKey: u.unit_key, unitName: nome(u) });
+  }, []);
+
+  const pedirPin = (action: NonNullable<typeof pinAction>) => {
+    setPinError(null);
+    setRestrTarget(null);
+    setPinAction(action);
+  };
+
+  const submitPin = async (pin: string) => {
+    if (!pinAction) return;
+    setPinBusy(true);
+    setPinError(null);
+    try {
+      if (pinAction.kind === "restrict") {
+        await restrictUpa.mutateAsync({
+          data: {
+            unitKey: pinAction.unitKey,
+            unitName: pinAction.unitName,
+            until: pinAction.until,
+            autor: operador,
+          },
+          pin,
+        });
+      } else {
+        await liberateUpa.mutateAsync({ id: pinAction.id, removidoPor: operador, pin });
+      }
+      pinCache.current = pin;
+      setPinAction(null);
+    } catch (e) {
+      pinCache.current = ""; // PIN pode estar errado — não reaproveita
+      setPinError(e instanceof Error ? e.message : "Falha ao validar o PIN");
+    } finally {
+      setPinBusy(false);
+    }
+  };
 
   const load = useCallback(async () => {
     try {
@@ -200,15 +303,19 @@ export default function UpasView() {
 
   const match = useCallback((u: UnitRow) => !busca || norm(nome(u)).includes(norm(busca)), [busca]);
 
-  // Grid único: com vaga de vermelha primeiro (mais vagas → topo), depois o resto por nome
+  // Grid: restritas no topo (decisão da chefia é o que muda a conduta), depois
+  // as com vaga de vermelha (mais vagas → topo) e por fim o resto por nome.
   const ordenadas = useMemo(() => {
     const visiveis = units.filter(match);
-    const comVaga = visiveis.filter((u) => (vac(u.red_occupied, u.red_capacity) ?? 0) > 0)
-      .sort((a, b) => (vac(b.red_occupied, b.red_capacity) ?? 0) - (vac(a.red_occupied, a.red_capacity) ?? 0));
-    const resto = visiveis.filter((u) => !((vac(u.red_occupied, u.red_capacity) ?? 0) > 0))
+    const restritas = visiveis.filter((u) => restrictionByUnit.has(u.unit_key))
       .sort((a, b) => nome(a).localeCompare(nome(b)));
-    return [...comVaga, ...resto];
-  }, [units, match]);
+    const livres = visiveis.filter((u) => !restrictionByUnit.has(u.unit_key));
+    const comVaga = livres.filter((u) => (vac(u.red_occupied, u.red_capacity) ?? 0) > 0)
+      .sort((a, b) => (vac(b.red_occupied, b.red_capacity) ?? 0) - (vac(a.red_occupied, a.red_capacity) ?? 0));
+    const resto = livres.filter((u) => !((vac(u.red_occupied, u.red_capacity) ?? 0) > 0))
+      .sort((a, b) => nome(a).localeCompare(nome(b)));
+    return [...restritas, ...comVaga, ...resto];
+  }, [units, match, restrictionByUnit]);
 
   const kpis = useMemo(() => {
     const soma = (get: (u: UnitRow) => number | null) =>
@@ -258,6 +365,30 @@ export default function UpasView() {
         </span>
       </div>
 
+      {/* Faixa de restrições — o que a chefia decidiu, acima de qualquer número.
+          Também é a única forma de mexer numa restrição cuja UPA parou de mandar
+          giro (o card some do grid, a restrição continua valendo). */}
+      {restrictions.length > 0 && (
+        <div className="rounded-[10px] border-2 mb-4 px-4 py-3" style={{ borderColor: RED, background: "hsl(0,75%,97%)" }}>
+          <div className="text-[11px] font-black uppercase tracking-wide mb-2" style={{ color: RED }}>
+            🚫 {restrictions.length} UPA{restrictions.length === 1 ? "" : "s"} restrita{restrictions.length === 1 ? "" : "s"} pela chefia
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {restrictions.map((r) => (
+              <button
+                key={r.id}
+                onClick={() => setRestrTarget({ unitKey: r.unitKey, unitName: r.unitName })}
+                className="text-[12px] font-bold px-3 py-[5px] rounded-full border-2 bg-white cursor-pointer"
+                style={{ borderColor: RED, color: RED }}
+                title={`Restrita por ${r.autor} — clique para alterar o prazo ou liberar`}
+              >
+                {r.unitName} · até {r.untilLabel}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* KPI strip — número + rótulo e, embaixo, os nomes das UPAs de cada categoria */}
       <div className="flex flex-wrap gap-[1px] bg-slate-200 border border-slate-200 rounded-[10px] overflow-hidden mb-4">
         {kpis.map((k) => (
@@ -299,7 +430,14 @@ export default function UpasView() {
           </div>
         )}
         {ordenadas.map((u) => (
-          <UnitCard key={u.unit_key} u={u} isSel={sel === u.unit_key} onSelect={(k) => setSel(sel === k ? null : k)} />
+          <UnitCard
+            key={u.unit_key}
+            u={u}
+            isSel={sel === u.unit_key}
+            restricted={restrictionByUnit.get(u.unit_key) ?? null}
+            onSelect={(k) => setSel(sel === k ? null : k)}
+            onToggleRestriction={abrirRestricao}
+          />
         ))}
       </div>
 
@@ -308,12 +446,23 @@ export default function UpasView() {
         <div className="bg-white border-2 border-slate-200 rounded-[14px] p-5 mt-4 shadow-sm origin-top detail-enter">
           <div className="flex justify-between items-start gap-3 mb-3">
             <h2 className="m-0 text-base font-black text-slate-900">{nome(selU)}</h2>
-            <button
-              onClick={() => setSel(null)}
-              className="text-slate-400 hover:text-slate-600 text-sm font-bold bg-transparent border-none cursor-pointer"
-            >
-              ✕ fechar
-            </button>
+            <span className="flex items-center gap-3">
+              <button
+                onClick={() => abrirRestricao(selU)}
+                className="text-[12px] font-bold px-3 py-[5px] rounded-lg border-2 cursor-pointer"
+                style={restrictionByUnit.has(selU.unit_key)
+                  ? { borderColor: RED, background: RED, color: "#fff" }
+                  : { borderColor: "hsl(0,50%,85%)", background: "#fff", color: RED }}
+              >
+                {restrictionByUnit.has(selU.unit_key) ? "🚫 Restrita — alterar" : "🚫 Restringir"}
+              </button>
+              <button
+                onClick={() => setSel(null)}
+                className="text-slate-400 hover:text-slate-600 text-sm font-bold bg-transparent border-none cursor-pointer"
+              >
+                ✕ fechar
+              </button>
+            </span>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-1 max-w-[560px] mb-3">
             <Linha rot="🔴 Vermelha" o={selU.red_occupied} c={selU.red_capacity} />
@@ -350,6 +499,50 @@ export default function UpasView() {
             {rawFor(selU) || "Nenhum giro bruto registrado ainda para esta unidade."}
           </pre>
         </div>
+      )}
+
+      {restrTarget && (
+        <UpaRestrictionModal
+          unitKey={restrTarget.unitKey}
+          unitName={restrTarget.unitName}
+          current={restrictionByUnit.get(restrTarget.unitKey) ?? null}
+          operador={operador}
+          onClose={() => setRestrTarget(null)}
+          onRestrict={(until) =>
+            pedirPin({
+              kind: "restrict",
+              unitKey: restrTarget.unitKey,
+              unitName: restrTarget.unitName,
+              until,
+              detail: `Restringir ${restrTarget.unitName} até ${new Date(until).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}`,
+            })
+          }
+          onLiberate={() => {
+            const atual = restrictionByUnit.get(restrTarget.unitKey);
+            if (!atual) return;
+            pedirPin({
+              kind: "liberate",
+              id: atual.id,
+              unitName: restrTarget.unitName,
+              detail: `Liberar ${restrTarget.unitName} (restrita até ${atual.untilLabel})`,
+            });
+          }}
+        />
+      )}
+
+      {pinAction && (
+        <PinDialog
+          subtitle="Restringir ou liberar uma UPA exige o PIN da chefia."
+          detail={pinAction.detail}
+          initialPin={pinCache.current}
+          error={pinError}
+          busy={pinBusy}
+          onConfirm={submitPin}
+          onCancel={() => {
+            setPinAction(null);
+            setPinError(null);
+          }}
+        />
       )}
     </div>
   );

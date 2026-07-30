@@ -1,15 +1,27 @@
 // ═══════════════════════════════════════════════════════════════
-// Bot de comandos da chefia (Telegram) — roda DENTRO da API.
-// Responde SOMENTE ao ADMIN (TELEGRAM_ADMIN_CHAT_ID). Comandos:
+// Bot de comandos do BOT REGULADOR (Telegram) — roda DENTRO da API.
+//
+// Comandos do ADMIN, só no privado (TELEGRAM_ADMIN_CHAT_ID):
 //   /menu         → botões
 //   /resetpin     → cria PIN novo e apaga os antigos; mostra bloqueados
 //   /bloqueados   → lista IPs bloqueados com botões numerados p/ desbloquear
-// Usa long-polling (getUpdates). O notifier só ENVIA, então não há conflito.
+//
+// Comando aberto, no grupo dos reguladores (TELEGRAM_REGULADORES_CHAT_ID):
+//   /upas         → UPAs restritas agora e até quando
+//
+// ATENÇÃO: este é o ÚNICO consumidor de getUpdates deste token. O
+// tabela-notifier só ENVIA, por isso não há conflito — mas qualquer novo
+// poller no mesmo token roubaria updates deste aqui. Comando novo do lado
+// regulador entra NESTE arquivo. (O bot Plantões SAMU é outro token, outro
+// app e usa webhook — ver docs/upa-restricoes.md.)
 // ═══════════════════════════════════════════════════════════════
 import { resetPin, listBlocks, unblock } from "../lib/chefiaPin.js";
+import { listActiveRestrictions } from "../services/upa-restrictions.js";
+import { buildUpasCommandReply } from "../lib/upaRestrictionsBot.js";
 
 const token = () => process.env.TELEGRAM_BOT_TOKEN || "";
 const admin = () => Number(process.env.TELEGRAM_ADMIN_CHAT_ID || 0);
+const reguladores = () => (process.env.TELEGRAM_REGULADORES_CHAT_ID || "").trim();
 
 async function tg(method: string, body: unknown): Promise<any> {
     const r = await fetch(`https://api.telegram.org/bot${token()}/${method}`, {
@@ -34,6 +46,7 @@ const menuKeyboard = {
     inline_keyboard: [
         [{ text: "🔄 Resetar PIN", callback_data: "reset" }],
         [{ text: "🚫 Ver bloqueados", callback_data: "blocks" }],
+        [{ text: "🏥 UPAs restritas", callback_data: "upas" }],
     ],
 };
 
@@ -67,18 +80,51 @@ async function doReset(): Promise<void> {
     await showBlocks();
 }
 
+/**
+ * Normaliza o comando: no grupo o Telegram entrega "/upas@nome_do_bot".
+ * Devolve só o verbo, em minúsculas, sem argumentos.
+ */
+function commandOf(text: string): string {
+    const first = String(text || "").trim().split(/\s+/)[0] ?? "";
+    return first.split("@")[0]!.toLowerCase();
+}
+
+/** /upas — aberto a qualquer um no grupo dos reguladores e ao admin no privado. */
+async function replyUpas(chatId: number | string, replyTo?: number): Promise<void> {
+    const now = new Date();
+    const rows = await listActiveRestrictions(now);
+    await tg("sendMessage", {
+        chat_id: chatId,
+        text: buildUpasCommandReply(rows, now),
+        parse_mode: "HTML",
+        disable_web_page_preview: true,
+        ...(replyTo ? { reply_to_message_id: replyTo } : {}),
+    });
+}
+
 async function handle(u: any): Promise<void> {
     if (u.message) {
-        if (Number(u.message.from?.id) !== admin()) return; // só o admin
+        const chatId = String(u.message.chat?.id ?? "");
+        const cmd = commandOf(u.message.text || "");
+
+        // /upas é o único comando aberto — e só no grupo configurado.
+        if (cmd === "/upas" && reguladores() && chatId === reguladores()) {
+            await replyUpas(u.message.chat.id, u.message.message_id);
+            return;
+        }
+
+        if (Number(u.message.from?.id) !== admin()) return; // resto: só o admin
         const t = String(u.message.text || "").trim().toLowerCase();
-        if (["/start", "/menu", "/pin", "/chefia"].includes(t)) {
+        if (cmd === "/upas") {
+            await replyUpas(admin());
+        } else if (["/start", "/menu", "/pin", "/chefia"].includes(t)) {
             await sendAdmin("🔧 <b>Gestão do PIN da chefia</b>", { reply_markup: menuKeyboard });
         } else if (["/resetpin", "/reset"].includes(t)) {
             await doReset();
         } else if (["/bloqueados", "/blocks"].includes(t)) {
             await showBlocks();
         } else {
-            await sendAdmin("Comandos: /resetpin · /bloqueados · /menu", { reply_markup: menuKeyboard });
+            await sendAdmin("Comandos: /resetpin · /bloqueados · /upas · /menu", { reply_markup: menuKeyboard });
         }
     } else if (u.callback_query) {
         const cq = u.callback_query;
@@ -87,6 +133,7 @@ async function handle(u: any): Promise<void> {
         const data = String(cq.data || "");
         if (data === "reset") await doReset();
         else if (data === "blocks") await showBlocks();
+        else if (data === "upas") await replyUpas(admin());
         else if (data.startsWith("ub:")) {
             const ip = data.slice(3);
             await unblock(ip);

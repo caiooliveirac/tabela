@@ -11,8 +11,11 @@ import intelRouter from "./routes/intel.js";
 import hospitalsRouter from "./routes/hospitals.js";
 import chefiaRouter from "./routes/chefia.js";
 import reportsRouter from "./routes/reports.js";
+import upasRouter from "./routes/upas.js";
 import { initChefiaSecurity } from "./lib/chefiaPin.js";
 import { startChefiaBot } from "./bot/chefiaBot.js";
+import { initUpaRestrictions } from "./services/upa-restrictions.js";
+import { initUpaRestrictionNotices, startUpaRestrictionsBroadcast } from "./lib/upaRestrictionsBot.js";
 
 const PORT = parseInt(process.env.PORT || "3000", 10);
 const DATABASE_URL =
@@ -41,15 +44,24 @@ app.use("/tabela/api/intel", intelRouter);
 app.use("/tabela/api/hospitals", hospitalsRouter);
 app.use("/tabela/api/chefia", chefiaRouter);
 app.use("/tabela/api/reports", reportsRouter);
+// Restrições de UPA — GET público (painel + bot Plantões SAMU), escrita com PIN.
+app.use("/tabela/api/upas", upasRouter);
 
 // HTTP + WebSocket server
 const server = createServer(app);
 setupWebSocket(server);
 
-// Segurança do PIN: cria tabelas, semeia PINs e sobe o bot de comandos.
+// Bootstrap idempotente (o deploy do tabela não roda migrations): cria as
+// tabelas de PIN e de restrição de UPA, semeia PINs, sobe o bot de comandos e
+// o loop de avisos de UPA restrita no grupo dos reguladores.
 initChefiaSecurity()
-  .then(() => startChefiaBot())
-  .catch((e) => console.error("initChefiaSecurity:", e));
+  .then(() => initUpaRestrictions())
+  .then(() => initUpaRestrictionNotices())
+  .then(() => {
+    startChefiaBot();
+    startUpaRestrictionsBroadcast();
+  })
+  .catch((e) => console.error("bootstrap:", e));
 
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 API running on http://0.0.0.0:${PORT}`);
