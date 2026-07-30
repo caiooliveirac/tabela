@@ -12,7 +12,7 @@
 // informação além da unidade — restrição vencida sai sozinha do painel e dos
 // avisos, sem depender de alguém lembrar de liberar.
 // ═══════════════════════════════════════════════════════════════
-import { and, asc, eq, gt, sql } from "drizzle-orm";
+import { and, asc, eq, gt, lte, sql } from "drizzle-orm";
 import { db } from "../index.js";
 import { upaRestrictions } from "../db/schema.js";
 
@@ -162,7 +162,10 @@ export async function expireDueRestrictions(now: Date = new Date()): Promise<Upa
     const rows = await db
         .update(upaRestrictions)
         .set({ ativo: false, removidoPor: "prazo vencido", removidoEm: now })
-        .where(and(eq(upaRestrictions.ativo, true), sql`${upaRestrictions.restrictedUntil} <= ${now}`))
+        // lte() e não um fragmento sql cru: o operador tipado leva o mapper da
+        // coluna timestamptz junto. Com `sql` a Date chegava sem tipo no
+        // postgres.js e o tick quebrava a cada minuto (ERR_INVALID_ARG_TYPE).
+        .where(and(eq(upaRestrictions.ativo, true), lte(upaRestrictions.restrictedUntil, now)))
         .returning();
     return rows;
 }
