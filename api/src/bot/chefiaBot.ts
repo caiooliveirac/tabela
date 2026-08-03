@@ -5,9 +5,16 @@
 //   /menu         → botões
 //   /resetpin     → cria PIN novo e apaga os antigos; mostra bloqueados
 //   /bloqueados   → lista IPs bloqueados com botões numerados p/ desbloquear
+//   /destinos     → para onde os pacientes foram regulados, por turno SD/SN
 //
 // Comando aberto, no grupo dos reguladores (TELEGRAM_REGULADORES_CHAT_ID):
 //   /upas         → UPAs restritas agora e até quando
+//
+// ⚠️ /destinos mostra dado de paciente (quadro clínico) e nome de regulador.
+// A checagem `from.id !== admin()` em handle() — depois do desvio do /upas, que
+// é o único comando aberto — é o que garante que isso só sai no privado do
+// admin. Chat não autorizado é ignorado EM SILÊNCIO: responder "sem permissão"
+// já denunciaria a existência do relatório.
 //
 // ATENÇÃO: este é o ÚNICO consumidor de getUpdates deste token. O
 // tabela-notifier só ENVIA, por isso não há conflito — mas qualquer novo
@@ -16,6 +23,9 @@
 // app e usa webhook — ver docs/upa-restricoes.md.)
 // ═══════════════════════════════════════════════════════════════
 import { resetPin, listBlocks, unblock } from "../lib/chefiaPin.js";
+import { buildDestinosReply, destinosHelp } from "../lib/destinosBot.js";
+import { parsePeriodo } from "../lib/periodo.js";
+import { loadDestinosData } from "../services/metrics.js";
 import { listActiveRestrictions } from "../services/upa-restrictions.js";
 import { buildUpasCommandReply } from "../lib/upaRestrictionsBot.js";
 
@@ -60,6 +70,11 @@ const menuKeyboard = {
         [{ text: "🔄 Resetar PIN", callback_data: "reset" }],
         [{ text: "🚫 Ver bloqueados", callback_data: "blocks" }],
         [{ text: "🏥 UPAs restritas", callback_data: "upas" }],
+        [
+            { text: "🚑 Destinos hoje", callback_data: "dest:hoje" },
+            { text: "📆 Ontem", callback_data: "dest:ontem" },
+            { text: "🗓 7 dias", callback_data: "dest:7d" },
+        ],
     ],
 };
 
@@ -102,6 +117,11 @@ function commandOf(text: string): string {
     return first.split("@")[0]!.toLowerCase();
 }
 
+/** Argumentos do comando: "/destinos@ReguladorSAMU_bot 7d" → ["7d"]. */
+function argsOf(text: string): string[] {
+    return String(text || "").trim().toLowerCase().split(/\s+/).slice(1);
+}
+
 /** /upas — aberto a qualquer um no grupo dos reguladores e ao admin no privado. */
 async function replyUpas(chatId: number | string, replyTo?: number): Promise<void> {
     const now = new Date();
@@ -113,6 +133,21 @@ async function replyUpas(chatId: number | string, replyTo?: number): Promise<voi
         disable_web_page_preview: true,
         ...(replyTo ? { reply_to_message_id: replyTo } : {}),
     });
+}
+
+/** /destinos [hoje|ontem|7d] — quem foi regulado para onde, por turno. */
+async function showDestinos(arg: string | undefined, quemPediu: unknown): Promise<void> {
+    const periodo = parsePeriodo(arg, new Date());
+    if (!periodo) {
+        await sendAdmin(destinosHelp());
+        return;
+    }
+    // Auditoria mínima: permite responder "quem tirou esse relatório" se um
+    // print aparecer onde não devia. Fica no docker logs.
+    console.log(`[destinos] período=${periodo.key} por chat_id=${String(quemPediu)}`);
+    const { envios, intel } = await loadDestinosData(periodo.start, periodo.end);
+    const partes = buildDestinosReply({ periodo, envios, intel });
+    for (const p of partes) await sendAdmin(p);
 }
 
 async function handle(u: any): Promise<void> {
@@ -128,16 +163,21 @@ async function handle(u: any): Promise<void> {
 
         if (Number(u.message.from?.id) !== admin()) return; // resto: só o admin
         const t = String(u.message.text || "").trim().toLowerCase();
+        const args = argsOf(u.message.text || "");
         if (cmd === "/upas") {
             await replyUpas(admin());
         } else if (["/start", "/menu", "/pin", "/chefia"].includes(t)) {
-            await sendAdmin("🔧 <b>Gestão do PIN da chefia</b>", { reply_markup: menuKeyboard });
+            await sendAdmin("🔧 <b>Gestão da chefia</b>", { reply_markup: menuKeyboard });
         } else if (["/resetpin", "/reset"].includes(t)) {
             await doReset();
         } else if (["/bloqueados", "/blocks"].includes(t)) {
             await showBlocks();
+        } else if (["/destinos", "/destino"].includes(cmd)) {
+            await showDestinos(args[0], u.message.from?.id);
         } else {
-            await sendAdmin("Comandos: /resetpin · /bloqueados · /upas · /menu", { reply_markup: menuKeyboard });
+            await sendAdmin("Comandos: /resetpin · /bloqueados · /upas · /destinos · /menu", {
+                reply_markup: menuKeyboard,
+            });
         }
     } else if (u.callback_query) {
         const cq = u.callback_query;
@@ -147,6 +187,7 @@ async function handle(u: any): Promise<void> {
         if (data === "reset") await doReset();
         else if (data === "blocks") await showBlocks();
         else if (data === "upas") await replyUpas(admin());
+        else if (data.startsWith("dest:")) await showDestinos(data.slice(5), cq.from?.id);
         else if (data.startsWith("ub:")) {
             const ip = data.slice(3);
             await unblock(ip);
