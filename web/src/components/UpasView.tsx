@@ -1,17 +1,21 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { flushSync } from "react-dom";
 import type { UpaRestriction } from "../lib/types";
 import { useUpaRestrictions, useRestrictUpa, useLiberateUpa } from "../hooks/useUpaRestrictions";
 import UpaRestrictionModal from "./UpaRestrictionModal";
 import PinDialog from "./PinDialog";
 
 // Aba UPAs — visão da cidade do Giro de Leitos, consumindo a API pública do
-// giro-de-leitos montada em /tabela/upas/api (nginx). Mesma linguagem visual do
-// Painel de Vagas: KPI strip horizontal, grid único de cards compactos com
-// barra lateral semáforo e detail panel full-width abaixo do grid.
+// giro-de-leitos montada em /tabela/upas/api (nginx).
 //
-// Sobreposto a isso vem a RESTRIÇÃO da chefia (banco do próprio tabela, não do
-// giro): célula vermelha + prazo. É a mesma informação que o bot regulador
-// repete no grupo e que entra na chegada do regulador no bot Plantões SAMU.
+// Linguagem visual: "instrumento de regulação" — filtro segmentado responde
+// uma pergunta por vez (vermelha? amarela? isolamento? especialista?), o card
+// inteiro carrega a cor do estado, e a linha de vida (ECG) na base mostra a
+// idade do dado. Dado >6h "empoeira" o card e abre a ficha de reincidência.
+//
+// Sobreposto vem a RESTRIÇÃO da chefia (banco do próprio tabela, não do giro):
+// vinho escuro, mais grave que lotada — a decisão de não encaminhar não
+// depende de ter leito livre.
 
 interface Room { occupied?: number | null; capacity?: number | null }
 interface UnitRow {
@@ -39,19 +43,17 @@ interface UnitRow {
   payload?: { data?: { rooms?: Record<string, Room> } } | null;
 }
 interface HistEvent { payload?: Record<string, unknown> }
-interface KpiName { nome: string; n?: number }
 
 const API = "/tabela/upas/api";
-const GRN = "hsl(140,75%,32%)";
-const RED = "hsl(0,85%,38%)";
+const LIVRE = "var(--livre)";
+const LOTADA = "var(--lotada)";
+const RESTRITA = "var(--restrita)";
+const ATENCAO = "var(--atencao)";
+const ISO = "var(--iso)";
+const NEUTRO = "#64748b";
 
 const norm = (s: string | null | undefined) =>
   (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-// tom claro derivado de uma cor hsl(H,S%,L%) — pra fundo de chip mantendo o matiz
-const tint = (c: string, l = 95) => {
-  const m = c.match(/hsl\((\d+),\s*(\d+)%/);
-  return m ? `hsl(${m[1]},${Math.min(+m[2], 65)}%,${l}%)` : "hsl(210,20%,96%)";
-};
 const room = (u: UnitRow, k: string): Room | null => u.payload?.data?.rooms?.[k] ?? null;
 const vac = (o?: number | null, c?: number | null) =>
   c == null || o == null ? null : Math.max(c - o, 0);
@@ -61,127 +63,337 @@ const ageMin = (iso?: string | null) =>
   iso ? Math.round((Date.now() - new Date(iso).getTime()) / 60000) : null;
 const ageLabel = (a: number | null) =>
   a == null ? "sem atualização" : a >= 60 ? `há ${Math.floor(a / 60)}h${String(a % 60).padStart(2, "0")}` : `há ${a} min`;
+const hLabel = (min: number) =>
+  min >= 60 ? `${Math.floor(min / 60)}h${min % 60 ? String(min % 60).padStart(2, "0") : ""}` : `${min}min`;
+
+// ── Idade do dado: fresco / envelhecendo / empoeirado ──
+const STALE_MIN = 360;
+type Tier = "fresh" | "aging" | "stale";
+const tierOf = (a: number | null): Tier =>
+  a == null || a > STALE_MIN ? "stale" : a > 180 ? "aging" : "fresh";
 
 const temSplitAmarela = (u: UnitRow) => Boolean(room(u, "yellow_male") || room(u, "yellow_female"));
 
-// Salas de uma unidade, na ordem de exibição — só as que existem no giro
-function salas(u: UnitRow): { rot: string; o?: number | null; c?: number | null }[] {
-  const out: { rot: string; o?: number | null; c?: number | null }[] = [
-    { rot: "🔴", o: u.red_occupied, c: u.red_capacity },
+// Salas de uma unidade, na ordem de exibição — só as que existem no giro.
+// Matiz identifica a categoria (vermelha/amarela/isolamento); o "+n" verde
+// identifica vaga.
+function salas(u: UnitRow): { rot: string; cor: string; o?: number | null; c?: number | null }[] {
+  const out: { rot: string; cor: string; o?: number | null; c?: number | null }[] = [
+    { rot: "VERM", cor: LOTADA, o: u.red_occupied, c: u.red_capacity },
   ];
   if (temSplitAmarela(u)) {
-    out.push({ rot: "🟡♂", o: room(u, "yellow_male")?.occupied, c: room(u, "yellow_male")?.capacity });
-    out.push({ rot: "🟡♀", o: room(u, "yellow_female")?.occupied, c: room(u, "yellow_female")?.capacity });
+    out.push({ rot: "AMAR ♂", cor: ATENCAO, o: room(u, "yellow_male")?.occupied, c: room(u, "yellow_male")?.capacity });
+    out.push({ rot: "AMAR ♀", cor: ATENCAO, o: room(u, "yellow_female")?.occupied, c: room(u, "yellow_female")?.capacity });
   } else {
-    out.push({ rot: "🟡", o: u.yellow_occupied, c: u.yellow_capacity });
+    out.push({ rot: "AMAR", cor: ATENCAO, o: u.yellow_occupied, c: u.yellow_capacity });
   }
   if (u.isolation_mode === "split") {
-    out.push({ rot: "🦠♂", o: u.isolation_male_occupied, c: u.isolation_male_capacity });
-    out.push({ rot: "🦠♀", o: u.isolation_female_occupied, c: u.isolation_female_capacity });
+    out.push({ rot: "ISO ♂", cor: ISO, o: u.isolation_male_occupied, c: u.isolation_male_capacity });
+    out.push({ rot: "ISO ♀", cor: ISO, o: u.isolation_female_occupied, c: u.isolation_female_capacity });
     if (u.isolation_pediatric_capacity != null)
-      out.push({ rot: "🦠🧒", o: u.isolation_pediatric_occupied, c: u.isolation_pediatric_capacity });
+      out.push({ rot: "ISO PED", cor: ISO, o: u.isolation_pediatric_occupied, c: u.isolation_pediatric_capacity });
   } else {
-    out.push({ rot: "🦠", o: u.isolation_total_occupied, c: u.isolation_total_capacity });
+    out.push({ rot: "ISO", cor: ISO, o: u.isolation_total_occupied, c: u.isolation_total_capacity });
   }
   return out.filter((s) => s.c != null);
 }
 
-function Chip({ rot, o, c }: { rot: string; o?: number | null; c?: number | null }) {
-  const v = vac(o, c);
-  if (v == null) return null;
+// ── Filtro segmentado: a pergunta ativa da tela ──
+type FiltroKey = "todas" | "red" | "yellow" | "iso" | "surgeon" | "psych" | "ortho";
+
+const amarelaVac = (u: UnitRow) => temSplitAmarela(u)
+  ? (rvac(room(u, "yellow_male")) ?? 0) + (rvac(room(u, "yellow_female")) ?? 0)
+  : vac(u.yellow_occupied, u.yellow_capacity);
+const isoVac = (u: UnitRow) => u.isolation_mode === "split"
+  ? (vac(u.isolation_male_occupied, u.isolation_male_capacity) ?? 0)
+    + (vac(u.isolation_female_occupied, u.isolation_female_capacity) ?? 0)
+    + (vac(u.isolation_pediatric_occupied, u.isolation_pediatric_capacity) ?? 0)
+  : vac(u.isolation_total_occupied, u.isolation_total_capacity);
+
+// Vaga da categoria ativa — filtros de especialista e "todas" leem a vermelha
+// (é a pergunta clínica default).
+const catVac = (u: UnitRow, f: FiltroKey): number | null =>
+  f === "yellow" ? amarelaVac(u) : f === "iso" ? isoVac(u) : vac(u.red_occupied, u.red_capacity);
+
+const CAT_LABEL: Record<FiltroKey, string> = {
+  todas: "vermelha", red: "vermelha", yellow: "amarela", iso: "isolamento",
+  surgeon: "vermelha", psych: "vermelha", ortho: "vermelha",
+};
+
+const SEGS: { k: FiltroKey; rot: string; cor: string }[] = [
+  { k: "todas", rot: "Todas", cor: "var(--ink)" },
+  { k: "red", rot: "Vermelha", cor: LOTADA },
+  { k: "yellow", rot: "Amarela", cor: ATENCAO },
+  { k: "iso", rot: "Isolamento", cor: ISO },
+  { k: "surgeon", rot: "Cirurgião", cor: "var(--ink)" },
+  { k: "psych", rot: "Psiquiatra", cor: "var(--ink)" },
+  { k: "ortho", rot: "Ortopedista", cor: "var(--ink)" },
+];
+
+const vtName = (k: string) => `upa-${k.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
+
+// ── Ficha corrida: reincidência de silêncio no giro, medida nos eventos do
+// /history (mesma relação que o bot do Telegram faz no grupo) ──
+interface GiroStats { last: number; gaps: number[]; episodes: number; worst: number; mean: number }
+
+function buildStatsFor(hist: HistEvent[]): (u: UnitRow) => GiroStats | null {
+  const evs: { keys: string[]; t: number }[] = [];
+  for (const ev of hist) {
+    const p = (ev.payload || ev) as Record<string, unknown>;
+    const e = ev as unknown as Record<string, unknown>;
+    let t: number | null = null;
+    for (const f of ["created_at", "received_at", "timestamp", "ts", "updated_at", "time", "date"]) {
+      const v = e[f] ?? p[f];
+      if (typeof v === "string" || typeof v === "number") {
+        const d = new Date(v).getTime();
+        if (!Number.isNaN(d)) { t = d; break; }
+      }
+    }
+    if (t == null) continue;
+    const keys = [p.unit_key, p.unit_code].filter((x): x is string => typeof x === "string");
+    const nm = norm(String(p.canonical_name || p.unit_name || ""));
+    if (nm) keys.push(nm);
+    if (keys.length) evs.push({ keys, t });
+  }
+  return (u: UnitRow) => {
+    const times = [...new Set(
+      evs.filter((ev) => ev.keys.includes(u.unit_key) || ev.keys.includes(norm(u.canonical_name)))
+        .map((ev) => ev.t),
+    )].sort((a, b) => a - b);
+    if (times.length < 2) return null;
+    const gaps: number[] = [];
+    for (let i = 1; i < times.length; i++) gaps.push(Math.round((times[i] - times[i - 1]) / 60000));
+    const episodes = gaps.filter((g) => g > STALE_MIN).length;
+    return {
+      last: times[times.length - 1],
+      gaps,
+      episodes,
+      worst: Math.max(...gaps),
+      mean: Math.round(gaps.reduce((a, b) => a + b, 0) / gaps.length),
+    };
+  };
+}
+
+// ── Linha de vida: pulso ECG na base do card. Fresco pulsa a cada 8s,
+// envelhecendo a cada 16s, >6h vira flatline âmbar. ──
+function Lifeline({ tier, cor }: { tier: Tier; cor: string }) {
+  if (tier === "stale") {
+    return (
+      <svg className="absolute bottom-0 left-0 w-full h-3" viewBox="0 0 100 12" preserveAspectRatio="none" aria-hidden>
+        <path d="M0 9 H100" fill="none" stroke={ATENCAO} strokeWidth="1.5" opacity="0.55" vectorEffect="non-scaling-stroke" />
+      </svg>
+    );
+  }
+  const d = "M0 9 H30 L34 9 L37 3 L40 12 L43 9 H100";
   return (
-    <span
-      className="inline-flex items-center gap-1 text-[12px] font-extrabold px-[7px] py-[2px] rounded-md border"
-      style={v > 0
-        ? { borderColor: "hsl(140,50%,72%)", background: "hsl(140,60%,95%)", color: GRN }
-        : { borderColor: "hsl(0,60%,84%)", background: "hsl(0,70%,96%)", color: RED }}
-      title={`${o} ocupados / ${c} capacidade`}
+    <svg className="absolute bottom-0 left-0 w-full h-3" viewBox="0 0 100 12" preserveAspectRatio="none" aria-hidden>
+      <path d={d} pathLength={100} fill="none" stroke={cor} strokeWidth="1.5" opacity="0.18" vectorEffect="non-scaling-stroke" />
+      <path
+        d={d} pathLength={100} fill="none" stroke={cor} strokeWidth="1.5" vectorEffect="non-scaling-stroke"
+        className="lifeline-pulse"
+        style={{ "--lifeline-dur": tier === "fresh" ? "8s" : "16s" } as React.CSSProperties}
+      />
+    </svg>
+  );
+}
+
+// Sparkline dos intervalos entre giros — reincidente crônica fica visualmente
+// diferente de deslize pontual.
+function GapSpark({ gaps }: { gaps: number[] }) {
+  const ultimos = gaps.slice(-10);
+  const max = Math.max(...ultimos, STALE_MIN);
+  return (
+    <svg width={ultimos.length * 11} height="20" aria-hidden>
+      {ultimos.map((g, i) => {
+        const h = Math.max(2, Math.round((g / max) * 18));
+        return (
+          <rect key={i} x={i * 11} y={20 - h} width="8" height={h} rx="1.5"
+            fill={g > STALE_MIN ? ATENCAO : "#94a3b8"} opacity={g > STALE_MIN ? 1 : 0.55} />
+        );
+      })}
+    </svg>
+  );
+}
+
+function Ficha({ u, stats }: { u: UnitRow; stats: GiroStats | null }) {
+  const a = ageMin(u.updated_at);
+  return (
+    <div className="rounded-lg px-3 py-2 text-[11px] leading-relaxed"
+      style={{ background: "color-mix(in srgb, var(--atencao) 9%, white)", border: `1px solid color-mix(in srgb, var(--atencao) 35%, white)`, color: "var(--ink)" }}
+      onClick={(e) => e.stopPropagation()}
     >
-      <span className="text-[13px] leading-none">{rot}</span>
-      <span>{v > 0 ? `${v} livre${v === 1 ? "" : "s"}` : "lotada"}</span>
-      <span className="opacity-60 font-bold">{o}/{c}</span>
-    </span>
+      <div><b>Último giro:</b> {ageLabel(a)}</div>
+      {stats ? (
+        <>
+          <div>
+            <b>Reincidência</b> (janela do histórico):{" "}
+            <b style={{ color: stats.episodes > 0 ? ATENCAO : LIVRE }}>
+              {stats.episodes} episódio{stats.episodes === 1 ? "" : "s"} &gt; 6h sem atualizar
+            </b>
+          </div>
+          <div className="flex items-center gap-2 my-1">
+            <GapSpark gaps={stats.gaps} />
+            <span className="text-slate-500">intervalos entre giros</span>
+          </div>
+          <div className="text-slate-600">pior: {hLabel(stats.worst)} · média entre giros: {hLabel(stats.mean)}</div>
+        </>
+      ) : (
+        <div className="text-slate-500">Histórico insuficiente na janela para medir reincidência.</div>
+      )}
+    </div>
   );
 }
 
 function UnitCard({
   u,
+  filtro,
   isSel,
   restricted,
+  glow,
+  entrance,
+  fichaAberta,
+  stats,
   onSelect,
+  onToggleFicha,
   onToggleRestriction,
 }: {
   u: UnitRow;
+  filtro: FiltroKey;
   isSel: boolean;
   restricted: UpaRestriction | null;
+  glow: boolean;
+  entrance: number | null;
+  fichaAberta: boolean;
+  stats: GiroStats | null;
   onSelect: (k: string) => void;
+  onToggleFicha: (k: string) => void;
   onToggleRestriction: (u: UnitRow) => void;
 }) {
-  const rv = vac(u.red_occupied, u.red_capacity);
   const a = ageMin(u.updated_at);
-  // Restrição da chefia manda no semáforo: mesmo com vaga na vermelha, a célula
-  // fica vermelha — a decisão de não encaminhar não depende de ter leito livre.
-  const cor = restricted || u.is_critical || rv === 0 ? RED : rv != null && rv > 0 ? GRN : "#94a3b8";
-  const esp = ([["🔪", "Cirurgião", u.has_surgeon], ["🧠", "Psiquiatra", u.has_psychiatrist], ["🦴", "Ortopedista", u.has_orthopedist]] as const)
-    .filter(([, , on]) => on);
+  const tier = tierOf(a);
+  const v = catVac(u, filtro);
+  const catLabel = CAT_LABEL[filtro];
+
+  // Restrição da chefia manda em tudo; depois o pó do tempo; depois o semáforo
+  // da categoria ativa.
+  const tone = restricted ? RESTRITA
+    : tier === "stale" ? ATENCAO
+    : u.is_critical || v === 0 ? LOTADA
+    : v != null && v > 0 ? LIVRE
+    : NEUTRO;
+  const bg = restricted
+    ? "color-mix(in srgb, var(--restrita) 7%, white)"
+    : tier === "stale"
+      ? "color-mix(in srgb, var(--atencao) 8%, #f2f1ed)"
+      : `color-mix(in srgb, ${tone} 7%, white)`;
+
+  const esp = ([["Cirurgião", u.has_surgeon, filtro === "surgeon"], ["Psiquiatra", u.has_psychiatrist, filtro === "psych"], ["Ortopedista", u.has_orthopedist, filtro === "ortho"]] as const)
+    .filter(([, on]) => on);
+
   return (
     <div
       onClick={() => onSelect(u.unit_key)}
-      className="flex flex-col gap-[6px] rounded-[14px] cursor-pointer transition-all text-left outline-none w-full relative overflow-hidden"
+      className={`flex flex-col gap-[7px] rounded-[14px] cursor-pointer transition-colors duration-500 text-left w-full relative overflow-hidden ${glow ? "card-glow" : ""} ${entrance != null ? "card-enter" : ""}`}
       style={{
-        padding: "12px 14px 10px 16px",
-        background: restricted ? "hsl(0,75%,96%)" : "#fff",
-        border: isSel || restricted ? `3px solid ${cor}` : `2px solid ${cor}66`,
-        boxShadow: isSel ? `0 0 0 4px ${cor}15, 0 0 10px ${cor}33` : `0 0 8px ${cor}22`,
-      }}
+        padding: "12px 14px 16px 14px",
+        background: bg,
+        border: isSel || restricted ? `2.5px solid ${tone}` : `1.5px solid color-mix(in srgb, ${tone} 45%, white)`,
+        boxShadow: isSel ? `0 0 0 4px color-mix(in srgb, ${tone} 12%, transparent)` : "none",
+        viewTransitionName: vtName(u.unit_key),
+        ...(entrance != null ? { animationDelay: `${entrance * 25}ms` } : null),
+      } as React.CSSProperties}
     >
-      <div className="absolute left-0 top-0 bottom-0 w-[5px]" style={{ backgroundColor: cor }} />
       <div className="flex justify-between items-start gap-2 w-full">
-        <h3 className="m-0 text-[13px] font-black text-slate-900 leading-tight">{nome(u)}</h3>
-        <span className="flex items-center gap-1 flex-shrink-0">
-          {rv != null && (
-            <span
-              className="text-[10px] font-black px-2 py-[2px] rounded-full whitespace-nowrap"
-              style={rv > 0 ? { background: "hsl(140,60%,94%)", color: GRN } : { background: "hsl(0,70%,96%)", color: RED }}
-            >
-              {rv > 0 ? `${rv} vaga${rv === 1 ? "" : "s"} 🔴` : "lotada"}
-            </span>
-          )}
-          <button
-            onClick={(e) => { e.stopPropagation(); onToggleRestriction(u); }}
-            title={restricted ? "Restrição da chefia — alterar prazo ou liberar" : "Restringir esta UPA (PIN da chefia)"}
-            className="text-[11px] leading-none px-[6px] py-[3px] rounded-md border cursor-pointer"
-            style={restricted
-              ? { background: RED, borderColor: RED, color: "#fff" }
-              : { background: "transparent", borderColor: "hsl(0,40%,88%)", color: "hsl(0,30%,60%)" }}
-          >
-            🚫
-          </button>
-        </span>
-      </div>
-      {restricted && (
-        <div
-          className="w-full rounded-md px-2 py-1 text-[10px] font-black text-white tracking-wide"
-          style={{ background: RED }}
+        <h3 className="m-0 f-display text-[15px] font-bold uppercase tracking-wide leading-tight" style={{ color: "var(--ink)" }}>
+          {nome(u)}
+        </h3>
+        <button
+          onClick={(e) => { e.stopPropagation(); onToggleRestriction(u); }}
+          title={restricted ? "Restrição da chefia — alterar prazo ou liberar" : "Restringir esta UPA (PIN da chefia)"}
+          className="text-[11px] leading-none px-[6px] py-[3px] rounded-md border cursor-pointer flex-shrink-0"
+          style={restricted
+            ? { background: RESTRITA, borderColor: RESTRITA, color: "#fff" }
+            : { background: "transparent", borderColor: "color-mix(in srgb, var(--restrita) 25%, white)", color: "color-mix(in srgb, var(--restrita) 55%, white)" }}
         >
-          RESTRITA até {restricted.untilLabel}
-        </div>
-      )}
-      <div className="flex gap-1 flex-wrap">
-        {salas(u).map((s) => <Chip key={s.rot} {...s} />)}
+          🚫
+        </button>
       </div>
-      <div className="flex justify-between items-center w-full">
+
+      {/* Leitura principal — a resposta da categoria ativa, em corpo de instrumento */}
+      <div className="flex items-baseline gap-2" style={tier === "stale" && !restricted ? { opacity: 0.55 } : undefined}>
+        {restricted ? (
+          <>
+            <span className="f-display text-[22px] font-bold leading-none" style={{ color: RESTRITA }}>RESTRITA</span>
+            <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: RESTRITA }}>até {restricted.untilLabel}</span>
+          </>
+        ) : v != null && v > 0 ? (
+          <>
+            <span key={v} className="num-swap f-display text-[26px] font-bold leading-none" style={{ color: tone }}>{v}</span>
+            <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: tone }}>
+              vaga{v === 1 ? "" : "s"} {catLabel}
+            </span>
+          </>
+        ) : v === 0 ? (
+          <>
+            <span className="f-display text-[20px] font-bold leading-none" style={{ color: tier === "stale" ? "var(--ink)" : tone }}>LOTADA</span>
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{catLabel}</span>
+          </>
+        ) : (
+          <>
+            <span className="f-display text-[20px] font-bold leading-none text-slate-400">—</span>
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">sem sala {catLabel}</span>
+          </>
+        )}
+      </div>
+
+      {/* Salas — matiz é a categoria, +n verde é vaga */}
+      <div className="flex flex-wrap gap-x-3 gap-y-[2px]" style={tier === "stale" ? { opacity: 0.55 } : undefined}>
+        {salas(u).map((s) => {
+          const sv = vac(s.o, s.c);
+          return (
+            <span key={s.rot} className="text-[11px] font-semibold whitespace-nowrap" style={{ color: s.cor }} title={`${s.o} ocupados / ${s.c} capacidade`}>
+              {s.rot} <span className="opacity-75">{s.o}/{s.c}</span>
+              {sv != null && sv > 0 && <b style={{ color: LIVRE }}> +{sv}</b>}
+            </span>
+          );
+        })}
+      </div>
+
+      <div className="flex justify-between items-center w-full gap-2">
         <span className="flex gap-1 flex-wrap">
-          {esp.map(([e, l]) => (
-            <span key={e} className="inline-flex items-center gap-[3px] text-[11px] font-bold px-[6px] py-[2px] rounded-md border border-indigo-200 bg-indigo-50 text-indigo-700">
-              <span className="text-[13px] leading-none">{e}</span>{l}
+          {esp.map(([l, , hot]) => (
+            <span key={l}
+              className="text-[10px] px-[7px] py-[2px] rounded-full border font-semibold"
+              style={hot
+                ? { background: "var(--ink)", borderColor: "var(--ink)", color: "#fff" }
+                : { borderColor: "#cbd5e1", color: "#475569", background: "rgba(255,255,255,.6)" }}
+            >
+              {l}
             </span>
           ))}
         </span>
-        <span className={`text-[10px] ${a != null && a > 360 ? "text-amber-600 font-bold" : "text-slate-400"}`}>
-          {ageLabel(a)}
-        </span>
+        {tier !== "stale" && (
+          <span className={`text-[10px] ${tier === "aging" ? "font-semibold" : "text-slate-400"}`}
+            style={tier === "aging" ? { color: ATENCAO } : undefined}>
+            {ageLabel(a)}
+          </span>
+        )}
       </div>
+
+      {/* Cobrança: selo respirando + ficha corrida no clique */}
+      {tier === "stale" && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onToggleFicha(u.unit_key); }}
+          className="badge-breathe self-start text-[10px] font-bold uppercase tracking-wide px-2 py-[3px] rounded-md cursor-pointer border-none"
+          style={{ background: ATENCAO, color: "#fff" }}
+          title="Dado velho — clique para ver a ficha de reincidência"
+        >
+          ⏱ {a == null ? "sem giro registrado" : `${Math.floor(a / 60)}h sem giro`} · ficha
+        </button>
+      )}
+      {tier === "stale" && fichaAberta && <Ficha u={u} stats={stats} />}
+
+      <Lifeline tier={tier} cor={tone} />
     </div>
   );
 }
@@ -191,7 +403,7 @@ function Linha({ rot, o, c }: { rot: string; o?: number | null; c?: number | nul
   return (
     <div className="flex justify-between gap-4 text-[12px] text-slate-600">
       <span>{rot}</span>
-      <b style={v != null ? { color: v > 0 ? GRN : RED } : { color: "#0f172a" }}>
+      <b style={v != null ? { color: v > 0 ? LIVRE : LOTADA } : { color: "var(--ink)" }}>
         {v == null ? "—" : `${v} vaga${v === 1 ? "" : "s"} (${o}/${c})`}
       </b>
     </div>
@@ -204,6 +416,11 @@ export default function UpasView({ operador = "" }: { operador?: string }) {
   const [busca, setBusca] = useState("");
   const [stamp, setStamp] = useState<string>("");
   const [sel, setSel] = useState<string | null>(null);
+  const [filtro, setFiltro] = useState<FiltroKey>("todas");
+  const [fichaDe, setFichaDe] = useState<string | null>(null);
+  const [glow, setGlow] = useState<Set<string>>(new Set());
+  const [entrance, setEntrance] = useState(true);
+  const prevRed = useRef<Map<string, number>>(new Map());
 
   // ── Restrições da chefia ──
   const { data: restrictions = [] } = useUpaRestrictions();
@@ -269,11 +486,24 @@ export default function UpasView({ operador = "" }: { operador?: string }) {
     try {
       const [s, h] = await Promise.all([
         fetch(`${API}/summary`, { cache: "no-store" }).then((r) => r.json()),
-        fetch(`${API}/history?limit=100`, { cache: "no-store" }).then((r) => r.json()).catch(() => ({ events: [] })),
+        fetch(`${API}/history?limit=500`, { cache: "no-store" }).then((r) => r.json()).catch(() => ({ events: [] })),
       ]);
-      setUnits((s.units || []).filter((u: UnitRow) => u.updated_at));
+      const novas: UnitRow[] = (s.units || []).filter((u: UnitRow) => u.updated_at);
+      // Vaga de vermelha abriu desde o último refresh → glow verde 1x no card
+      const abriu = new Set<string>();
+      for (const u of novas) {
+        const rv = vac(u.red_occupied, u.red_capacity);
+        const antes = prevRed.current.get(u.unit_key);
+        if (rv != null && antes != null && rv > antes) abriu.add(u.unit_key);
+        if (rv != null) prevRed.current.set(u.unit_key, rv);
+      }
+      setUnits(novas);
       setHist(h.events || []);
       setStamp(new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }));
+      if (abriu.size > 0) {
+        setGlow(abriu);
+        setTimeout(() => setGlow(new Set()), 1000);
+      }
     } catch { /* mantém último estado */ }
   }, []);
   useEffect(() => {
@@ -283,6 +513,16 @@ export default function UpasView({ operador = "" }: { operador?: string }) {
     window.addEventListener("focus", onFocus);
     return () => { clearInterval(id); window.removeEventListener("focus", onFocus); };
   }, [load]);
+
+  // Stagger de entrada só no primeiro load
+  const temDados = units.length > 0;
+  useEffect(() => {
+    if (!temDados) return;
+    const t = setTimeout(() => setEntrance(false), 1200);
+    return () => clearTimeout(t);
+  }, [temDados]);
+
+  const statsFor = useMemo(() => buildStatsFor(hist), [hist]);
 
   const rawFor = useCallback((u: UnitRow): string | null => {
     const own = (u.payload?.data as Record<string, unknown> | undefined)?.raw_text;
@@ -303,55 +543,61 @@ export default function UpasView({ operador = "" }: { operador?: string }) {
 
   const match = useCallback((u: UnitRow) => !busca || norm(nome(u)).includes(norm(busca)), [busca]);
 
-  // Grid: restritas no topo (decisão da chefia é o que muda a conduta), depois
-  // as com vaga de vermelha (mais vagas → topo) e por fim o resto por nome.
-  const ordenadas = useMemo(() => {
-    const visiveis = units.filter(match);
-    const restritas = visiveis.filter((u) => restrictionByUnit.has(u.unit_key))
-      .sort((a, b) => nome(a).localeCompare(nome(b)));
-    const livres = visiveis.filter((u) => !restrictionByUnit.has(u.unit_key));
-    const comVaga = livres.filter((u) => (vac(u.red_occupied, u.red_capacity) ?? 0) > 0)
-      .sort((a, b) => (vac(b.red_occupied, b.red_capacity) ?? 0) - (vac(a.red_occupied, a.red_capacity) ?? 0));
-    const resto = livres.filter((u) => !((vac(u.red_occupied, u.red_capacity) ?? 0) > 0))
-      .sort((a, b) => nome(a).localeCompare(nome(b)));
-    return [...restritas, ...comVaga, ...resto];
-  }, [units, match, restrictionByUnit]);
+  // Troca de filtro com View Transition — cards deslizam pra nova posição
+  const mudarFiltro = (k: FiltroKey) => {
+    const d = document as Document & { startViewTransition?: (cb: () => void) => unknown };
+    if (d.startViewTransition) d.startViewTransition(() => flushSync(() => setFiltro(k)));
+    else setFiltro(k);
+  };
 
-  const kpis = useMemo(() => {
-    const soma = (get: (u: UnitRow) => number | null) =>
-      units.reduce((acc, u) => acc + (get(u) ?? 0), 0);
-    const amarela = (u: UnitRow) => temSplitAmarela(u)
-      ? (rvac(room(u, "yellow_male")) ?? 0) + (rvac(room(u, "yellow_female")) ?? 0)
-      : vac(u.yellow_occupied, u.yellow_capacity);
-    const iso = (u: UnitRow) => u.isolation_mode === "split"
-      ? (vac(u.isolation_male_occupied, u.isolation_male_capacity) ?? 0)
-        + (vac(u.isolation_female_occupied, u.isolation_female_capacity) ?? 0)
-        + (vac(u.isolation_pediatric_occupied, u.isolation_pediatric_capacity) ?? 0)
-      : vac(u.isolation_total_occupied, u.isolation_total_capacity);
-    // lista de UPAs com vaga na categoria, ordenada por quem tem mais vaga, com o nº de vagas
-    const listaCom = (f: (u: UnitRow) => number | null): KpiName[] =>
-      units.filter((u) => (f(u) ?? 0) > 0)
-        .sort((a, b) => (f(b) ?? 0) - (f(a) ?? 0))
-        .map((u) => ({ nome: nome(u), n: f(u) ?? undefined }));
-    // lista de UPAs que têm o especialista de plantão
-    const listaFlag = (f: keyof UnitRow): KpiName[] =>
-      units.filter((u) => u[f]).map((u) => ({ nome: nome(u) }));
-    const comVagaRed = units.filter((u) => (vac(u.red_occupied, u.red_capacity) ?? 0) > 0);
-    return [
-      { l: "Vagas vermelha", v: soma((u) => vac(u.red_occupied, u.red_capacity)), c: RED, names: listaCom((u) => vac(u.red_occupied, u.red_capacity)) },
-      { l: "UPAs c/ vaga 🔴", v: `${comVagaRed.length}/${units.length}`, c: comVagaRed.length > 0 ? GRN : RED, names: comVagaRed.map((u) => ({ nome: nome(u), n: vac(u.red_occupied, u.red_capacity) ?? undefined })) },
-      { l: "Vagas amarela", v: soma(amarela), c: "hsl(45,80%,35%)", names: listaCom(amarela) },
-      { l: "Vagas isolamento", v: soma(iso), c: "hsl(200,80%,35%)", names: listaCom(iso) },
-      { l: "🔪 Cirurgião", v: units.filter((u) => u.has_surgeon).length, c: "hsl(220,70%,40%)", names: listaFlag("has_surgeon") },
-      { l: "🧠 Psiquiatra", v: units.filter((u) => u.has_psychiatrist).length, c: "hsl(270,60%,45%)", names: listaFlag("has_psychiatrist") },
-      { l: "🦴 Ortopedista", v: units.filter((u) => u.has_orthopedist).length, c: "hsl(30,75%,40%)", names: listaFlag("has_orthopedist") },
-    ];
+  // Grid: restritas no topo (decisão da chefia muda a conduta), empoeiradas
+  // (>6h) afundam pro fim (dado morto não merece posição nobre), e no meio
+  // ordena pela vaga da categoria ativa.
+  const ordenadas = useMemo(() => {
+    let visiveis = units.filter(match);
+    if (filtro === "surgeon") visiveis = visiveis.filter((u) => u.has_surgeon);
+    if (filtro === "psych") visiveis = visiveis.filter((u) => u.has_psychiatrist);
+    if (filtro === "ortho") visiveis = visiveis.filter((u) => u.has_orthopedist);
+    const rank = (u: UnitRow) => {
+      const restr = restrictionByUnit.has(u.unit_key) ? 0 : 1;
+      const poeira = tierOf(ageMin(u.updated_at)) === "stale" ? 1 : 0;
+      return [restr, poeira, -(catVac(u, filtro) ?? -1)] as const;
+    };
+    return [...visiveis].sort((a, b) => {
+      const ra = rank(a), rb = rank(b);
+      for (let i = 0; i < ra.length; i++) if (ra[i] !== rb[i]) return ra[i] - rb[i];
+      return nome(a).localeCompare(nome(b));
+    });
+  }, [units, match, restrictionByUnit, filtro]);
+
+  const contagem = useMemo(() => {
+    const soma = (f: (u: UnitRow) => number | null) => units.reduce((acc, u) => acc + (f(u) ?? 0), 0);
+    return {
+      todas: units.length,
+      red: soma((u) => vac(u.red_occupied, u.red_capacity)),
+      yellow: soma(amarelaVac),
+      iso: soma(isoVac),
+      surgeon: units.filter((u) => u.has_surgeon).length,
+      psych: units.filter((u) => u.has_psychiatrist).length,
+      ortho: units.filter((u) => u.has_orthopedist).length,
+    } as Record<FiltroKey, number>;
   }, [units]);
 
   const selU = useMemo(() => ordenadas.find((u) => u.unit_key === sel) ?? null, [ordenadas, sel]);
+  const selStats = selU ? statsFor(selU) : null;
+
+  const VAZIO: Record<FiltroKey, string> = {
+    todas: "Nenhuma UPA nessa busca.",
+    red: "Nenhuma UPA nessa busca.",
+    yellow: "Nenhuma UPA nessa busca.",
+    iso: "Nenhuma UPA nessa busca.",
+    surgeon: "Nenhuma UPA com cirurgião de plantão agora.",
+    psych: "Nenhuma UPA com psiquiatra de plantão agora.",
+    ortho: "Nenhuma UPA com ortopedista de plantão agora.",
+  };
 
   return (
-    <div>
+    <div className="upas-root">
       {/* Busca + stamp */}
       <div className="flex items-center gap-3 mb-3 flex-wrap">
         <input
@@ -360,17 +606,43 @@ export default function UpasView({ operador = "" }: { operador?: string }) {
           onChange={(e) => setBusca(e.target.value)}
           className="py-[6px] px-3 rounded-[10px] border border-slate-300 bg-white text-sm w-[220px] outline-none focus:border-blue-400"
         />
-        <span className="text-[11px] text-slate-500">
+        <span className="text-[11px] text-slate-500 inline-flex items-center gap-[6px]">
+          <span className="inline-block w-[6px] h-[6px] rounded-full" style={{ background: LIVRE }} />
           {units.length} unidade{units.length === 1 ? "" : "s"} com giro · atualizado {stamp || "…"}
         </span>
+      </div>
+
+      {/* Filtro segmentado — a pergunta ativa. O número no segmento é o total
+          de vagas (ou plantonistas) da categoria na cidade. */}
+      <div className="inline-flex flex-wrap rounded-[12px] border border-slate-300 bg-white overflow-hidden mb-3">
+        {SEGS.map((s, i) => {
+          const ativo = filtro === s.k;
+          const n = contagem[s.k];
+          return (
+            <button
+              key={s.k}
+              onClick={() => mudarFiltro(s.k)}
+              className={`px-3 py-[7px] text-[12px] font-semibold cursor-pointer flex items-center gap-[6px] transition-colors ${i > 0 ? "border-l border-slate-200" : ""}`}
+              style={ativo
+                ? { background: s.cor, color: "#fff", border: "none", borderLeft: i > 0 ? "1px solid transparent" : "none" }
+                : { background: "transparent", color: "var(--ink)", border: "none", borderLeft: i > 0 ? "1px solid #e2e8f0" : "none" }}
+            >
+              {s.rot}
+              {s.k !== "todas" && (
+                <b className="f-display text-[13px]" style={{ color: ativo ? "#fff" : n > 0 ? s.cor : "#94a3b8" }}>{n}</b>
+              )}
+            </button>
+          );
+        })}
       </div>
 
       {/* Faixa de restrições — o que a chefia decidiu, acima de qualquer número.
           Também é a única forma de mexer numa restrição cuja UPA parou de mandar
           giro (o card some do grid, a restrição continua valendo). */}
       {restrictions.length > 0 && (
-        <div className="rounded-[10px] border-2 mb-4 px-4 py-3" style={{ borderColor: RED, background: "hsl(0,75%,97%)" }}>
-          <div className="text-[11px] font-black uppercase tracking-wide mb-2" style={{ color: RED }}>
+        <div className="rounded-[10px] border-2 mb-4 px-4 py-3"
+          style={{ borderColor: RESTRITA, background: "color-mix(in srgb, var(--restrita) 6%, white)" }}>
+          <div className="text-[11px] font-bold uppercase tracking-wide mb-2" style={{ color: RESTRITA }}>
             🚫 {restrictions.length} UPA{restrictions.length === 1 ? "" : "s"} restrita{restrictions.length === 1 ? "" : "s"} pela chefia
           </div>
           <div className="flex flex-wrap gap-2">
@@ -379,7 +651,7 @@ export default function UpasView({ operador = "" }: { operador?: string }) {
                 key={r.id}
                 onClick={() => setRestrTarget({ unitKey: r.unitKey, unitName: r.unitName })}
                 className="text-[12px] font-bold px-3 py-[5px] rounded-full border-2 bg-white cursor-pointer"
-                style={{ borderColor: RED, color: RED }}
+                style={{ borderColor: RESTRITA, color: RESTRITA }}
                 title={`Restrita por ${r.autor} — clique para alterar o prazo ou liberar`}
               >
                 {r.unitName} · até {r.untilLabel}
@@ -389,70 +661,45 @@ export default function UpasView({ operador = "" }: { operador?: string }) {
         </div>
       )}
 
-      {/* KPI strip — número + rótulo e, embaixo, os nomes das UPAs de cada categoria */}
-      <div className="flex flex-wrap gap-[1px] bg-slate-200 border border-slate-200 rounded-[10px] overflow-hidden mb-4">
-        {kpis.map((k) => (
-          <div
-            key={k.l}
-            className="flex-1 min-w-[190px] py-2 px-3 bg-white flex flex-col gap-[6px]"
-          >
-            <div className="flex items-baseline gap-2">
-              <span className="text-xl font-black" style={{ color: k.c }}>{k.v}</span>
-              <span className="text-[10px] font-semibold text-slate-500 uppercase whitespace-nowrap">{k.l}</span>
-            </div>
-            {k.names.length > 0 ? (
-              <div className="flex flex-wrap gap-1">
-                {k.names.map((nm) => (
-                  <span
-                    key={nm.nome}
-                    className="inline-flex items-center gap-1 text-[10px] font-bold px-[6px] py-[1px] rounded-md border"
-                    style={{ color: k.c, borderColor: tint(k.c, 82), background: tint(k.c, 96) }}
-                  >
-                    {nm.nome}
-                    {nm.n != null && <span className="opacity-70 font-black">{nm.n}</span>}
-                  </span>
-                ))}
-              </div>
-            ) : (
-              <span className="text-[10px] text-slate-300 italic">nenhuma</span>
-            )}
-          </div>
-        ))}
-      </div>
-
-      {/* Grid único — semáforo pela borda: verde tem vaga 🔴, vermelho lotada/crítica */}
+      {/* Grid — card inteiro carrega o estado; linha de vida na base */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {ordenadas.length === 0 && (
           <div className="text-[13px] text-slate-400 py-6 col-span-full">
             {units.length === 0
               ? "Nenhum giro recebido ainda — quando as UPAs postarem no WhatsApp, os cards aparecem sozinhos."
-              : "Nenhuma UPA nessa busca."}
+              : VAZIO[filtro]}
           </div>
         )}
-        {ordenadas.map((u) => (
+        {ordenadas.map((u, i) => (
           <UnitCard
             key={u.unit_key}
             u={u}
+            filtro={filtro}
             isSel={sel === u.unit_key}
             restricted={restrictionByUnit.get(u.unit_key) ?? null}
+            glow={glow.has(u.unit_key)}
+            entrance={entrance ? i : null}
+            fichaAberta={fichaDe === u.unit_key}
+            stats={statsFor(u)}
             onSelect={(k) => setSel(sel === k ? null : k)}
+            onToggleFicha={(k) => setFichaDe(fichaDe === k ? null : k)}
             onToggleRestriction={abrirRestricao}
           />
         ))}
       </div>
 
-      {/* Detail panel — full-width abaixo do grid, como no semáforo */}
+      {/* Detail panel — full-width abaixo do grid */}
       {selU && (
         <div className="bg-white border-2 border-slate-200 rounded-[14px] p-5 mt-4 shadow-sm origin-top detail-enter">
           <div className="flex justify-between items-start gap-3 mb-3">
-            <h2 className="m-0 text-base font-black text-slate-900">{nome(selU)}</h2>
+            <h2 className="m-0 f-display text-lg font-bold uppercase tracking-wide" style={{ color: "var(--ink)" }}>{nome(selU)}</h2>
             <span className="flex items-center gap-3">
               <button
                 onClick={() => abrirRestricao(selU)}
                 className="text-[12px] font-bold px-3 py-[5px] rounded-lg border-2 cursor-pointer"
                 style={restrictionByUnit.has(selU.unit_key)
-                  ? { borderColor: RED, background: RED, color: "#fff" }
-                  : { borderColor: "hsl(0,50%,85%)", background: "#fff", color: RED }}
+                  ? { borderColor: RESTRITA, background: RESTRITA, color: "#fff" }
+                  : { borderColor: "color-mix(in srgb, var(--restrita) 30%, white)", background: "#fff", color: RESTRITA }}
               >
                 {restrictionByUnit.has(selU.unit_key) ? "🚫 Restrita — alterar" : "🚫 Restringir"}
               </button>
@@ -465,37 +712,44 @@ export default function UpasView({ operador = "" }: { operador?: string }) {
             </span>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-1 max-w-[560px] mb-3">
-            <Linha rot="🔴 Vermelha" o={selU.red_occupied} c={selU.red_capacity} />
+            <Linha rot="Vermelha" o={selU.red_occupied} c={selU.red_capacity} />
             {temSplitAmarela(selU) ? (
               <>
-                <Linha rot="🟡 Amarela ♂" o={room(selU, "yellow_male")?.occupied} c={room(selU, "yellow_male")?.capacity} />
-                <Linha rot="🟡 Amarela ♀" o={room(selU, "yellow_female")?.occupied} c={room(selU, "yellow_female")?.capacity} />
+                <Linha rot="Amarela ♂" o={room(selU, "yellow_male")?.occupied} c={room(selU, "yellow_male")?.capacity} />
+                <Linha rot="Amarela ♀" o={room(selU, "yellow_female")?.occupied} c={room(selU, "yellow_female")?.capacity} />
               </>
             ) : (
-              <Linha rot="🟡 Amarela" o={selU.yellow_occupied} c={selU.yellow_capacity} />
+              <Linha rot="Amarela" o={selU.yellow_occupied} c={selU.yellow_capacity} />
             )}
             {selU.isolation_mode === "split" ? (
               <>
-                <Linha rot="🦠 Isolamento ♂" o={selU.isolation_male_occupied} c={selU.isolation_male_capacity} />
-                <Linha rot="🦠 Isolamento ♀" o={selU.isolation_female_occupied} c={selU.isolation_female_capacity} />
+                <Linha rot="Isolamento ♂" o={selU.isolation_male_occupied} c={selU.isolation_male_capacity} />
+                <Linha rot="Isolamento ♀" o={selU.isolation_female_occupied} c={selU.isolation_female_capacity} />
                 {selU.isolation_pediatric_capacity != null && (
-                  <Linha rot="🦠 Isolamento ped." o={selU.isolation_pediatric_occupied} c={selU.isolation_pediatric_capacity} />
+                  <Linha rot="Isolamento ped." o={selU.isolation_pediatric_occupied} c={selU.isolation_pediatric_capacity} />
                 )}
               </>
             ) : (
-              <Linha rot="🦠 Isolamento" o={selU.isolation_total_occupied} c={selU.isolation_total_capacity} />
+              <Linha rot="Isolamento" o={selU.isolation_total_occupied} c={selU.isolation_total_capacity} />
             )}
           </div>
           <div className="flex gap-1 flex-wrap mb-3">
-            {([["🔪 cirurgia", selU.has_surgeon], ["🧠 psiquiatria", selU.has_psychiatrist], ["🦴 ortopedia", selU.has_orthopedist]] as const).map(([l, on]) => (
+            {([["cirurgia", selU.has_surgeon], ["psiquiatria", selU.has_psychiatrist], ["ortopedia", selU.has_orthopedist]] as const).map(([l, on]) => (
               <span key={l} className={`text-[10px] px-2 py-[2px] rounded-full border ${on ? "border-blue-300 bg-blue-50 text-blue-800 font-bold" : "border-slate-200 text-slate-400"}`}>{l}</span>
             ))}
-            <span className={`text-[10px] px-2 py-[2px] ${(ageMin(selU.updated_at) ?? 0) > 360 ? "text-amber-600 font-bold" : "text-slate-400"}`}>
+            <span className={`text-[10px] px-2 py-[2px] ${(ageMin(selU.updated_at) ?? 0) > STALE_MIN ? "font-bold" : "text-slate-400"}`}
+              style={(ageMin(selU.updated_at) ?? 0) > STALE_MIN ? { color: ATENCAO } : undefined}>
               atualizado {ageLabel(ageMin(selU.updated_at))}
             </span>
           </div>
-          <div className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wide mb-1">Giro bruto</div>
-          <pre className="m-0 p-3 bg-slate-50 border border-slate-200 rounded-lg text-[11px] leading-relaxed whitespace-pre-wrap max-h-72 overflow-auto text-slate-700">
+          {selStats && (
+            <div className="mb-3 max-w-[420px]">
+              <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-1">Regularidade do giro</div>
+              <Ficha u={selU} stats={selStats} />
+            </div>
+          )}
+          <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-1">Giro bruto</div>
+          <pre className="m-0 p-3 bg-slate-50 border border-slate-200 rounded-lg f-mono text-[11px] leading-relaxed whitespace-pre-wrap max-h-72 overflow-auto text-slate-700">
             {rawFor(selU) || "Nenhum giro bruto registrado ainda para esta unidade."}
           </pre>
         </div>
