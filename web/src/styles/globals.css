@@ -71,12 +71,30 @@
   animation: numIn 0.2s ease-out;
 }
 
+/* Alertas de transição de vaga — entram deslizando; "abriu" pulsa até o clique */
+@keyframes alertIn {
+  from { opacity: 0; transform: translateX(24px) scale(0.96); }
+  to { opacity: 1; transform: none; }
+}
+.alert-in {
+  animation: alertIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes alertPulse {
+  0%, 100% { box-shadow: 0 8px 24px rgba(14, 122, 70, 0.25), 0 0 0 0 rgba(14, 122, 70, 0.4); }
+  50% { box-shadow: 0 8px 24px rgba(14, 122, 70, 0.25), 0 0 0 9px rgba(14, 122, 70, 0); }
+}
+.alert-abriu {
+  animation: alertIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) both, alertPulse 2s ease-out 0.3s infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .card-enter,
   .card-glow,
   .badge-breathe,
   .lifeline-pulse,
   .num-swap,
+  .alert-in,
+  .alert-abriu,
   .detail-enter {
     animation: none !important;
   }

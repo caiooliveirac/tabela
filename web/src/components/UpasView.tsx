@@ -132,6 +132,20 @@ const SEGS: { k: FiltroKey; rot: string; cor: string }[] = [
 
 const vtName = (k: string) => `upa-${k.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
 
+// ── Alertas de transição de vaga: abriu (0 → >0) e fechou (>0 → 0), por
+// categoria, detectados a cada refresh. Só somem com clique. ──
+type CatKey = "red" | "yellow" | "iso";
+const CAT_NOME: Record<CatKey, string> = { red: "vermelha", yellow: "amarela", iso: "isolamento" };
+interface Alerta {
+  id: number;
+  unitKey: string;
+  unitName: string;
+  cat: CatKey;
+  kind: "abriu" | "fechou";
+  n: number;
+  hora: string;
+}
+
 // ── Ficha corrida: reincidência de silêncio no giro, medida nos eventos do
 // /history (mesma relação que o bot do Telegram faz no grupo) ──
 interface GiroStats { last: number; gaps: number[]; episodes: number; worst: number; mean: number }
@@ -292,6 +306,7 @@ function UnitCard({
 
   return (
     <div
+      id={vtName(u.unit_key)}
       onClick={() => onSelect(u.unit_key)}
       className={`flex flex-col gap-[7px] rounded-[14px] cursor-pointer transition-colors duration-500 text-left w-full relative overflow-hidden ${glow ? "card-glow" : ""} ${entrance != null ? "card-enter" : ""}`}
       style={{
@@ -420,7 +435,8 @@ export default function UpasView({ operador = "" }: { operador?: string }) {
   const [fichaDe, setFichaDe] = useState<string | null>(null);
   const [glow, setGlow] = useState<Set<string>>(new Set());
   const [entrance, setEntrance] = useState(true);
-  const prevRed = useRef<Map<string, number>>(new Map());
+  const [alerts, setAlerts] = useState<Alerta[]>([]);
+  const prevVacs = useRef<Map<string, Record<CatKey, number | null>>>(new Map());
 
   // ── Restrições da chefia ──
   const { data: restrictions = [] } = useUpaRestrictions();
@@ -489,21 +505,40 @@ export default function UpasView({ operador = "" }: { operador?: string }) {
         fetch(`${API}/history?limit=500`, { cache: "no-store" }).then((r) => r.json()).catch(() => ({ events: [] })),
       ]);
       const novas: UnitRow[] = (s.units || []).filter((u: UnitRow) => u.updated_at);
-      // Vaga de vermelha abriu desde o último refresh → glow verde 1x no card
-      const abriu = new Set<string>();
+      const hora = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+      // Transições de vaga desde o último refresh → glow no card + alerta
+      const abriuGlow = new Set<string>();
+      const novosAlertas: Alerta[] = [];
+      const primeiraCarga = prevVacs.current.size === 0;
       for (const u of novas) {
-        const rv = vac(u.red_occupied, u.red_capacity);
-        const antes = prevRed.current.get(u.unit_key);
-        if (rv != null && antes != null && rv > antes) abriu.add(u.unit_key);
-        if (rv != null) prevRed.current.set(u.unit_key, rv);
+        const cur: Record<CatKey, number | null> = {
+          red: vac(u.red_occupied, u.red_capacity),
+          yellow: amarelaVac(u),
+          iso: isoVac(u),
+        };
+        const antes = prevVacs.current.get(u.unit_key);
+        if (antes && !primeiraCarga) {
+          if (cur.red != null && antes.red != null && cur.red > antes.red) abriuGlow.add(u.unit_key);
+          for (const c of ["red", "yellow", "iso"] as CatKey[]) {
+            const a = antes[c], n = cur[c];
+            if (a == null || n == null) continue;
+            if (a === 0 && n > 0)
+              novosAlertas.push({ id: Date.now() + novosAlertas.length, unitKey: u.unit_key, unitName: nome(u), cat: c, kind: "abriu", n, hora });
+            else if (a > 0 && n === 0)
+              novosAlertas.push({ id: Date.now() + novosAlertas.length, unitKey: u.unit_key, unitName: nome(u), cat: c, kind: "fechou", n: a, hora });
+          }
+        }
+        prevVacs.current.set(u.unit_key, cur);
       }
       setUnits(novas);
       setHist(h.events || []);
-      setStamp(new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }));
-      if (abriu.size > 0) {
-        setGlow(abriu);
+      setStamp(hora);
+      if (abriuGlow.size > 0) {
+        setGlow(abriuGlow);
         setTimeout(() => setGlow(new Set()), 1000);
       }
+      // ponytail: cap de 8 alertas vivos; se virar flood, vira central de eventos noutra fase
+      if (novosAlertas.length > 0) setAlerts((prev) => [...prev, ...novosAlertas].slice(-8));
     } catch { /* mantém último estado */ }
   }, []);
   useEffect(() => {
@@ -513,6 +548,21 @@ export default function UpasView({ operador = "" }: { operador?: string }) {
     window.addEventListener("focus", onFocus);
     return () => { clearInterval(id); window.removeEventListener("focus", onFocus); };
   }, [load]);
+
+  // Alerta pendente pisca o título da aba — quem está noutra janela vê
+  useEffect(() => {
+    if (alerts.length === 0) return;
+    const orig = document.title;
+    const temAbriu = alerts.some((a) => a.kind === "abriu");
+    let on = false;
+    const id = setInterval(() => {
+      on = !on;
+      document.title = on
+        ? `${temAbriu ? "🟢" : "🔴"} ${alerts.length} alerta${alerts.length === 1 ? "" : "s"} de vaga — UPAs`
+        : orig;
+    }, 1200);
+    return () => { clearInterval(id); document.title = orig; };
+  }, [alerts]);
 
   // Stagger de entrada só no primeiro load
   const temDados = units.length > 0;
@@ -582,6 +632,23 @@ export default function UpasView({ operador = "" }: { operador?: string }) {
       ortho: units.filter((u) => u.has_orthopedist).length,
     } as Record<FiltroKey, number>;
   }, [units]);
+
+  // Clique no alerta: descarta, garante o card visível (filtro de especialista
+  // pode escondê-lo), seleciona e rola até ele.
+  const ackAlert = (a: Alerta) => {
+    setAlerts((prev) => prev.filter((x) => x.id !== a.id));
+    const u = units.find((x) => x.unit_key === a.unitKey);
+    const escondido = u && (
+      (filtro === "surgeon" && !u.has_surgeon) ||
+      (filtro === "psych" && !u.has_psychiatrist) ||
+      (filtro === "ortho" && !u.has_orthopedist)
+    );
+    if (escondido) setFiltro("todas");
+    setSel(a.unitKey);
+    requestAnimationFrame(() => {
+      document.getElementById(vtName(a.unitKey))?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  };
 
   const selU = useMemo(() => ordenadas.find((u) => u.unit_key === sel) ?? null, [ordenadas, sel]);
   const selStats = selU ? statsFor(selU) : null;
@@ -782,6 +849,36 @@ export default function UpasView({ operador = "" }: { operador?: string }) {
             });
           }}
         />
+      )}
+
+      {/* Alertas de transição — fixos até o clique; abriu pulsa, fechou não */}
+      {alerts.length > 0 && (
+        <div className="fixed top-3 right-3 z-50 flex flex-col gap-2 w-[300px] max-h-[80vh] overflow-y-auto">
+          {alerts.map((a) => {
+            const abriu = a.kind === "abriu";
+            const cor = abriu ? LIVRE : LOTADA;
+            return (
+              <button
+                key={a.id}
+                onClick={() => ackAlert(a)}
+                className={`text-left rounded-xl px-4 py-3 cursor-pointer border-2 ${abriu ? "alert-abriu" : "alert-in"}`}
+                style={{
+                  borderColor: cor,
+                  background: `color-mix(in srgb, ${cor} 8%, white)`,
+                  boxShadow: "0 8px 24px rgba(16,28,44,.18)",
+                }}
+              >
+                <div className="f-display text-[17px] font-bold leading-tight" style={{ color: cor }}>
+                  {abriu ? `+${a.n} VAGA${a.n === 1 ? "" : "S"} ${CAT_NOME[a.cat].toUpperCase()}` : `FECHOU ${CAT_NOME[a.cat].toUpperCase()}`}
+                </div>
+                <div className="text-[13px] font-bold" style={{ color: "var(--ink)" }}>{a.unitName}</div>
+                <div className="text-[10px] mt-[2px]" style={{ color: "color-mix(in srgb, var(--ink) 60%, white)" }}>
+                  {a.hora} · clique para ver o card
+                </div>
+              </button>
+            );
+          })}
+        </div>
       )}
 
       {pinAction && (
