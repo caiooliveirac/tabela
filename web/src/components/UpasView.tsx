@@ -77,23 +77,24 @@ const temSplitAmarela = (u: UnitRow) => Boolean(room(u, "yellow_male") || room(u
 // Salas de uma unidade, na ordem de exibição — só as que existem no giro.
 // Matiz identifica a categoria (vermelha/amarela/isolamento); o "+n" verde
 // identifica vaga.
-function salas(u: UnitRow): { rot: string; cor: string; o?: number | null; c?: number | null }[] {
-  const out: { rot: string; cor: string; o?: number | null; c?: number | null }[] = [
-    { rot: "VERM", cor: LOTADA, o: u.red_occupied, c: u.red_capacity },
+type SalaCat = "red" | "yellow" | "iso";
+function salas(u: UnitRow): { rot: string; cor: string; cat: SalaCat; o?: number | null; c?: number | null }[] {
+  const out: { rot: string; cor: string; cat: SalaCat; o?: number | null; c?: number | null }[] = [
+    { rot: "VERM", cor: LOTADA, cat: "red", o: u.red_occupied, c: u.red_capacity },
   ];
   if (temSplitAmarela(u)) {
-    out.push({ rot: "AMAR ♂", cor: ATENCAO, o: room(u, "yellow_male")?.occupied, c: room(u, "yellow_male")?.capacity });
-    out.push({ rot: "AMAR ♀", cor: ATENCAO, o: room(u, "yellow_female")?.occupied, c: room(u, "yellow_female")?.capacity });
+    out.push({ rot: "AMAR ♂", cor: ATENCAO, cat: "yellow", o: room(u, "yellow_male")?.occupied, c: room(u, "yellow_male")?.capacity });
+    out.push({ rot: "AMAR ♀", cor: ATENCAO, cat: "yellow", o: room(u, "yellow_female")?.occupied, c: room(u, "yellow_female")?.capacity });
   } else {
-    out.push({ rot: "AMAR", cor: ATENCAO, o: u.yellow_occupied, c: u.yellow_capacity });
+    out.push({ rot: "AMAR", cor: ATENCAO, cat: "yellow", o: u.yellow_occupied, c: u.yellow_capacity });
   }
   if (u.isolation_mode === "split") {
-    out.push({ rot: "ISO ♂", cor: ISO, o: u.isolation_male_occupied, c: u.isolation_male_capacity });
-    out.push({ rot: "ISO ♀", cor: ISO, o: u.isolation_female_occupied, c: u.isolation_female_capacity });
+    out.push({ rot: "ISO ♂", cor: ISO, cat: "iso", o: u.isolation_male_occupied, c: u.isolation_male_capacity });
+    out.push({ rot: "ISO ♀", cor: ISO, cat: "iso", o: u.isolation_female_occupied, c: u.isolation_female_capacity });
     if (u.isolation_pediatric_capacity != null)
-      out.push({ rot: "ISO PED", cor: ISO, o: u.isolation_pediatric_occupied, c: u.isolation_pediatric_capacity });
+      out.push({ rot: "ISO PED", cor: ISO, cat: "iso", o: u.isolation_pediatric_occupied, c: u.isolation_pediatric_capacity });
   } else {
-    out.push({ rot: "ISO", cor: ISO, o: u.isolation_total_occupied, c: u.isolation_total_capacity });
+    out.push({ rot: "ISO", cor: ISO, cat: "iso", o: u.isolation_total_occupied, c: u.isolation_total_capacity });
   }
   return out.filter((s) => s.c != null);
 }
@@ -361,9 +362,12 @@ function UnitCard({
         )}
       </div>
 
-      {/* Salas — matiz é a categoria, +n verde é vaga */}
+      {/* Salas — matiz é a categoria, +n verde é vaga. Com filtro de sala
+          ativo, só a categoria da pergunta aparece — o resto é ruído. */}
       <div className="flex flex-wrap gap-x-3 gap-y-[2px]" style={tier === "stale" ? { opacity: 0.55 } : undefined}>
-        {salas(u).map((s) => {
+        {salas(u)
+          .filter((s) => (filtro === "red" || filtro === "yellow" || filtro === "iso" ? s.cat === filtro : true))
+          .map((s) => {
           const sv = vac(s.o, s.c);
           return (
             <span key={s.rot} className="text-[11px] font-semibold whitespace-nowrap" style={{ color: s.cor }} title={`${s.o} ocupados / ${s.c} capacidade`}>
