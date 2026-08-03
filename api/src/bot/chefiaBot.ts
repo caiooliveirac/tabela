@@ -23,13 +23,26 @@ const token = () => process.env.TELEGRAM_BOT_TOKEN || "";
 const admin = () => Number(process.env.TELEGRAM_ADMIN_CHAT_ID || 0);
 const reguladores = () => (process.env.TELEGRAM_REGULADORES_CHAT_ID || "").trim();
 
+// A rede do contêiner até a api.telegram.org falha em rajadas (ETIMEDOUT).
+// getUpdates é long-poll (timeout: 30s) — teto maior e sem retry aqui, o loop
+// já reitera; envios ganham retry com backoff pra não perder aviso/comando.
 async function tg(method: string, body: unknown): Promise<any> {
-    const r = await fetch(`https://api.telegram.org/bot${token()}/${method}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-    });
-    return r.json().catch(() => ({}));
+    const isPoll = method === "getUpdates";
+    const attempts = isPoll ? 1 : 3;
+    for (let i = 1; ; i++) {
+        try {
+            const r = await fetch(`https://api.telegram.org/bot${token()}/${method}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(body),
+                signal: AbortSignal.timeout(isPoll ? 45_000 : 15_000),
+            });
+            return await r.json().catch(() => ({}));
+        } catch (e) {
+            if (i >= attempts) throw e;
+            await new Promise((res) => setTimeout(res, 1_000 * 4 ** (i - 1)));
+        }
+    }
 }
 
 async function sendAdmin(text: string, extra: Record<string, unknown> = {}): Promise<void> {
@@ -146,9 +159,11 @@ async function handle(u: any): Promise<void> {
 let offset = 0;
 
 async function loop(): Promise<void> {
+    let failures = 0;
     for (;;) {
         try {
             const r = await tg("getUpdates", { timeout: 30, offset });
+            failures = 0;
             if (r.ok && Array.isArray(r.result)) {
                 for (const u of r.result) {
                     offset = u.update_id + 1;
@@ -159,8 +174,10 @@ async function loop(): Promise<void> {
                 await new Promise((res) => setTimeout(res, 3000));
             }
         } catch (e) {
-            console.error("[bot] loop:", e);
-            await new Promise((res) => setTimeout(res, 3000));
+            failures++;
+            const wait = Math.min(3_000 * 2 ** (failures - 1), 60_000);
+            console.error(`[bot] loop (falha ${failures}, aguardando ${wait / 1000}s):`, e);
+            await new Promise((res) => setTimeout(res, wait));
         }
     }
 }
