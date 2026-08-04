@@ -38,6 +38,10 @@ Regras que caem dessa separação:
   implementado **dentro da API**, não no notifier.
 - O bot Plantões SAMU **não escreve** em nada disto: ele só **lê**
   `GET /tabela/api/upas/restrictions`, fail-soft.
+- O mesmo vale para o **`giro-de-leitos`**, que desde 2026-08 repete a restrição
+  no grupo do WhatsApp das UPAs (ver "Quem mais consome" abaixo). Nenhum
+  consumidor recebe webhook deste repo: todos leem o `GET` público. Manter
+  assim é o que permite mexer neles sem tocar no painel de regulação.
 
 ## Fluxo ponta a ponta
 
@@ -55,8 +59,12 @@ chefia no /tabela (aba UPAs)
         │
         ├─ /upas no grupo: lista sob demanda (bot regulador)
         │
-        └─ bot Plantões SAMU, na chegada de quem assume ramal de regulação:
-              lê a lista e anexa "UPAs restritas" à confirmação de chegada
+        ├─ bot Plantões SAMU, na chegada de quem assume ramal de regulação:
+        │     lê a lista e anexa "UPAs restritas" à confirmação de chegada
+        │
+        └─ giro-de-leitos (repo `giro-de-leitos`), no grupo do WhatsApp onde as
+              UPAs postam o giro: comunicado imediato + lembrete a cada 4h,
+              no tom "a pedido da Coordenação de Unidades Fixas"
 ```
 
 Quando o prazo vence, a API fecha a restrição sozinha e avisa o grupo que a
@@ -86,7 +94,7 @@ sem isso, cada restart da API repetiria o aviso do slot corrente no grupo.
 
 | rota | auth | uso |
 |---|---|---|
-| `GET /tabela/api/upas/restrictions` | pública | painel, bot Plantões SAMU |
+| `GET /tabela/api/upas/restrictions` | pública | painel, bot Plantões SAMU, `giro-de-leitos` |
 | `POST /tabela/api/upas/restrictions` | PIN da chefia | restringir / mudar prazo |
 | `DELETE /tabela/api/upas/restrictions/:id` | PIN da chefia | liberar antes do prazo |
 
@@ -108,6 +116,24 @@ O PIN é o mesmo dos alertas de chefia, com o mesmo rate limit e bloqueio de IP
 
 Tudo é fail-soft: nenhuma dessas ausências derruba o painel nem o registro de
 chegada.
+
+## Quem mais consome (fora deste repo)
+
+| consumidor | canal | cadência | tom |
+|---|---|---|---|
+| bot regulador (aqui) | grupo dos **reguladores**, Telegram | imediato + 2h | "não encaminhe para esta unidade" |
+| bot Plantões SAMU | confirmação de chegada, Telegram | na chegada de quem assume o ramal | anexo informativo |
+| `giro-de-leitos` | grupo das **UPAs**, WhatsApp | imediato + **4h** | "a pedido da Coordenação de Unidades Fixas, as demandas serão redirecionadas" |
+
+As duas cadências e os dois tons são deliberados. O regulador **decide o
+destino** e aguenta a repetição de 2 em 2 horas no canal de trabalho dele; a UPA
+**recebe a consequência** e precisa saber de quem partiu a decisão — 2h no grupo
+onde o giro é postado viraria ruído, e grupo silenciado é falha irreversível.
+
+Lado do WhatsApp: `services/upa_restrictions_wa.py` no repo `giro-de-leitos`
+(doc: `docs/restricao-upa-whatsapp.md` de lá). Ele compara snapshots do `GET`
+a cada 2min em vez de receber webhook — este repo não conhece nem deve conhecer
+os consumidores.
 
 ## Limite conhecido
 

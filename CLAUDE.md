@@ -40,6 +40,10 @@ Procedimentos completos: `~/labctl/README.md` no servidor magalu.
 - **Bot Plantões SAMU** (repo `plantoes`): outro token, outro grupo, webhook.
   Registra chegada/saída de plantonista. Só **lê** deste repo, via
   `GET /tabela/api/upas/restrictions`.
+- **WhatsApp das UPAs** (repo `giro-de-leitos`, gateway whatsmeow): repete a
+  restrição no grupo onde as UPAs postam o giro — imediato + a cada **4h**, no
+  tom "a pedido da Coordenação de Unidades Fixas". Também só **lê** o mesmo
+  `GET`. Nenhum consumidor recebe webhook daqui; não crie um.
 - Restrição de UPA (célula vermelha + PIN + avisos no grupo):
   [docs/upa-restricoes.md](docs/upa-restricoes.md).
 
