@@ -541,8 +541,21 @@ export default function UpasView({ operador = "" }: { operador?: string }) {
         setGlow(abriuGlow);
         setTimeout(() => setGlow(new Set()), 1000);
       }
+      // Alerta velho morre sozinho quando a realidade dele acaba (vaga que
+      // abriu foi ocupada, vaga que fechou reabriu) — e o mesmo par
+      // unidade+categoria nunca acumula dois cartões.
       // ponytail: cap de 8 alertas vivos; se virar flood, vira central de eventos noutra fase
-      if (novosAlertas.length > 0) setAlerts((prev) => [...prev, ...novosAlertas].slice(-8));
+      setAlerts((prev) => {
+        const substituidos = new Set(novosAlertas.map((a) => `${a.unitKey}|${a.cat}`));
+        const vivos = prev.filter((a) => {
+          if (substituidos.has(`${a.unitKey}|${a.cat}`)) return false;
+          const v = prevVacs.current.get(a.unitKey)?.[a.cat];
+          if (v == null) return true;
+          return a.kind === "abriu" ? v > 0 : v === 0;
+        });
+        if (vivos.length === prev.length && novosAlertas.length === 0) return prev;
+        return [...vivos, ...novosAlertas].slice(-8);
+      });
     } catch { /* mantém último estado */ }
   }, []);
   useEffect(() => {
@@ -857,7 +870,7 @@ export default function UpasView({ operador = "" }: { operador?: string }) {
 
       {/* Alertas de transição — fixos até o clique; abriu pulsa, fechou não */}
       {alerts.length > 0 && (
-        <div className="fixed top-3 right-3 z-50 flex flex-col gap-2 w-[300px] max-h-[80vh] overflow-y-auto">
+        <div className="fixed top-3 right-3 z-[200] flex flex-col gap-2 w-[300px] max-h-[80vh] overflow-y-auto">
           {alerts.map((a) => {
             const abriu = a.kind === "abriu";
             const cor = abriu ? LIVRE : LOTADA;
