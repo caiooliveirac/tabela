@@ -297,7 +297,7 @@ function UnitCard({
     : v != null && v > 0 ? LIVRE
     : NEUTRO;
   const bg = restricted
-    ? "color-mix(in srgb, var(--restrita) 7%, white)"
+    ? "linear-gradient(180deg, #e8e6e2 0%, var(--restrita-fundo) 100%)"
     : tier === "stale"
       ? "color-mix(in srgb, var(--atencao) 8%, #f2f1ed)"
       : `color-mix(in srgb, ${tone} 7%, white)`;
@@ -313,14 +313,21 @@ function UnitCard({
       style={{
         padding: "12px 14px 16px 14px",
         background: bg,
-        border: isSel || restricted ? `2.5px solid ${tone}` : `1.5px solid color-mix(in srgb, ${tone} 45%, white)`,
-        boxShadow: isSel ? `0 0 0 4px color-mix(in srgb, ${tone} 12%, transparent)` : "none",
+        border: restricted
+          ? "1.5px solid var(--restrita-borda)"
+          : isSel ? `2.5px solid ${tone}` : `1.5px solid color-mix(in srgb, ${tone} 45%, white)`,
+        // Restrita afunda: sombra interna + sem relevo. Lotada é vermelha e
+        // acesa; restrita é cinza e apagada — não se confundem de longe.
+        boxShadow: restricted
+          ? `inset 0 2px 6px rgba(16,28,44,.16), inset 0 0 0 1px rgba(255,255,255,.5)${isSel ? ", 0 0 0 4px color-mix(in srgb, var(--restrita) 14%, transparent)" : ""}`
+          : isSel ? `0 0 0 4px color-mix(in srgb, ${tone} 12%, transparent)` : "none",
         viewTransitionName: vtName(u.unit_key),
         ...(entrance != null ? { animationDelay: `${entrance * 25}ms` } : null),
       } as React.CSSProperties}
     >
       <div className="flex justify-between items-start gap-2 w-full">
-        <h3 className="m-0 f-display text-[15px] font-bold uppercase tracking-wide leading-tight" style={{ color: "var(--ink)" }}>
+        <h3 className="m-0 f-display text-[15px] font-bold uppercase tracking-wide leading-tight"
+          style={restricted ? { color: "#4a5462" } : { color: "var(--ink)" }}>
           {nome(u)}
         </h3>
         <button
@@ -339,8 +346,9 @@ function UnitCard({
       <div className="flex items-baseline gap-2" style={tier === "stale" && !restricted ? { opacity: 0.55 } : undefined}>
         {restricted ? (
           <>
-            <span className="f-display text-[22px] font-bold leading-none" style={{ color: RESTRITA }}>RESTRITA</span>
-            <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: RESTRITA }}>até {restricted.untilLabel}</span>
+            <span className="f-display text-[22px] font-bold leading-none"
+              style={{ color: RESTRITA, letterSpacing: "0.06em", textShadow: "0 1px 0 rgba(255,255,255,.7)" }}>RESTRITA</span>
+            <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: RESTRITA, opacity: 0.8 }}>até {restricted.untilLabel}</span>
           </>
         ) : v != null && v > 0 ? (
           <>
@@ -364,7 +372,10 @@ function UnitCard({
 
       {/* Salas — matiz é a categoria, +n verde é vaga. Com filtro de sala
           ativo, só a categoria da pergunta aparece — o resto é ruído. */}
-      <div className="flex flex-wrap gap-x-3 gap-y-[2px]" style={tier === "stale" ? { opacity: 0.55 } : undefined}>
+      <div className="flex flex-wrap gap-x-3 gap-y-[2px]"
+        style={restricted
+          ? { opacity: 0.42, filter: "grayscale(0.85)" }   // números continuam lá, mas não competem
+          : tier === "stale" ? { opacity: 0.55 } : undefined}>
         {salas(u)
           .filter((s) => (filtro === "red" || filtro === "yellow" || filtro === "iso" ? s.cat === filtro : true))
           .map((s) => {
@@ -378,7 +389,7 @@ function UnitCard({
         })}
       </div>
 
-      <div className="flex justify-between items-center w-full gap-2">
+      <div className="flex justify-between items-center w-full gap-2" style={restricted ? { opacity: 0.5 } : undefined}>
         <span className="flex gap-1 flex-wrap">
           {esp.map(([l, , hot]) => (
             <span key={l}
@@ -724,8 +735,12 @@ export default function UpasView({ operador = "" }: { operador?: string }) {
           Também é a única forma de mexer numa restrição cuja UPA parou de mandar
           giro (o card some do grid, a restrição continua valendo). */}
       {restrictions.length > 0 && (
-        <div className="rounded-[10px] border-2 mb-4 px-4 py-3"
-          style={{ borderColor: RESTRITA, background: "color-mix(in srgb, var(--restrita) 6%, white)" }}>
+        <div className="rounded-[10px] border mb-4 px-4 py-3"
+          style={{
+            borderColor: "var(--restrita-borda)",
+            background: "linear-gradient(180deg, #e8e6e2 0%, var(--restrita-fundo) 100%)",
+            boxShadow: "inset 0 2px 6px rgba(16,28,44,.14)",
+          }}>
           <div className="text-[11px] font-bold uppercase tracking-wide mb-2" style={{ color: RESTRITA }}>
             🚫 {restrictions.length} UPA{restrictions.length === 1 ? "" : "s"} restrita{restrictions.length === 1 ? "" : "s"} pela chefia
           </div>

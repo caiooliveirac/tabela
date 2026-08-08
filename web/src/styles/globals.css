@@ -8,7 +8,12 @@
   --paper: #f4f6f8;
   --livre: #0e7a46;
   --lotada: #b32430;
-  --restrita: #7a1220;
+  /* Restrita não é "mais lotada": é decisão da chefia. Fundo cinza (a UPA sai
+     do jogo do semáforo) e letra carmim — matiz distinta do vermelho de lotada,
+     senão o dash inteiro vira uma mancha só. */
+  --restrita: #b3145a;
+  --restrita-fundo: #dedcd7;
+  --restrita-borda: #a9a49b;
   --atencao: #b87a0e;
   --iso: #1d6fa8;
 }
