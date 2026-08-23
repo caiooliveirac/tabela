@@ -266,6 +266,40 @@ sabe melhor que o navegador: quais hospitais o perfil permite e a que
 distância. Score e alertas o painel já tem por `/hospitals` — recalcular aqui
 seria manter duas verdades sobre a mesma coisa.
 
+## O índice aprende com quem usa
+
+Nenhuma lista de lugares fica pronta. Quando a busca não acha nada, o módulo
+faz duas coisas:
+
+1. **Diz o que fazer agora.** *"Não conhecemos «X». Pergunte a quem está na
+   cena qual é o bairro mais próximo."* A lista clínica aparece mesmo assim,
+   sem ordem de distância — saber QUAIS hospitais podem receber já é metade da
+   decisão, e é melhor que uma tela vazia.
+2. **Registra o termo** em `locais_nao_encontrados`, com contagem. O que
+   aparece ali com contagem alta é bairro, conjunto ou apelido que falta.
+
+### Curadoria
+
+```bash
+ssh magalu 'docker exec tabela-db-1 psql -U tabela -d tabela -c "select termo, vezes, ultima_em from locais_nao_encontrados order by vezes desc limit 30"'
+```
+
+Termo que se repete vira entrada em `APELIDOS` ou `REFERENCIAS` no
+`scripts/gerar-locais.py`. Apelido é de graça — nenhuma chamada de API,
+nenhuma linha de rota. Referência nova exige regerar o seed.
+
+### Duas ressalvas
+
+**Fragmentos de digitação entram junto.** A busca dispara a cada 300 ms, então
+quem digita devagar registra "cajaz" e "cajazei" além do nome inteiro. A
+curadoria ordena por `vezes` e o nome completo sobe acima dos pedaços. Termo
+com menos de 4 caracteres não é registrado.
+
+**O conteúdo é sensível.** A tabela guarda só o termo normalizado e a
+contagem — sem autor, sem IP, sem ligação com caso, nada em que dar join. Mas
+é texto digitado livre e pode conter o endereço de uma ocorrência: mesmo
+cuidado de `cases.caso`, e nunca em rota pública.
+
 ## Pendências além das matrizes
 
 - **Mapa intel → recurso**: a intel é texto livre ("sem tomógrafo"). Para ela
@@ -273,7 +307,7 @@ seria manter duas verdades sobre a mesma coisa.
   modal de alerta, ou casamento por palavra-chave?
 - **Maternidades**: fica em repo próprio, fora deste módulo. O usuário quer
   reativá-lo — tarefa separada, não escopo daqui.
-- **Endereço fora de bairro conhecido**: hoje o casamento é por nome de
-  bairro. Aceitar endereço livre ("Rua X, 200") exigiria geocodificar em
-  tempo real — e aí a chave voltaria a ser dependência de plantão. Decidir se
-  vale.
+- **Endereço livre fora de lugar conhecido**: hoje o casamento é por nome. O
+  registro em `locais_nao_encontrados` é a alternativa barata — a lista cresce
+  com o uso em vez de depender de geocodificar em plantão, o que traria a
+  chave do Google de volta para o caminho crítico.

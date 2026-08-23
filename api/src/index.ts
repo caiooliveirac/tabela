@@ -16,7 +16,7 @@ import encaminhamentoRouter from "./routes/encaminhamento.js";
 import { initChefiaSecurity } from "./lib/chefiaPin.js";
 import { startChefiaBot } from "./bot/chefiaBot.js";
 import { initUpaRestrictions } from "./services/upa-restrictions.js";
-import { initBairroRotas } from "./services/locais-store.js";
+import { initBairroRotas, initLocaisNaoEncontrados } from "./services/locais-store.js";
 import { initUpaRestrictionNotices, startUpaRestrictionsBroadcast } from "./lib/upaRestrictionsBot.js";
 
 const PORT = parseInt(process.env.PORT || "3000", 10);
@@ -61,6 +61,7 @@ setupWebSocket(server);
 initChefiaSecurity()
   .then(() => initUpaRestrictions())
   .then(() => initBairroRotas())
+  .then(() => initLocaisNaoEncontrados())
   .then(() => initUpaRestrictionNotices())
   .then(() => {
     startChefiaBot();
