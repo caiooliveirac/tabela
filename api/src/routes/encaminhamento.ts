@@ -15,8 +15,8 @@ import {
     nomeHospital,
     PerfilDesconhecido,
 } from "../services/encaminhamento.js";
-import { acharBairro } from "../services/bairros.js";
-import { rotasDoBairro } from "../services/bairros-store.js";
+import { acharLocal } from "../services/locais.js";
+import { rotasDoLocal } from "../services/locais-store.js";
 
 const router = Router();
 
@@ -27,10 +27,10 @@ router.get("/perfis", (_req: Request, res: Response) => {
 
 // GET /tabela/api/encaminhamento?local=<texto>&perfil=<id>
 router.get("/", async (req: Request, res: Response) => {
-    const local = String(req.query.local ?? "").trim();
+    const busca = String(req.query.local ?? "").trim();
     const perfilId = String(req.query.perfil ?? "").trim();
 
-    if (!local) return res.status(400).json({ error: "Informe o bairro ou endereço" });
+    if (!busca) return res.status(400).json({ error: "Informe o local ou endereço" });
     if (!perfilId) return res.status(400).json({ error: "Informe o perfil do paciente" });
 
     let filtro;
@@ -41,16 +41,16 @@ router.get("/", async (req: Request, res: Response) => {
         throw e;
     }
 
-    const achados = acharBairro(local);
+    const achados = acharLocal(busca);
 
-    // Nenhum bairro reconhecido: devolve o filtro clínico mesmo assim. Saber
+    // Nenhum lugar reconhecido: devolve o filtro clínico mesmo assim. Saber
     // QUAIS hospitais podem receber já é metade da decisão, e é melhor do que
-    // uma tela vazia porque o regulador escreveu o bairro de um jeito que o
+    // uma tela vazia porque o regulador escreveu o lugar de um jeito que o
     // índice não conhece.
     if (achados.length === 0) {
         return res.json({
             perfil: { id: filtro.perfil.id, label: filtro.perfil.label },
-            bairro: null,
+            local: null,
             candidatos: [],
             destinos: filtro.elegiveis.map((e) => ({
                 hospitalId: e.hospitalId,
@@ -60,7 +60,7 @@ router.get("/", async (req: Request, res: Response) => {
                 metros: null,
             })),
             excluidos: filtro.excluidos.map((x) => ({ ...x, nome: nomeHospital(x.hospitalId) })),
-            aviso: "Bairro não reconhecido — a lista está por afinidade clínica, sem ordem de distância.",
+            aviso: "Local não reconhecido — a lista está por afinidade clínica, sem ordem de distância.",
         });
     }
 
@@ -68,25 +68,25 @@ router.get("/", async (req: Request, res: Response) => {
     if (achados.length > 1) {
         return res.json({
             perfil: { id: filtro.perfil.id, label: filtro.perfil.label },
-            bairro: null,
-            candidatos: achados.map((b) => ({ nome: b.nome, key: b.key })),
+            local: null,
+            candidatos: achados.map((l) => ({ nome: l.nome, key: l.key, tipo: l.tipo })),
             destinos: [],
             excluidos: [],
-            aviso: `${achados.length} bairros combinam com "${local}". Escolha um.`,
+            aviso: `${achados.length} lugares combinam com "${busca}". Escolha um.`,
         });
     }
 
-    const bairro = achados[0];
+    const local = achados[0];
     const base = {
         perfil: { id: filtro.perfil.id, label: filtro.perfil.label },
-        bairro: { nome: bairro.nome, key: bairro.key },
+        local: { nome: local.nome, key: local.key, tipo: local.tipo },
         candidatos: [],
         excluidos: filtro.excluidos.map((x) => ({ ...x, nome: nomeHospital(x.hospitalId) })),
     };
 
-    // Ilha da Baía de Todos os Santos: não existe estrada. Dizer isso é mais
-    // útil do que ordenar por um tempo de carro que não existe.
-    if (bairro.semRotaRodoviaria) {
+    // Povoado de ilha da Baía de Todos os Santos: não existe estrada. Dizer
+    // isso é mais útil do que ordenar por um tempo de carro que não existe.
+    if (local.semRotaRodoviaria) {
         return res.json({
             ...base,
             destinos: filtro.elegiveis.map((e) => ({
@@ -96,11 +96,11 @@ router.get("/", async (req: Request, res: Response) => {
                 segundos: null,
                 metros: null,
             })),
-            aviso: `${bairro.nome} não tem acesso rodoviário. A lista está por afinidade clínica; o transporte é aquaviário ou aéreo.`,
+            aviso: `${local.nome} não tem acesso rodoviário. A lista está por afinidade clínica; o transporte é aquaviário ou aéreo.`,
         });
     }
 
-    const rotas = new Map((await rotasDoBairro(bairro.key)).map((r) => [r.hospitalId, r]));
+    const rotas = new Map((await rotasDoLocal(local.key)).map((r) => [r.hospitalId, r]));
     const destinos = filtro.elegiveis
         .map((e) => ({
             hospitalId: e.hospitalId,

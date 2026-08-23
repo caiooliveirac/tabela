@@ -114,12 +114,12 @@ nosso Postgres. Nenhuma chamada ao Google acontece durante o plantão.
 
 | | |
 |---|---|
-| Bairros | **183**, do OpenStreetMap (nome + centroide, grátis, sem chave) |
-| Rotas | 180 × 7 = **1.260 linhas**, da Routes API do Google |
-| Sem rota | **3 ilhas** — Maré, Frades, Bom Jesus dos Passos |
-| Seed | [`api/src/data/bairros-salvador.json`](../api/src/data/bairros-salvador.json), 54 KB, committado |
+| Lugares | **291** — bairro, largo, estação, terminal, ilha e referência |
+| Rotas | 268 × 7 = **1.876 linhas**, da Routes API do Google |
+| Sem rota | **23 povoados de ilha** na Baía de Todos os Santos |
+| Seed | [`api/src/data/locais-salvador.json`](../api/src/data/locais-salvador.json), committado |
 | Tabela | `bairro_rotas`, criada e semeada no boot (mesmo padrão de `initUpaRestrictions`) |
-| Regerar | `python3 scripts/gerar-bairros.py` — única coisa que gasta cota |
+| Regerar | `python3 scripts/gerar-locais.py` — única coisa que gasta cota |
 
 A chave do Google passa a ser ferramenta de manutenção, não dependência de
 produção. O servidor nunca precisa dela.
@@ -145,6 +145,60 @@ caetano" e "SAO CAETANO." caem na mesma chave. A busca tenta, nesta ordem:
 nome exato, bairro contido no texto (para "Rua X, 200, Pituba" achar a
 Pituba), e prefixo (para quem ainda está digitando). Ambiguidade devolve todos
 os candidatos — quem escolhe é quem regula.
+
+## Lugares, não só bairros
+
+A regulação não fala a divisão oficial: fala largo, estação, terminal, rótula
+e apelido. O índice tem **291 lugares** e **10 apelidos**.
+
+| Tipo | Quantos | Fonte |
+|---|---|---|
+| bairro | 182 | OpenStreetMap |
+| terminal | 26 | OpenStreetMap |
+| localidade | 22 | OpenStreetMap |
+| largo | 19 | OpenStreetMap |
+| referência | 19 | Google, curadas à mão |
+| estação | 17 | OpenStreetMap |
+| ilha | 6 | OpenStreetMap |
+
+### O que o OSM não serve
+
+Só as categorias geográficas entram. As comerciais foram testadas e
+descartadas: `shop=mall` traz estação de rádio, `amenity=marketplace` traz
+mercadinho, `landuse=residential` traz 505 prédios e condomínios. Volume sem
+curadoria não é cobertura — é ambiguidade de busca.
+
+O que falta dessas categorias entra por `REFERENCIAS` em
+`scripts/gerar-locais.py`: geocodificado no Google um a um e conferido pelo
+endereço devolvido.
+
+### Duas guardas contra coordenada inventada
+
+Aprendidas errando, na primeira rodada:
+
+- **Endereço devolvido que começa com "Salvador"** é o "não achei" do
+  geocoder. Foi assim que *Rótula do Shopping* virou o centroide da cidade e
+  quase virou apelido da Arena Fonte Nova, a 309 m dali.
+- **Referência imprecisa a menos de 400 m de um lugar que já existe** vira
+  apelido dele, não ponto novo. *Farol da Barra* é a Barra; *Vale do Canela* é
+  o Canela.
+
+### Dois nomes que não podem ser buscáveis
+
+`salvador` e `largo` existem no OSM e foram barrados. A busca por conteúdo
+prefere o termo mais longo — e como quase todo endereço digitado termina em
+"Salvador", ele venceria a Pituba em "Rua X, 200, Pituba, Salvador". Há teste
+travando os dois.
+
+### Apelidos
+
+`APELIDOS` no gerador mapeia como se fala para a chave do lugar real:
+`iguatemi` → Shopping da Bahia, `cab` → Centro Administrativo, `fonte nova` →
+Arena Fonte Nova. Custa zero: nenhuma chamada de API, nenhuma linha de rota.
+Acrescentar é uma linha.
+
+Nome de patrocinador é normalizado por `RENOMEAR` — o OSM diz "Casa de Apostas
+Arena Fonte Nova", o painel diz "Arena Fonte Nova".
 
 ## A aba Destino
 

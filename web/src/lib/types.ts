@@ -269,11 +269,27 @@ export interface DestinoExcluido {
   motivo: string;
 }
 
+/** O que a regulação chama de lugar: nem tudo em Salvador é bairro. */
+export type TipoLocal =
+  | "bairro"
+  | "localidade"
+  | "largo"
+  | "estacao"
+  | "terminal"
+  | "ilha"
+  | "referencia";
+
+export interface LocalRef {
+  nome: string;
+  key: string;
+  tipo: TipoLocal;
+}
+
 export interface EncaminhamentoResponse {
   perfil: PerfilEncaminhamento;
-  bairro: { nome: string; key: string } | null;
-  /** Preenchido quando o texto casa com mais de um bairro. */
-  candidatos: { nome: string; key: string }[];
+  local: LocalRef | null;
+  /** Preenchido quando o texto casa com mais de um lugar. */
+  candidatos: LocalRef[];
   destinos: DestinoRanqueado[];
   excluidos: DestinoExcluido[];
   aviso: string | null;
