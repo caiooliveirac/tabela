@@ -239,7 +239,7 @@ export interface Coordenada {
     precisao: "ROOFTOP" | "GEOMETRIC_CENTER";
 }
 
-export const COORDENADAS: Record<string, Coordenada> = {
+export const COORDENADAS_HOSPITAIS: Record<string, Coordenada> = {
     hge: {
         lat: -12.995065,
         lng: -38.488655,

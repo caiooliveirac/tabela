@@ -11,27 +11,59 @@
 import { Router, type Request, type Response } from "express";
 import {
     PERFIS,
+    COORDENADAS_HOSPITAIS,
+    HOSPITAIS_NA_FEATURE,
     encaminhar,
     nomeHospital,
     PerfilDesconhecido,
 } from "../services/encaminhamento.js";
-import { acharLocal, normalizar } from "../services/locais.js";
+import { acharLocal, localMaisProximo, normalizar, type Local } from "../services/locais.js";
 import { registrarBuscaSemResultado, rotasDoLocal } from "../services/locais-store.js";
 
 const router = Router();
+
+/**
+ * Teto do encaixe do clique. O pior caso entre lugares reais é Valéria, a
+ * 2,3 km do vizinho; acima de 3 km o clique caiu na baía ou fora da malha
+ * urbana, e ranquear por um ponto tão distante seria pior que não ranquear.
+ */
+const TETO_ENCAIXE_M = 3000;
 
 // GET /tabela/api/encaminhamento/perfis — o que preenche o seletor
 router.get("/perfis", (_req: Request, res: Response) => {
     res.json(PERFIS.map((p) => ({ id: p.id, label: p.label })));
 });
 
-// GET /tabela/api/encaminhamento?local=<texto>&perfil=<id>
+// GET /tabela/api/encaminhamento/hospitais — pontos para o mapa desenhar
+router.get("/hospitais", (_req: Request, res: Response) => {
+    res.json(
+        HOSPITAIS_NA_FEATURE.map((id) => ({
+            id,
+            nome: nomeHospital(id),
+            lat: COORDENADAS_HOSPITAIS[id].lat,
+            lng: COORDENADAS_HOSPITAIS[id].lng,
+        })),
+    );
+});
+
+// GET /tabela/api/encaminhamento?perfil=<id>&local=<texto>
+// GET /tabela/api/encaminhamento?perfil=<id>&lat=<n>&lng=<n>   (clique no mapa)
 router.get("/", async (req: Request, res: Response) => {
     const busca = String(req.query.local ?? "").trim();
     const perfilId = String(req.query.perfil ?? "").trim();
+    const lat = req.query.lat === undefined ? null : Number(req.query.lat);
+    const lng = req.query.lng === undefined ? null : Number(req.query.lng);
+    const temPonto = lat !== null && lng !== null;
 
-    if (!busca) return res.status(400).json({ error: "Informe o local ou endereço" });
     if (!perfilId) return res.status(400).json({ error: "Informe o perfil do paciente" });
+    if (!busca && !temPonto)
+        return res.status(400).json({ error: "Informe o local, ou clique no mapa" });
+    if (temPonto && (!Number.isFinite(lat) || !Number.isFinite(lng)))
+        return res.status(400).json({ error: "Coordenada inválida" });
+    // Caixa generosa em volta da RMS: fora dela o encaixe devolveria o lugar
+    // menos distante de Salvador, que não descreve ocorrência nenhuma.
+    if (temPonto && (lat! < -13.2 || lat! > -12.6 || lng! < -38.8 || lng! > -38.2))
+        return res.status(400).json({ error: "O ponto está fora da região de Salvador" });
 
     let filtro;
     try {
@@ -39,6 +71,49 @@ router.get("/", async (req: Request, res: Response) => {
     } catch (e) {
         if (e instanceof PerfilDesconhecido) return res.status(400).json({ error: e.message });
         throw e;
+    }
+
+    // Clique no mapa: em vez de calcular a rota do ponto exato — que traria a
+    // API do Google de volta para o caminho crítico do plantão — reusa a rota
+    // já materializada do lugar conhecido mais próximo. A distância desse
+    // encaixe volta na resposta: é aproximação, e quem regula precisa ver o
+    // tamanho dela para julgar.
+    if (temPonto) {
+        const perto = localMaisProximo(lat!, lng!);
+        if (!perto) return res.status(503).json({ error: "Índice de lugares indisponível" });
+
+        // Clique na baía ou no mato: o lugar conhecido mais próximo chega a
+        // ficar a 10 km. Aproximar 300 m é útil; aproximar 5 km é inventar. O
+        // pior encaixe entre lugares reais é Valéria, a 2,3 km — acima de 3 km
+        // não há ocorrência urbana plausível, então devolve a lista clínica
+        // sem tempo em vez de um ranking que finge precisão.
+        if (perto.metros > TETO_ENCAIXE_M) {
+            return res.json({
+                perfil: { id: filtro.perfil.id, label: filtro.perfil.label },
+                local: null,
+                candidatos: [],
+                encaixe: null,
+                destinos: filtro.elegiveis.map((e) => ({
+                    hospitalId: e.hospitalId,
+                    nome: nomeHospital(e.hospitalId),
+                    ressalva: e.ressalva ?? null,
+                    segundos: null,
+                    metros: null,
+                })),
+                excluidos: filtro.excluidos.map((x) => ({ ...x, nome: nomeHospital(x.hospitalId) })),
+                aviso: `O ponto clicado está a ${(perto.metros / 1000).toFixed(1).replace(".", ",")} km do lugar conhecido mais próximo (${perto.local.nome}). Clique mais perto da área da ocorrência — a lista abaixo está por afinidade clínica, sem ordem de distância.`,
+            });
+        }
+
+        return res.json(
+            await montarResposta(filtro, perto.local, {
+                nome: perto.local.nome,
+                tipo: perto.local.tipo,
+                metros: perto.metros,
+                lat: perto.local.lat,
+                lng: perto.local.lng,
+            }),
+        );
     }
 
     const achados = acharLocal(busca);
@@ -54,6 +129,7 @@ router.get("/", async (req: Request, res: Response) => {
             perfil: { id: filtro.perfil.id, label: filtro.perfil.label },
             local: null,
             candidatos: [],
+            encaixe: null,
             destinos: filtro.elegiveis.map((e) => ({
                 hospitalId: e.hospitalId,
                 nome: nomeHospital(e.hospitalId),
@@ -71,6 +147,7 @@ router.get("/", async (req: Request, res: Response) => {
         return res.json({
             perfil: { id: filtro.perfil.id, label: filtro.perfil.label },
             local: null,
+            encaixe: null,
             candidatos: achados.map((l) => ({ nome: l.nome, key: l.key, tipo: l.tipo })),
             destinos: [],
             excluidos: [],
@@ -78,28 +155,54 @@ router.get("/", async (req: Request, res: Response) => {
         });
     }
 
-    const local = achados[0];
+    return res.json(await montarResposta(filtro, achados[0], null));
+});
+
+interface Encaixe {
+    nome: string;
+    tipo: string;
+    /** Distância em linha reta do ponto clicado até o lugar usado. */
+    metros: number;
+    /** Coordenada do lugar usado, para o mapa desenhar o quanto aproximou. */
+    lat: number;
+    lng: number;
+}
+
+/**
+ * Monta a resposta para um lugar já resolvido — venha ele do texto digitado ou
+ * do encaixe do clique. Compartilhar a montagem garante que os dois caminhos
+ * respondam a mesma coisa; duplicar seria convidar um deles a divergir.
+ */
+async function montarResposta(
+    filtro: ReturnType<typeof encaminhar>,
+    local: Local,
+    encaixe: Encaixe | null,
+) {
     const base = {
         perfil: { id: filtro.perfil.id, label: filtro.perfil.label },
         local: { nome: local.nome, key: local.key, tipo: local.tipo },
-        candidatos: [],
+        candidatos: [] as unknown[],
+        encaixe,
         excluidos: filtro.excluidos.map((x) => ({ ...x, nome: nomeHospital(x.hospitalId) })),
     };
+
+    const semTempo = () =>
+        filtro.elegiveis.map((e) => ({
+            hospitalId: e.hospitalId,
+            nome: nomeHospital(e.hospitalId),
+            ressalva: e.ressalva ?? null,
+            segundos: null,
+            metros: null,
+        }));
 
     // Povoado de ilha da Baía de Todos os Santos: não existe estrada. Dizer
     // isso é mais útil do que ordenar por um tempo de carro que não existe.
     if (local.semRotaRodoviaria) {
-        return res.json({
+        return {
             ...base,
-            destinos: filtro.elegiveis.map((e) => ({
-                hospitalId: e.hospitalId,
-                nome: nomeHospital(e.hospitalId),
-                ressalva: e.ressalva ?? null,
-                segundos: null,
-                metros: null,
-            })),
+            destinos: semTempo(),
             aviso: `${local.nome} não tem acesso rodoviário. A lista está por afinidade clínica; o transporte é aquaviário ou aéreo.`,
-        });
+        };
     }
 
     const rotas = new Map((await rotasDoLocal(local.key)).map((r) => [r.hospitalId, r]));
@@ -114,7 +217,7 @@ router.get("/", async (req: Request, res: Response) => {
         // Sem tempo vai para o fim: é lacuna de dado, não proximidade.
         .sort((a, b) => (a.segundos ?? Infinity) - (b.segundos ?? Infinity));
 
-    res.json({ ...base, destinos, aviso: null });
-});
+    return { ...base, destinos, aviso: null };
+}
 
 export default router;

@@ -15,10 +15,17 @@
 // Quem ficou de fora aparece com o motivo. Some calado seria indistinguível
 // de bug, e o regulador ficaria sem saber se confia na lista.
 // ═══════════════════════════════════════════════════════════════
-import { useState } from "react";
+import { Suspense, lazy, useEffect, useState } from "react";
 import type { HospitalData, CaseRow, DestinoRanqueado, TipoLocal } from "../lib/types";
 import { SM } from "../lib/constants";
-import { usePerfisEncaminhamento, useEncaminhamento } from "../hooks/useEncaminhamento";
+import {
+  usePerfisEncaminhamento,
+  useEncaminhamento,
+  useHospitaisMapa,
+} from "../hooks/useEncaminhamento";
+// Leaflet são ~150 KB. Carregar sob demanda mantém o painel leve para quem
+// nunca abre esta aba — que é a maioria das visitas ao /tabela.
+const MapaSalvador = lazy(() => import("./MapaSalvador"));
 import IntelChip from "./IntelChip";
 
 function tempo(segundos: number | null): string {
@@ -114,10 +121,31 @@ interface Props {
 export default function EncaminharView({ hospitals, timelineCases }: Props) {
   const [local, setLocal] = useState("");
   const [perfil, setPerfil] = useState("");
+  const [ponto, setPonto] = useState<{ lat: number; lng: number } | null>(null);
   const [verExcluidos, setVerExcluidos] = useState(false);
+  const [verMapa, setVerMapa] = useState(
+    () => localStorage.getItem("tabela:destinoMapa") !== "false",
+  );
 
   const { data: perfis } = usePerfisEncaminhamento();
-  const { data, isFetching, error } = useEncaminhamento(local, perfil);
+  const { data: hospitaisMapa = [] } = useHospitaisMapa();
+  const { data, isFetching, error } = useEncaminhamento(local, perfil, ponto);
+
+  useEffect(() => {
+    localStorage.setItem("tabela:destinoMapa", String(verMapa));
+  }, [verMapa]);
+
+  // As duas origens são exclusivas: digitar descarta o ponto, clicar descarta
+  // o texto. Manter as duas na tela deixaria o regulador sem saber qual
+  // produziu o ranking que está lendo.
+  const digitar = (texto: string) => {
+    setLocal(texto);
+    if (ponto) setPonto(null);
+  };
+  const clicarNoMapa = (lat: number, lng: number) => {
+    setPonto({ lat, lng });
+    setLocal("");
+  };
 
   const porId = new Map(hospitals.map((h) => [h.id, h]));
   const casosPorHospital = new Map<string, CaseRow[]>();
@@ -134,14 +162,14 @@ export default function EncaminharView({ hospitals, timelineCases }: Props) {
         <div className="text-[11px] font-extrabold text-slate-600 mb-3 uppercase tracking-wide">
           <span className="mr-[6px]">🚑</span>Para onde levar
         </div>
-        <div className="flex gap-3 flex-wrap">
+        <div className="flex gap-3 flex-wrap items-end">
           <div className="flex-1 min-w-[240px]">
             <label className="block text-[11px] font-bold text-slate-500 mb-1">
               Onde é a ocorrência
             </label>
             <input
               value={local}
-              onChange={(e) => setLocal(e.target.value)}
+              onChange={(e) => digitar(e.target.value)}
               placeholder="Bairro, largo, estação, apelido ou endereço"
               className="w-full py-2 px-3 rounded-lg border border-slate-300 text-sm outline-none focus:border-blue-600"
             />
@@ -163,7 +191,41 @@ export default function EncaminharView({ hospitals, timelineCases }: Props) {
               ))}
             </select>
           </div>
+          <button
+            onClick={() => setVerMapa((v) => !v)}
+            className="py-2 px-3 text-xs font-bold rounded-lg border cursor-pointer whitespace-nowrap"
+            style={{
+              borderColor: verMapa ? "#1d4ed8" : "#cbd5e1",
+              backgroundColor: verMapa ? "#eff6ff" : "#fff",
+              color: verMapa ? "#1d4ed8" : "#64748b",
+            }}
+          >
+            🗺️ Mapa
+          </button>
         </div>
+
+        {verMapa && (
+          <div className="mt-3">
+            <div className="text-[11px] text-slate-500 mb-[6px]">
+              Clique onde está a ocorrência. O ranking sai do lugar conhecido mais
+              próximo — a linha tracejada mostra o quanto foi aproximado.
+            </div>
+            <Suspense
+              fallback={
+                <div className="w-full h-[320px] rounded-[10px] border border-slate-200 bg-slate-50 flex items-center justify-center text-xs text-slate-400">
+                  carregando o mapa…
+                </div>
+              }
+            >
+              <MapaSalvador
+                ponto={ponto}
+                encaixe={data?.encaixe ?? null}
+                hospitais={hospitaisMapa}
+                onEscolher={clicarNoMapa}
+              />
+            </Suspense>
+          </div>
+        )}
       </div>
 
       {/* ── Estado inicial ── */}
@@ -211,6 +273,26 @@ export default function EncaminharView({ hospitals, timelineCases }: Props) {
             )}
             {isFetching && <span className="text-xs text-slate-400">atualizando…</span>}
           </div>
+
+          {/* O tamanho da aproximação fica à vista: na periferia o lugar
+              conhecido mais próximo chega a ficar a 2 km do ponto clicado. */}
+          {data.encaixe && (
+            <div
+              className="text-[11px] font-semibold rounded-[8px] px-3 py-2 border"
+              style={
+                data.encaixe.metros > 800
+                  ? { backgroundColor: "#fffbeb", borderColor: "#fde68a", color: "#b45309" }
+                  : { backgroundColor: "#f8fafc", borderColor: "#e2e8f0", color: "#64748b" }
+              }
+            >
+              {data.encaixe.metros > 800 ? "⚠️ " : "📐 "}
+              Tempo calculado a partir de <strong>{data.encaixe.nome}</strong>,{" "}
+              {data.encaixe.metros >= 1000
+                ? `${(data.encaixe.metros / 1000).toFixed(1).replace(".", ",")} km`
+                : `${data.encaixe.metros} m`}{" "}
+              do ponto que você clicou.
+            </div>
+          )}
 
           {data.aviso && (
             <div className="bg-amber-50 border border-amber-300 rounded-[10px] p-3 text-[13px] font-semibold text-amber-900">

@@ -266,6 +266,44 @@ sabe melhor que o navegador: quais hospitais o perfil permite e a que
 distância. Score e alertas o painel já tem por `/hospitals` — recalcular aqui
 seria manter duas verdades sobre a mesma coisa.
 
+## O mapa
+
+Segunda forma de dizer onde é a ocorrência: clicar. Tiles do **OpenStreetMap
+via Leaflet** — sem chave no navegador, sem SKU novo, sem superfície de
+cobrança. É a mesma base de onde vieram os 291 lugares do índice.
+
+O Leaflet são ~150 KB e carrega **sob demanda** (`React.lazy`), não no bundle
+principal: quem nunca abre a aba Destino não paga por ele.
+
+### O clique não vira rota nova
+
+Calcular a rota do ponto exato traria a API do Google de volta para o caminho
+crítico do plantão — exatamente o que a materialização evitou. Em vez disso o
+servidor **encaixa** o clique no lugar conhecido mais próximo e reusa a rota já
+pronta.
+
+Isso é uma aproximação, e o módulo não a esconde:
+
+| Distância do encaixe | O que acontece |
+|---|---|
+| até 800 m | linha cinza: *"Tempo calculado a partir de Saramandaia, 186 m do ponto que você clicou"* |
+| 800 m a 3 km | mesma linha, em âmbar |
+| acima de 3 km | **não ranqueia** — lista clínica sem tempo, pedindo um clique mais perto |
+
+O mapa desenha os dois pontos e a linha tracejada entre eles, para o tamanho da
+aproximação ser visível e não uma nota de rodapé.
+
+### De onde vieram os números
+
+Medindo o índice: a distância de cada lugar ao vizinho mais próximo tem
+mediana de **406 m** e p90 de **1.017 m** — mas a periferia é pior, com
+**Valéria a 2,3 km** e **Cassange a 2,2 km**. Por isso o teto é 3 km: acima
+disso o clique caiu na baía ou fora da malha urbana, onde o pior caso medido
+chega a 10,5 km. Aproximar 300 m é útil; aproximar 5 km é inventar.
+
+Os limites do mapa e a validação no servidor recusam ponto fora da região de
+Salvador antes mesmo do encaixe.
+
 ## O índice aprende com quem usa
 
 Nenhuma lista de lugares fica pronta. Quando a busca não acha nada, o módulo
