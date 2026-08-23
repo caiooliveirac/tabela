@@ -16,7 +16,7 @@
 // de bug, e o regulador ficaria sem saber se confia na lista.
 // ═══════════════════════════════════════════════════════════════
 import { useState } from "react";
-import type { HospitalData, CaseRow, DestinoRanqueado } from "../lib/types";
+import type { HospitalData, CaseRow, DestinoRanqueado, TipoLocal } from "../lib/types";
 import { SM } from "../lib/constants";
 import { usePerfisEncaminhamento, useEncaminhamento } from "../hooks/useEncaminhamento";
 import IntelChip from "./IntelChip";
@@ -41,6 +41,17 @@ function haQuanto(ts: string): string {
   const r = min % 60;
   return r > 0 ? `${h}h${String(r).padStart(2, "0")}` : `${h}h`;
 }
+
+/** Rótulo do tipo — some no bairro, que é o caso comum e não precisa de aviso. */
+const TIPO_LABEL: Record<TipoLocal, string> = {
+  bairro: "",
+  localidade: "localidade",
+  largo: "largo",
+  estacao: "estação",
+  terminal: "terminal",
+  ilha: "ilha",
+  referencia: "referência",
+};
 
 const JANELA_ZERO_MS = 3 * 60 * 60 * 1000;
 const JANELA_LOTACAO_MS = 3 * 60 * 60 * 1000;
@@ -126,12 +137,12 @@ export default function EncaminharView({ hospitals, timelineCases }: Props) {
         <div className="flex gap-3 flex-wrap">
           <div className="flex-1 min-w-[240px]">
             <label className="block text-[11px] font-bold text-slate-500 mb-1">
-              Bairro ou endereço da ocorrência
+              Onde é a ocorrência
             </label>
             <input
               value={local}
               onChange={(e) => setLocal(e.target.value)}
-              placeholder="Ex.: Pituba · Rua X, 200, Brotas"
+              placeholder="Bairro, largo, estação, apelido ou endereço"
               className="w-full py-2 px-3 rounded-lg border border-slate-300 text-sm outline-none focus:border-blue-600"
             />
           </div>
@@ -160,12 +171,13 @@ export default function EncaminharView({ hospitals, timelineCases }: Props) {
         <div className="bg-white rounded-[10px] border border-slate-200 py-10 px-6 text-center">
           <div className="text-3xl mb-2">🗺️</div>
           <div className="text-sm font-bold text-slate-700 mb-1">
-            Informe o bairro e o perfil do paciente
+            Informe o local e o perfil do paciente
           </div>
           <div className="text-xs text-slate-500 max-w-md mx-auto">
-            A lista sai por tempo de carro, dentro dos hospitais que atendem
-            aquele perfil. Hospital que não atende o perfil não aparece — nem
-            se for na esquina da ocorrência.
+            Vale bairro, largo, estação, terminal ou apelido — "Iguatemi" e
+            "CAB" funcionam. A lista sai por tempo de carro, dentro dos
+            hospitais que atendem aquele perfil. Hospital que não atende não
+            aparece, nem se for na esquina da ocorrência.
           </div>
         </div>
       )}
@@ -180,9 +192,12 @@ export default function EncaminharView({ hospitals, timelineCases }: Props) {
         <>
           {/* ── Contexto ── */}
           <div className="flex items-center gap-2 flex-wrap">
-            {data.bairro && (
-              <span className="inline-flex items-center px-2 py-[3px] text-xs font-extrabold rounded-[5px] bg-slate-800 text-white">
-                📍 {data.bairro.nome}
+            {data.local && (
+              <span className="inline-flex items-center gap-[5px] px-2 py-[3px] text-xs font-extrabold rounded-[5px] bg-slate-800 text-white">
+                📍 {data.local.nome}
+                {data.local.tipo !== "bairro" && (
+                  <span className="font-semibold text-slate-400">{TIPO_LABEL[data.local.tipo]}</span>
+                )}
               </span>
             )}
             <span className="inline-flex items-center px-2 py-[3px] text-xs font-extrabold rounded-[5px] bg-blue-100 text-blue-800">
@@ -213,6 +228,9 @@ export default function EncaminharView({ hospitals, timelineCases }: Props) {
                   className="py-[6px] px-3 text-xs font-bold rounded-lg border border-slate-300 bg-white text-slate-700 cursor-pointer hover:border-blue-600"
                 >
                   {c.nome}
+                  {c.tipo !== "bairro" && (
+                    <span className="ml-[6px] font-semibold text-slate-400">{TIPO_LABEL[c.tipo]}</span>
+                  )}
                 </button>
               ))}
             </div>
