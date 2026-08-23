@@ -285,9 +285,31 @@ export interface LocalRef {
   tipo: TipoLocal;
 }
 
+export interface HospitalPonto {
+  id: string;
+  nome: string;
+  lat: number;
+  lng: number;
+}
+
+/**
+ * Quando a origem veio de um clique no mapa, o ranking não é do ponto exato:
+ * é do lugar conhecido mais próximo, cuja rota já está materializada. `metros`
+ * é o tamanho dessa aproximação, e existe para aparecer na tela — em Valéria
+ * e Cassange o vizinho mais próximo fica a mais de 2 km.
+ */
+export interface Encaixe {
+  nome: string;
+  tipo: TipoLocal;
+  metros: number;
+  lat: number;
+  lng: number;
+}
+
 export interface EncaminhamentoResponse {
   perfil: PerfilEncaminhamento;
   local: LocalRef | null;
+  encaixe: Encaixe | null;
   /** Preenchido quando o texto casa com mais de um lugar. */
   candidatos: LocalRef[];
   destinos: DestinoRanqueado[];

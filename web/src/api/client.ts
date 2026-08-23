@@ -19,6 +19,7 @@ import type {
   CreateUpaRestrictionPayload,
   PerfilEncaminhamento,
   EncaminhamentoResponse,
+  HospitalPonto,
   WsEvent,
 } from "../lib/types";
 
@@ -136,6 +137,13 @@ export const api = {
     request<EncaminhamentoResponse>(
       `/encaminhamento?local=${encodeURIComponent(local)}&perfil=${encodeURIComponent(perfil)}`,
     ),
+
+  getEncaminhamentoPorPonto: (lat: number, lng: number, perfil: string) =>
+    request<EncaminhamentoResponse>(
+      `/encaminhamento?lat=${lat}&lng=${lng}&perfil=${encodeURIComponent(perfil)}`,
+    ),
+
+  getHospitaisMapa: () => request<HospitalPonto[]>("/encaminhamento/hospitais"),
 };
 
 // ── WebSocket ──

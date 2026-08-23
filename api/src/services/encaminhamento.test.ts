@@ -6,7 +6,7 @@ import {
     HOSPITAIS_NA_FEATURE,
     encaminhar,
     nomeHospital,
-    COORDENADAS,
+    COORDENADAS_HOSPITAIS,
     PerfilDesconhecido,
 } from "./encaminhamento.js";
 
@@ -215,30 +215,30 @@ describe("encaminhamento — vetos que a regulação ditou", () => {
 describe("encaminhamento — coordenadas", () => {
     it("todo hospital da feature tem coordenada", () => {
         for (const id of HOSPITAIS_NA_FEATURE)
-            assert.ok(COORDENADAS[id], `${id} sem coordenada`);
+            assert.ok(COORDENADAS_HOSPITAIS[id], `${id} sem coordenada`);
     });
 
     it("não sobra coordenada de hospital fora da feature", () => {
-        for (const id of Object.keys(COORDENADAS))
+        for (const id of Object.keys(COORDENADAS_HOSPITAIS))
             assert.ok(naFeature.has(id), `${id} tem coordenada mas não participa`);
     });
 
     it("toda coordenada cai na região de Salvador", () => {
         // Caixa generosa em volta da RMS. Pega dígito trocado ou sinal perdido,
         // que jogaria o hospital no hemisfério norte ou no meio do Atlântico.
-        for (const [id, c] of Object.entries(COORDENADAS)) {
+        for (const [id, c] of Object.entries(COORDENADAS_HOSPITAIS)) {
             assert.ok(c.lat > -13.2 && c.lat < -12.6, `${id}: latitude fora da RMS (${c.lat})`);
             assert.ok(c.lng > -38.7 && c.lng < -38.2, `${id}: longitude fora da RMS (${c.lng})`);
         }
     });
 
     it("nenhuma coordenada se repete", () => {
-        const chaves = Object.values(COORDENADAS).map((c) => `${c.lat},${c.lng}`);
+        const chaves = Object.values(COORDENADAS_HOSPITAIS).map((c) => `${c.lat},${c.lng}`);
         assert.equal(new Set(chaves).size, chaves.length, "dois hospitais no mesmo ponto");
     });
 
     it("toda coordenada registra o endereço conferido", () => {
-        for (const [id, c] of Object.entries(COORDENADAS))
+        for (const [id, c] of Object.entries(COORDENADAS_HOSPITAIS))
             assert.ok(c.endereco.length > 10, `${id} sem endereço`);
     });
 });

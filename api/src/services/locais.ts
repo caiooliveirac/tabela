@@ -105,3 +105,46 @@ function unicos(achados: Local[]): Local[] {
     const vistos = new Set<string>();
     return achados.filter((l) => !vistos.has(l.key) && vistos.add(l.key));
 }
+
+/**
+ * Lugar conhecido mais próximo de um ponto, com a distância em linha reta.
+ *
+ * É como o clique no mapa vira ranking sem chamar o Google: em vez de calcular
+ * a rota do ponto exato, reusa a rota já materializada do lugar mais próximo.
+ * Só considera lugar COM rota — encaixar num povoado de ilha devolveria uma
+ * lista sem tempo nenhum, que é pior que encaixar longe.
+ *
+ * A distância volta junto de propósito. O encaixe é uma aproximação, e a
+ * mediana de 406 m esconde a periferia: Valéria e Cassange têm o vizinho a
+ * mais de 2 km. Quem regula precisa VER o quanto foi aproximado para julgar,
+ * em vez de receber um ranking que finge precisão que não tem.
+ */
+export function localMaisProximo(
+    lat: number,
+    lng: number,
+): { local: Local; metros: number } | null {
+    let achado: Local | null = null;
+    let menor = Infinity;
+    for (const l of LOCAIS) {
+        if (l.semRotaRodoviaria) continue;
+        const d = distanciaEmMetros(lat, lng, l.lat, l.lng);
+        if (d < menor) {
+            menor = d;
+            achado = l;
+        }
+    }
+    return achado ? { local: achado, metros: Math.round(menor) } : null;
+}
+
+/** Haversine. Salvador cabe em poucos quilômetros — a curvatura mal aparece,
+ *  mas usar a fórmula certa custa o mesmo que usar a errada. */
+function distanciaEmMetros(lat1: number, lng1: number, lat2: number, lng2: number): number {
+    const R = 6371000;
+    const rad = Math.PI / 180;
+    const dLat = (lat2 - lat1) * rad;
+    const dLng = (lng2 - lng1) * rad;
+    const a =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * Math.sin(dLng / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(a));
+}
