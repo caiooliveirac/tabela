@@ -64,7 +64,7 @@ elegíveis nem como excluídos.
 | Eládio Lassèrre | crônico, sepse, IAM sem supra, paliação, intoxicação | teto: só o que resolve com clínico + UTI | — |
 | HGESF (Ernesto) | cirurgia não-trauma, clínico de média complexidade, IAM sem supra, intoxicação, vascular fora de trauma | neurocirurgia, hemodinâmica, **trauma** | — |
 
-### Matriz B — 17 perfis clínicos
+### Matriz B — 18 perfis clínicos
 
 Ordem dentro de cada linha é por distância. A lista é o conjunto elegível.
 
@@ -81,10 +81,11 @@ Ordem dentro de cada linha é por distância. A lista é o conjunto elegível.
 | Cardiológico (demais) | Roberto, Ernesto, Eládio, Metropolitano, Subúrbio |
 | AVC | Roberto, Subúrbio, Municipal, Metropolitano |
 | Hemorragia digestiva | Roberto, Subúrbio, Municipal, Metropolitano |
-| Cirúrgico não-trauma | Subúrbio, Municipal, Ernesto, Metropolitano |
+| Cirúrgico não-trauma | Subúrbio, Municipal, Ernesto, Metropolitano, Eládio |
 | Cirúrgico vascular (não-trauma) | Subúrbio, Roberto, Ernesto |
-| Clínico de alta complexidade | Subúrbio, Municipal, Ernesto, Metropolitano |
-| Crônico, sepse ou paliação | Eládio, Metropolitano |
+| Clínico de alta complexidade | Subúrbio, Municipal, Ernesto, Metropolitano, Roberto |
+| Crônico, sepse ou paliação | Eládio, Metropolitano, Ernesto |
+| Urgência dialítica | Metropolitano, Ernesto, Subúrbio, Roberto |
 | Clínica pediátrica | Roberto, Subúrbio, Municipal |
 | Intoxicação | Eládio, Ernesto, Municipal, Subúrbio, Roberto, Metropolitano |
 
@@ -161,13 +162,33 @@ semáforo.
 | Número na bolinha escura | a **ordem** — que é a informação principal |
 | Nome do hospital | identidade |
 | Tempo grande à direita | minutos de carro, e km embaixo |
-| Chip colorido | semáforo atual — **aviso**, não critério de ordem |
+| Tag colorida | o **fato** que produziu a cor — nunca um rótulo |
 | Linha âmbar | ressalva que o sistema não sabe julgar |
 | Chips de alerta | a intel que já existe no painel |
 
 A cor e a ordem carregam coisas diferentes de propósito: a posição vem da
 distância, a cor vem do comportamento. Misturar as duas produziria um ranking
 que ninguém consegue defender no telefone.
+
+### A tag diz o fato, não o rótulo
+
+"Aceitando" e "negando" eram interpretação — cada plantonista lia de um jeito e
+ninguém sabia de quando era o dado. A tag agora carrega a contagem e a janela:
+
+| Cor | Quando | Tag |
+|---|---|---|
+| 🔴 vermelho | recusou paciente nas últimas 3h | `2 vagas zero · 3h` |
+| 🟡 amarelo | avisaram lotação há menos de 3h | `lotação avisada há 50min` |
+| 🟢 verde | nada disso, mas aceitou na última hora | `aceitou há 25min` |
+| 🟢 verde | nada disso | *sem tag* |
+
+Vaga zero ganha da lotação porque uma é recusa registrada e a outra é
+informação de corredor. Além de 3h, nada aparece: no plantão, dado de quatro
+horas atrás não descreve mais a porta do hospital.
+
+A janela é contada sobre os casos das últimas 24h, **não** sobre os do plantão
+corrente — logo depois da virada das 07:00 a janela de 3h ficaria cega para a
+madrugada.
 
 ### Quatro estados, nenhum deles tela vazia
 

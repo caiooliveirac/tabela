@@ -130,7 +130,7 @@ export const PERFIS: PerfilDef[] = [
     {
         id: "cirurgico_nao_trauma",
         label: "Cirúrgico não-trauma",
-        destinos: ["suburbio", "municipal", "hgesf", "metropolitano"],
+        destinos: ["suburbio", "municipal", "hgesf", "metropolitano", "eladio"],
         ressalvas: { municipal: ORTO_MUNICIPAL },
     },
     {
@@ -141,13 +141,18 @@ export const PERFIS: PerfilDef[] = [
     {
         id: "clinico_alta_complexidade",
         label: "Clínico de alta complexidade",
-        destinos: ["suburbio", "municipal", "hgesf", "metropolitano"],
+        destinos: ["suburbio", "municipal", "hgesf", "metropolitano", "hgrs"],
         ressalvas: { hgesf: "Complexidade média; sem neurocirurgia e sem hemodinâmica" },
     },
     {
         id: "cronico_sepse_paliacao",
         label: "Crônico, sepse ou paliação",
-        destinos: ["eladio", "metropolitano"],
+        destinos: ["eladio", "metropolitano", "hgesf"],
+    },
+    {
+        id: "urgencia_dialitica",
+        label: "Urgência dialítica",
+        destinos: ["metropolitano", "hgesf", "suburbio", "hgrs"],
     },
     {
         id: "clinica_pediatrica",

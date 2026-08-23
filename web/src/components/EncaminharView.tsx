@@ -3,17 +3,21 @@
 //
 // Duas entradas (bairro da ocorrência + perfil clínico) e um ranking.
 //
-// A ordem é SÓ tempo de carro dentro do que o perfil permite. O semáforo de
-// aceitação aparece na cor da barra e no chip, mas não move ninguém de lugar:
-// o regulador vê que o primeiro da lista está negando e decide com isso na
-// mão. Ordem previsível é ordem que dá para defender no telefone.
+// A ordem é SÓ tempo de carro dentro do que o perfil permite. O estado do
+// hospital aparece na cor e na tag, mas não move ninguém de lugar: o regulador
+// vê que o primeiro da lista tomou duas vagas zero e decide com isso na mão.
+// Ordem previsível é ordem que dá para defender no telefone.
+//
+// A tag não diz "aceitando" nem "negando" — diz o fato que produziu a cor, com
+// a contagem e a janela. "2 vagas zero · 3h" é verificável; "negando" é um
+// rótulo que cada plantonista interpreta de um jeito.
 //
 // Quem ficou de fora aparece com o motivo. Some calado seria indistinguível
 // de bug, e o regulador ficaria sem saber se confia na lista.
 // ═══════════════════════════════════════════════════════════════
 import { useState } from "react";
-import type { HospitalData, DestinoRanqueado } from "../lib/types";
-import { scoreToColor, NEUTRAL_STYLE } from "../lib/colors";
+import type { HospitalData, CaseRow, DestinoRanqueado } from "../lib/types";
+import { SM } from "../lib/constants";
 import { usePerfisEncaminhamento, useEncaminhamento } from "../hooks/useEncaminhamento";
 import IntelChip from "./IntelChip";
 
@@ -29,11 +33,74 @@ function distancia(metros: number | null): string {
   return `${(metros / 1000).toFixed(1).replace(".", ",")} km`;
 }
 
-interface Props {
-  hospitals: HospitalData[];
+function haQuanto(ts: string): string {
+  const min = Math.floor((Date.now() - new Date(ts).getTime()) / 60000);
+  if (min < 1) return "agora";
+  if (min < 60) return `${min}min`;
+  const h = Math.floor(min / 60);
+  const r = min % 60;
+  return r > 0 ? `${h}h${String(r).padStart(2, "0")}` : `${h}h`;
 }
 
-export default function EncaminharView({ hospitals }: Props) {
+const JANELA_ZERO_MS = 3 * 60 * 60 * 1000;
+const JANELA_LOTACAO_MS = 3 * 60 * 60 * 1000;
+const JANELA_ACEITE_MS = 60 * 60 * 1000;
+
+type Cor = "red" | "yellow" | "green";
+
+/**
+ * Estado do hospital, em fato contado — não em rótulo.
+ *
+ * Escada de precedência, do mais duro ao mais brando:
+ *   vermelho  já recusou paciente nas últimas 3h (fato consumado)
+ *   amarelo   alguém avisou lotação há menos de 3h (relato, ainda não recusa)
+ *   verde     nada disso; a tag só aparece se aceitou na última hora
+ *
+ * Vaga zero ganha da lotação porque uma é recusa registrada e a outra é
+ * informação de corredor. Tudo além de 3h fica sem tag: no plantão, dado de
+ * quatro horas atrás não descreve mais a porta do hospital.
+ */
+function situacao(
+  h: HospitalData | undefined,
+  casos: CaseRow[],
+): { cor: Cor; tag: string | null } {
+  if (!h) return { cor: "green", tag: null };
+  const agora = Date.now();
+  const desde = (ts: string, janela: number) => agora - new Date(ts).getTime() <= janela;
+
+  const zeros = casos.filter((c) => c.situacao === "ZERO" && desde(c.timestamp, JANELA_ZERO_MS));
+  if (zeros.length > 0) {
+    return {
+      cor: "red",
+      tag: `${zeros.length} vaga${zeros.length > 1 ? "s" : ""} zero · 3h`,
+    };
+  }
+
+  const lotacao = h.intel
+    .filter((i) => i.tipo === "lotado" && desde(i.timestamp, JANELA_LOTACAO_MS))
+    .sort((a, b) => +new Date(b.timestamp) - +new Date(a.timestamp))[0];
+  if (lotacao) {
+    return { cor: "yellow", tag: `lotação avisada há ${haQuanto(lotacao.timestamp)}` };
+  }
+
+  const aceites = casos
+    .filter((c) => c.situacao === "ACEITO" && desde(c.timestamp, JANELA_ACEITE_MS))
+    .sort((a, b) => +new Date(b.timestamp) - +new Date(a.timestamp));
+  if (aceites.length > 0) {
+    return { cor: "green", tag: `aceitou há ${haQuanto(aceites[0].timestamp)}` };
+  }
+
+  return { cor: "green", tag: null };
+}
+
+interface Props {
+  hospitals: HospitalData[];
+  /** Casos ativos das últimas 24h. Não uso h.cases: aquilo zera às 07:00, e
+   *  logo depois da virada a janela de 3h ficaria cega para a madrugada. */
+  timelineCases: CaseRow[];
+}
+
+export default function EncaminharView({ hospitals, timelineCases }: Props) {
   const [local, setLocal] = useState("");
   const [perfil, setPerfil] = useState("");
   const [verExcluidos, setVerExcluidos] = useState(false);
@@ -42,15 +109,19 @@ export default function EncaminharView({ hospitals }: Props) {
   const { data, isFetching, error } = useEncaminhamento(local, perfil);
 
   const porId = new Map(hospitals.map((h) => [h.id, h]));
-  const semDados = (h?: HospitalData) => !h || (h.total === 0 && h.intel.length === 0);
-  const cor = (h?: HospitalData) => (semDados(h) ? NEUTRAL_STYLE : scoreToColor(h!.score));
+  const casosPorHospital = new Map<string, CaseRow[]>();
+  for (const c of timelineCases) {
+    const lista = casosPorHospital.get(c.hospitalId);
+    if (lista) lista.push(c);
+    else casosPorHospital.set(c.hospitalId, [c]);
+  }
 
   return (
     <div className="flex flex-col gap-4">
       {/* ── Entradas ── */}
       <div className="bg-white rounded-[10px] border border-slate-200 p-4">
         <div className="text-[11px] font-extrabold text-slate-600 mb-3 uppercase tracking-wide">
-          🚑 Para onde levar
+          <span className="mr-[6px]">🚑</span>Para onde levar
         </div>
         <div className="flex gap-3 flex-wrap">
           <div className="flex-1 min-w-[240px]">
@@ -151,14 +222,15 @@ export default function EncaminharView({ hospitals }: Props) {
           <div className="flex flex-col gap-2">
             {data.destinos.map((d: DestinoRanqueado, i: number) => {
               const h = porId.get(d.hospitalId);
-              const st = cor(h);
+              const { cor, tag } = situacao(h, casosPorHospital.get(d.hospitalId) ?? []);
+              const st = SM[cor];
               const alertas = h?.intel.filter((x) => x.tipo !== "pretendo_enviar") ?? [];
 
               return (
                 <div
                   key={d.hospitalId}
                   className="relative flex items-center gap-4 rounded-[14px] bg-white overflow-hidden py-3 pl-5 pr-4"
-                  style={{ border: `2px solid ${st.bd}66`, boxShadow: st.glow }}
+                  style={{ border: `2px solid ${st.bd}66` }}
                 >
                   <div
                     className="absolute left-0 top-0 bottom-0 w-[5px]"
@@ -174,12 +246,16 @@ export default function EncaminharView({ hospitals }: Props) {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-baseline gap-2 flex-wrap">
                       <span className="text-[17px] font-black text-slate-900">{d.nome}</span>
-                      {!semDados(h) && (
+                      {tag && (
                         <span
-                          className="inline-flex items-center px-[6px] py-[1px] text-[10px] font-extrabold rounded-[4px]"
-                          style={{ backgroundColor: st.bg, color: st.tx }}
+                          className="inline-flex items-center px-[6px] py-[1px] text-[10px] font-extrabold rounded-[4px] whitespace-nowrap"
+                          style={{
+                            backgroundColor: st.bg,
+                            color: st.tx,
+                            border: `1px solid ${st.bd}55`,
+                          }}
                         >
-                          {h!.sem === "green" ? "aceitando" : h!.sem === "yellow" ? "atenção" : "negando"}
+                          {tag}
                         </span>
                       )}
                     </div>
