@@ -185,6 +185,28 @@ describe("encaminhamento — vetos que a regulação ditou", () => {
         assert.match(m!.ressalva!, /fratura exposta/);
     });
 
+    it("urgência dialítica: Metropolitano, Ernesto, Subúrbio e Roberto", () => {
+        assert.deepEqual(ids(encaminhar("urgencia_dialitica").elegiveis), [
+            "hgesf",
+            "hgrs",
+            "metropolitano",
+            "suburbio",
+        ]);
+    });
+
+    it("Eládio faz cirúrgico não-trauma, mas segue fora de todo trauma", () => {
+        assert.ok(encaminhar("cirurgico_nao_trauma").elegiveis.some((e) => e.hospitalId === "eladio"));
+        assert.ok(!encaminhar("trauma").elegiveis.some((e) => e.hospitalId === "eladio"));
+    });
+
+    it("Roberto entra em clínico de alta complexidade", () => {
+        assert.ok(encaminhar("clinico_alta_complexidade").elegiveis.some((e) => e.hospitalId === "hgrs"));
+    });
+
+    it("Ernesto entra em crônico, sepse ou paliação", () => {
+        assert.ok(encaminhar("cronico_sepse_paliacao").elegiveis.some((e) => e.hospitalId === "hgesf"));
+    });
+
     it("nomeHospital devolve o nome do painel", () => {
         assert.equal(nomeHospital("hgrs"), "HGRS");
     });

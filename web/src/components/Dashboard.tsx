@@ -888,7 +888,7 @@ export default function Dashboard() {
             {tab === "upas" ? (
               <UpasView operador={op} />
             ) : tab === "destino" ? (
-              <EncaminharView hospitals={hospitals} />
+              <EncaminharView hospitals={hospitals} timelineCases={timelineCases} />
             ) : tab === "semaphore" ? (
               <>
                 {/* Legend — gradient bar */}
