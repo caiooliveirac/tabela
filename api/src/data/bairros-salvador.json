@@ -1,0 +1,6517 @@
+{
+"_": "Gerado por scripts/gerar-bairros.py em 2026-08-23. Bairros do OpenStreetMap; tempos da Routes API do Google. Não editar à mão.",
+"geradoEm": "2026-08-23",
+"hospitais": [
+"hge",
+"hgrs",
+"hgesf",
+"metropolitano",
+"suburbio",
+"eladio",
+"municipal"
+],
+"formatoRota": "[segundos, metros]",
+"bairros": [
+{
+"nome": "Acupe",
+"key": "acupe",
+"lat": -12.993083,
+"lng": -38.494056,
+"rotas": {
+"hge": [
+486,
+3394
+],
+"hgrs": [
+1190,
+9833
+],
+"hgesf": [
+888,
+7722
+],
+"metropolitano": [
+1935,
+30575
+],
+"suburbio": [
+1695,
+21274
+],
+"eladio": [
+1276,
+20082
+],
+"municipal": [
+1817,
+22723
+]
+}
+},
+{
+"nome": "Aeroporto",
+"key": "aeroporto",
+"lat": -12.917442,
+"lng": -38.329475,
+"rotas": {
+"hge": [
+1780,
+25870
+],
+"hgrs": [
+1433,
+19547
+],
+"hgesf": [
+1750,
+24389
+],
+"metropolitano": [
+986,
+15786
+],
+"suburbio": [
+1822,
+23384
+],
+"eladio": [
+1165,
+16285
+],
+"municipal": [
+1182,
+11214
+]
+}
+},
+{
+"nome": "Alagados",
+"key": "alagados",
+"lat": -12.93083,
+"lng": -38.491476,
+"rotas": {
+"hge": [
+1297,
+12538
+],
+"hgrs": [
+1322,
+8246
+],
+"hgesf": [
+821,
+4399
+],
+"metropolitano": [
+2149,
+31311
+],
+"suburbio": [
+1729,
+14321
+],
+"eladio": [
+1373,
+17304
+],
+"municipal": [
+1914,
+19945
+]
+}
+},
+{
+"nome": "Alto da Terezinha",
+"key": "alto da terezinha",
+"lat": -12.881484,
+"lng": -38.477249,
+"rotas": {
+"hge": [
+1823,
+19596
+],
+"hgrs": [
+1938,
+16112
+],
+"hgesf": [
+1571,
+13650
+],
+"metropolitano": [
+2419,
+25578
+],
+"suburbio": [
+938,
+6354
+],
+"eladio": [
+1655,
+15939
+],
+"municipal": [
+2196,
+18580
+]
+}
+},
+{
+"nome": "Alto das Pombas",
+"key": "alto das pombas",
+"lat": -13.001166,
+"lng": -38.513711,
+"rotas": {
+"hge": [
+745,
+5538
+],
+"hgrs": [
+1619,
+12560
+],
+"hgesf": [
+1040,
+7252
+],
+"metropolitano": [
+2236,
+33696
+],
+"suburbio": [
+2070,
+24593
+],
+"eladio": [
+1650,
+23402
+],
+"municipal": [
+2165,
+26404
+]
+}
+},
+{
+"nome": "Alto do Cabrito",
+"key": "alto do cabrito",
+"lat": -12.91107,
+"lng": -38.475522,
+"rotas": {
+"hge": [
+1365,
+14109
+],
+"hgrs": [
+1480,
+10625
+],
+"hgesf": [
+1113,
+8163
+],
+"metropolitano": [
+1980,
+26213
+],
+"suburbio": [
+1439,
+10262
+],
+"eladio": [
+1107,
+12202
+],
+"municipal": [
+1648,
+14843
+]
+}
+},
+{
+"nome": "Alto do Coqueirinho",
+"key": "alto do coqueirinho",
+"lat": -12.941417,
+"lng": -38.371489,
+"rotas": {
+"hge": [
+2062,
+21684
+],
+"hgrs": [
+1721,
+13504
+],
+"hgesf": [
+2069,
+18468
+],
+"metropolitano": [
+1290,
+15184
+],
+"suburbio": [
+2086,
+21737
+],
+"eladio": [
+1429,
+14637
+],
+"municipal": [
+1512,
+13059
+]
+}
+},
+{
+"nome": "Alto do Itaigara",
+"key": "alto do itaigara",
+"lat": -12.993946,
+"lng": -38.473009,
+"rotas": {
+"hge": [
+659,
+4665
+],
+"hgrs": [
+1198,
+10646
+],
+"hgesf": [
+947,
+7770
+],
+"metropolitano": [
+1830,
+28534
+],
+"suburbio": [
+1780,
+21804
+],
+"eladio": [
+1360,
+20612
+],
+"municipal": [
+1759,
+21242
+]
+}
+},
+{
+"nome": "Alto do Peru",
+"key": "alto do peru",
+"lat": -12.93735,
+"lng": -38.484938,
+"rotas": {
+"hge": [
+1181,
+10936
+],
+"hgrs": [
+1207,
+6644
+],
+"hgesf": [
+741,
+3408
+],
+"metropolitano": [
+2033,
+29709
+],
+"suburbio": [
+1677,
+16893
+],
+"eladio": [
+1258,
+15702
+],
+"municipal": [
+1799,
+18343
+]
+}
+},
+{
+"nome": "Amaralina",
+"key": "amaralina",
+"lat": -13.012231,
+"lng": -38.473347,
+"rotas": {
+"hge": [
+558,
+4258
+],
+"hgrs": [
+1400,
+14150
+],
+"hgesf": [
+1150,
+11274
+],
+"metropolitano": [
+2032,
+32038
+],
+"suburbio": [
+1983,
+25308
+],
+"eladio": [
+1563,
+24116
+],
+"municipal": [
+1961,
+24745
+]
+}
+},
+{
+"nome": "Areia Branca",
+"key": "areia branca",
+"lat": -12.847554,
+"lng": -38.359295,
+"rotas": {
+"hge": [
+2243,
+34039
+],
+"hgrs": [
+1942,
+25578
+],
+"hgesf": [
+1991,
+28093
+],
+"metropolitano": [
+301,
+2404
+],
+"suburbio": [
+1655,
+18573
+],
+"eladio": [
+1595,
+23910
+],
+"municipal": [
+1134,
+11415
+]
+}
+},
+{
+"nome": "Bairro da Paz",
+"key": "bairro da paz",
+"lat": -12.929009,
+"lng": -38.374964,
+"rotas": {
+"hge": [
+1840,
+24418
+],
+"hgrs": [
+1493,
+18094
+],
+"hgesf": [
+1810,
+22937
+],
+"metropolitano": [
+1006,
+14003
+],
+"suburbio": [
+1885,
+18480
+],
+"eladio": [
+1228,
+11380
+],
+"municipal": [
+1311,
+9802
+]
+}
+},
+{
+"nome": "Baixa de Quintas",
+"key": "baixa de quintas",
+"lat": -12.963783,
+"lng": -38.490676,
+"rotas": {
+"hge": [
+983,
+7571
+],
+"hgrs": [
+1223,
+8157
+],
+"hgesf": [
+298,
+1118
+],
+"metropolitano": [
+2074,
+30267
+],
+"suburbio": [
+1754,
+19627
+],
+"eladio": [
+1334,
+18435
+],
+"municipal": [
+1875,
+21077
+]
+}
+},
+{
+"nome": "Barbalho",
+"key": "barbalho",
+"lat": -12.966755,
+"lng": -38.500113,
+"rotas": {
+"hge": [
+663,
+5628
+],
+"hgrs": [
+1134,
+8415
+],
+"hgesf": [
+459,
+2252
+],
+"metropolitano": [
+1976,
+31647
+],
+"suburbio": [
+1737,
+22346
+],
+"eladio": [
+1317,
+21154
+],
+"municipal": [
+1858,
+23795
+]
+}
+},
+{
+"nome": "Barra",
+"key": "barra",
+"lat": -13.006436,
+"lng": -38.527901,
+"rotas": {
+"hge": [
+944,
+6853
+],
+"hgrs": [
+1792,
+14029
+],
+"hgesf": [
+1214,
+8720
+],
+"metropolitano": [
+2495,
+34737
+],
+"suburbio": [
+2243,
+26061
+],
+"eladio": [
+1823,
+24870
+],
+"municipal": [
+2364,
+27511
+]
+}
+},
+{
+"nome": "Barreiras",
+"key": "barreiras",
+"lat": -12.944075,
+"lng": -38.458342,
+"rotas": {
+"hge": [
+1349,
+11212
+],
+"hgrs": [
+571,
+3353
+],
+"hgesf": [
+1032,
+6081
+],
+"metropolitano": [
+2005,
+28226
+],
+"suburbio": [
+1551,
+15407
+],
+"eladio": [
+1132,
+14216
+],
+"municipal": [
+1672,
+16857
+]
+}
+},
+{
+"nome": "Barris",
+"key": "barris",
+"lat": -12.986547,
+"lng": -38.513928,
+"rotas": {
+"hge": [
+724,
+4662
+],
+"hgrs": [
+1491,
+11466
+],
+"hgesf": [
+993,
+6528
+],
+"metropolitano": [
+2236,
+32208
+],
+"suburbio": [
+1996,
+22907
+],
+"eladio": [
+1576,
+21715
+],
+"municipal": [
+2117,
+24356
+]
+}
+},
+{
+"nome": "Boa Viagem",
+"key": "boa viagem",
+"lat": -12.931777,
+"lng": -38.511788,
+"rotas": {
+"hge": [
+1223,
+10785
+],
+"hgrs": [
+1492,
+12499
+],
+"hgesf": [
+930,
+6891
+],
+"metropolitano": [
+2362,
+34629
+],
+"suburbio": [
+1967,
+16008
+],
+"eladio": [
+1566,
+18674
+],
+"municipal": [
+2107,
+21315
+]
+}
+},
+{
+"nome": "Boa Vista de Brotas",
+"key": "boa vista de brotas",
+"lat": -12.982926,
+"lng": -38.500399,
+"rotas": {
+"hge": [
+563,
+3868
+],
+"hgrs": [
+1263,
+9422
+],
+"hgesf": [
+685,
+4114
+],
+"metropolitano": [
+2048,
+31599
+],
+"suburbio": [
+1795,
+20893
+],
+"eladio": [
+1375,
+19701
+],
+"municipal": [
+1916,
+22343
+]
+}
+},
+{
+"nome": "Boa Vista de São Caetano",
+"key": "boa vista de sao caetano",
+"lat": -12.9259,
+"lng": -38.4765,
+"rotas": {
+"hge": [
+1164,
+13453
+],
+"hgrs": [
+1279,
+9969
+],
+"hgesf": [
+912,
+7507
+],
+"metropolitano": [
+1866,
+27230
+],
+"suburbio": [
+1532,
+12391
+],
+"eladio": [
+993,
+13220
+],
+"municipal": [
+1534,
+15861
+]
+}
+},
+{
+"nome": "Boa Vista do Lobato",
+"key": "boa vista do lobato",
+"lat": -12.918938,
+"lng": -38.478458,
+"rotas": {
+"hge": [
+1247,
+13633
+],
+"hgrs": [
+1362,
+10148
+],
+"hgesf": [
+995,
+7687
+],
+"metropolitano": [
+1959,
+25947
+],
+"suburbio": [
+1340,
+10490
+],
+"eladio": [
+1085,
+11937
+],
+"municipal": [
+1626,
+14578
+]
+}
+},
+{
+"nome": "Boca da Mata",
+"key": "boca da mata",
+"lat": -12.90025,
+"lng": -38.387518,
+"rotas": {
+"hge": [
+2029,
+24789
+],
+"hgrs": [
+1682,
+18466
+],
+"hgesf": [
+2000,
+20635
+],
+"metropolitano": [
+1132,
+14331
+],
+"suburbio": [
+1747,
+17226
+],
+"eladio": [
+908,
+6717
+],
+"municipal": [
+113,
+456
+]
+}
+},
+{
+"nome": "Boca do Rio",
+"key": "boca do rio",
+"lat": -12.977449,
+"lng": -38.427951,
+"rotas": {
+"hge": [
+1211,
+11363
+],
+"hgrs": [
+1066,
+5974
+],
+"hgesf": [
+1167,
+9867
+],
+"metropolitano": [
+1833,
+27165
+],
+"suburbio": [
+2002,
+23886
+],
+"eladio": [
+1583,
+22694
+],
+"municipal": [
+1688,
+16999
+]
+}
+},
+{
+"nome": "Bonfim",
+"key": "bonfim",
+"lat": -12.925681,
+"lng": -38.508291,
+"rotas": {
+"hge": [
+1329,
+11452
+],
+"hgrs": [
+1598,
+13166
+],
+"hgesf": [
+1036,
+7557
+],
+"metropolitano": [
+2468,
+35296
+],
+"suburbio": [
+2073,
+16674
+],
+"eladio": [
+1672,
+19341
+],
+"municipal": [
+2213,
+21982
+]
+}
+},
+{
+"nome": "Brotas",
+"key": "brotas",
+"lat": -12.988189,
+"lng": -38.489654,
+"rotas": {
+"hge": [
+603,
+3519
+],
+"hgrs": [
+1168,
+8761
+],
+"hgesf": [
+906,
+5352
+],
+"metropolitano": [
+1913,
+29504
+],
+"suburbio": [
+1673,
+20202
+],
+"eladio": [
+1254,
+19011
+],
+"municipal": [
+1795,
+21652
+]
+}
+},
+{
+"nome": "COHAB",
+"key": "cohab",
+"lat": -12.954984,
+"lng": -38.435352,
+"rotas": {
+"hge": [
+1398,
+12973
+],
+"hgrs": [
+597,
+3173
+],
+"hgesf": [
+1388,
+9800
+],
+"metropolitano": [
+1914,
+26449
+],
+"suburbio": [
+2021,
+16372
+],
+"eladio": [
+1601,
+15180
+],
+"municipal": [
+1843,
+19157
+]
+}
+},
+{
+"nome": "Cabula",
+"key": "cabula",
+"lat": -12.956494,
+"lng": -38.463595,
+"rotas": {
+"hge": [
+1134,
+9747
+],
+"hgrs": [
+558,
+3256
+],
+"hgesf": [
+773,
+5625
+],
+"metropolitano": [
+1900,
+28941
+],
+"suburbio": [
+1580,
+16704
+],
+"eladio": [
+1160,
+15513
+],
+"municipal": [
+1701,
+18154
+]
+}
+},
+{
+"nome": "Caixa D'Água",
+"key": "caixa d agua",
+"lat": -12.958122,
+"lng": -38.494141,
+"rotas": {
+"hge": [
+1029,
+9936
+],
+"hgrs": [
+1155,
+9064
+],
+"hgesf": [
+270,
+988
+],
+"metropolitano": [
+2007,
+31174
+],
+"suburbio": [
+1687,
+20534
+],
+"eladio": [
+1267,
+19342
+],
+"municipal": [
+1808,
+21984
+]
+}
+},
+{
+"nome": "Cajazeiras",
+"key": "cajazeiras",
+"lat": -12.899938,
+"lng": -38.408157,
+"rotas": {
+"hge": [
+1911,
+22260
+],
+"hgrs": [
+1598,
+16664
+],
+"hgesf": [
+1659,
+16314
+],
+"metropolitano": [
+1578,
+20111
+],
+"suburbio": [
+1400,
+11485
+],
+"eladio": [
+597,
+3593
+],
+"municipal": [
+876,
+4719
+]
+}
+},
+{
+"nome": "Cajazeiras X",
+"key": "cajazeiras x",
+"lat": -12.892861,
+"lng": -38.4115,
+"rotas": {
+"hge": [
+1890,
+22849
+],
+"hgrs": [
+1599,
+18380
+],
+"hgesf": [
+1637,
+16903
+],
+"metropolitano": [
+1440,
+17693
+],
+"suburbio": [
+1379,
+12075
+],
+"eladio": [
+455,
+3182
+],
+"municipal": [
+567,
+3256
+]
+}
+},
+{
+"nome": "Cajazeiras XI",
+"key": "cajazeiras xi",
+"lat": -12.879553,
+"lng": -38.406202,
+"rotas": {
+"hge": [
+1876,
+23728
+],
+"hgrs": [
+1890,
+19797
+],
+"hgesf": [
+1623,
+17782
+],
+"metropolitano": [
+1597,
+20895
+],
+"suburbio": [
+1420,
+13213
+],
+"eladio": [
+532,
+3864
+],
+"municipal": [
+657,
+3620
+]
+}
+},
+{
+"nome": "Calabar",
+"key": "calabar",
+"lat": -13.003251,
+"lng": -38.515223,
+"rotas": {
+"hge": [
+715,
+5232
+],
+"hgrs": [
+1563,
+12407
+],
+"hgesf": [
+984,
+7098
+],
+"metropolitano": [
+2253,
+33742
+],
+"suburbio": [
+2013,
+24440
+],
+"eladio": [
+1594,
+23248
+],
+"municipal": [
+2135,
+25890
+]
+}
+},
+{
+"nome": "Calabetão",
+"key": "calabetao",
+"lat": -12.932658,
+"lng": -38.469727,
+"rotas": {
+"hge": [
+1157,
+13475
+],
+"hgrs": [
+1282,
+8443
+],
+"hgesf": [
+904,
+7529
+],
+"metropolitano": [
+1589,
+25024
+],
+"suburbio": [
+1135,
+12205
+],
+"eladio": [
+716,
+11014
+],
+"municipal": [
+1257,
+13655
+]
+}
+},
+{
+"nome": "Calçada",
+"key": "calcada",
+"lat": -12.944813,
+"lng": -38.498862,
+"rotas": {
+"hge": [
+1284,
+12277
+],
+"hgrs": [
+1309,
+7984
+],
+"hgesf": [
+808,
+4138
+],
+"metropolitano": [
+2136,
+31050
+],
+"suburbio": [
+1759,
+14466
+],
+"eladio": [
+1360,
+17042
+],
+"municipal": [
+1901,
+19684
+]
+}
+},
+{
+"nome": "Caminho das Árvores",
+"key": "caminho das arvores",
+"lat": -12.982453,
+"lng": -38.458303,
+"rotas": {
+"hge": [
+1038,
+7909
+],
+"hgrs": [
+1068,
+8725
+],
+"hgesf": [
+983,
+7211
+],
+"metropolitano": [
+1700,
+26613
+],
+"suburbio": [
+1839,
+22589
+],
+"eladio": [
+1420,
+21398
+],
+"municipal": [
+1629,
+19320
+]
+}
+},
+{
+"nome": "Caminho de Areia",
+"key": "caminho de areia",
+"lat": -12.930622,
+"lng": -38.504548,
+"rotas": {
+"hge": [
+1215,
+10794
+],
+"hgrs": [
+1484,
+12507
+],
+"hgesf": [
+922,
+6899
+],
+"metropolitano": [
+2354,
+34637
+],
+"suburbio": [
+1930,
+15189
+],
+"eladio": [
+1529,
+17855
+],
+"municipal": [
+2070,
+20497
+]
+}
+},
+{
+"nome": "Campinas",
+"key": "campinas",
+"lat": -12.919053,
+"lng": -38.473432,
+"rotas": {
+"hge": [
+1109,
+13295
+],
+"hgrs": [
+1223,
+9811
+],
+"hgesf": [
+856,
+7349
+],
+"metropolitano": [
+1828,
+25190
+],
+"suburbio": [
+1444,
+11085
+],
+"eladio": [
+955,
+11179
+],
+"municipal": [
+1496,
+13821
+]
+}
+},
+{
+"nome": "Candeal",
+"key": "candeal",
+"lat": -12.994575,
+"lng": -38.481361,
+"rotas": {
+"hge": [
+612,
+2991
+],
+"hgrs": [
+1264,
+8567
+],
+"hgesf": [
+961,
+6456
+],
+"metropolitano": [
+2009,
+29310
+],
+"suburbio": [
+1769,
+20008
+],
+"eladio": [
+1349,
+18816
+],
+"municipal": [
+1890,
+21458
+]
+}
+},
+{
+"nome": "Canela",
+"key": "canela",
+"lat": -12.992998,
+"lng": -38.521015,
+"rotas": {
+"hge": [
+756,
+5483
+],
+"hgrs": [
+1594,
+13952
+],
+"hgesf": [
+1039,
+7531
+],
+"metropolitano": [
+2358,
+34902
+],
+"suburbio": [
+2069,
+24873
+],
+"eladio": [
+1649,
+23681
+],
+"municipal": [
+2190,
+26323
+]
+}
+},
+{
+"nome": "Capelinha",
+"key": "capelinha",
+"lat": -12.929268,
+"lng": -38.483757,
+"rotas": {
+"hge": [
+1257,
+13156
+],
+"hgrs": [
+1372,
+9672
+],
+"hgesf": [
+947,
+5020
+],
+"metropolitano": [
+2035,
+27857
+],
+"suburbio": [
+1581,
+15038
+],
+"eladio": [
+1162,
+13847
+],
+"municipal": [
+1703,
+16488
+]
+}
+},
+{
+"nome": "Cassange",
+"key": "cassange",
+"lat": -12.875123,
+"lng": -38.379807,
+"rotas": {
+"hge": [
+2369,
+29140
+],
+"hgrs": [
+2023,
+22817
+],
+"hgesf": [
+2391,
+24402
+],
+"metropolitano": [
+958,
+10501
+],
+"suburbio": [
+2133,
+19574
+],
+"eladio": [
+1349,
+10532
+],
+"municipal": [
+811,
+4997
+]
+}
+},
+{
+"nome": "Centro",
+"key": "centro",
+"lat": -12.986648,
+"lng": -38.520108,
+"rotas": {
+"hge": [
+712,
+4883
+],
+"hgrs": [
+1483,
+11752
+],
+"hgesf": [
+994,
+6131
+],
+"metropolitano": [
+2228,
+32494
+],
+"suburbio": [
+1988,
+23192
+],
+"eladio": [
+1568,
+22001
+],
+"municipal": [
+2109,
+24642
+]
+}
+},
+{
+"nome": "Centro Administrativo da Bahia",
+"key": "centro administrativo da bahia",
+"lat": -12.949141,
+"lng": -38.431033,
+"rotas": {
+"hge": [
+989,
+11878
+],
+"hgrs": [
+642,
+5554
+],
+"hgesf": [
+959,
+10397
+],
+"metropolitano": [
+1210,
+20482
+],
+"suburbio": [
+1713,
+21867
+],
+"eladio": [
+1055,
+14768
+],
+"municipal": [
+1139,
+13190
+]
+}
+},
+{
+"nome": "Centro Histórico",
+"key": "centro historico",
+"lat": -12.974364,
+"lng": -38.511915,
+"rotas": {
+"hge": [
+830,
+5734
+],
+"hgrs": [
+1399,
+11011
+],
+"hgesf": [
+910,
+5391
+],
+"metropolitano": [
+2144,
+31754
+],
+"suburbio": [
+1904,
+22452
+],
+"eladio": [
+1484,
+21260
+],
+"municipal": [
+2025,
+23902
+]
+}
+},
+{
+"nome": "Chame-Chame",
+"key": "chame chame",
+"lat": -13.004312,
+"lng": -38.520373,
+"rotas": {
+"hge": [
+764,
+5754
+],
+"hgrs": [
+1612,
+12929
+],
+"hgesf": [
+1033,
+7620
+],
+"metropolitano": [
+2302,
+34264
+],
+"suburbio": [
+2062,
+24962
+],
+"eladio": [
+1643,
+23771
+],
+"municipal": [
+2184,
+26412
+]
+}
+},
+{
+"nome": "Chapada do Rio Vermelho",
+"key": "chapada do rio vermelho",
+"lat": -13.005332,
+"lng": -38.48023,
+"rotas": {
+"hge": [
+925,
+7565
+],
+"hgrs": [
+1298,
+11864
+],
+"hgesf": [
+1048,
+8988
+],
+"metropolitano": [
+1930,
+29752
+],
+"suburbio": [
+1880,
+23021
+],
+"eladio": [
+1461,
+21830
+],
+"municipal": [
+1859,
+22459
+]
+}
+},
+{
+"nome": "Cidade Nova",
+"key": "cidade nova",
+"lat": -12.963948,
+"lng": -38.484982,
+"rotas": {
+"hge": [
+961,
+8575
+],
+"hgrs": [
+1087,
+7703
+],
+"hgesf": [
+350,
+1110
+],
+"metropolitano": [
+1938,
+29813
+],
+"suburbio": [
+1618,
+19173
+],
+"eladio": [
+1199,
+17982
+],
+"municipal": [
+1740,
+20623
+]
+}
+},
+{
+"nome": "Comércio",
+"key": "comercio",
+"lat": -12.969817,
+"lng": -38.511271,
+"rotas": {
+"hge": [
+724,
+6596
+],
+"hgrs": [
+1116,
+9753
+],
+"hgesf": [
+554,
+4145
+],
+"metropolitano": [
+1986,
+31883
+],
+"suburbio": [
+1648,
+21223
+],
+"eladio": [
+1228,
+20032
+],
+"municipal": [
+1769,
+22673
+]
+}
+},
+{
+"nome": "Condomínio Residencial Ilha de Santorini",
+"key": "condominio residencial ilha de santorini",
+"lat": -12.935262,
+"lng": -38.327945,
+"rotas": {
+"hge": [
+2015,
+25154
+],
+"hgrs": [
+1668,
+18831
+],
+"hgesf": [
+1985,
+23673
+],
+"metropolitano": [
+1206,
+14937
+],
+"suburbio": [
+2057,
+22668
+],
+"eladio": [
+1400,
+15569
+],
+"municipal": [
+1417,
+10498
+]
+}
+},
+{
+"nome": "Condomínio Stella Maris",
+"key": "condominio stella maris",
+"lat": -12.934997,
+"lng": -38.328322,
+"rotas": {
+"hge": [
+2018,
+25157
+],
+"hgrs": [
+1671,
+18834
+],
+"hgesf": [
+1988,
+23677
+],
+"metropolitano": [
+1209,
+14940
+],
+"suburbio": [
+2060,
+22671
+],
+"eladio": [
+1403,
+15572
+],
+"municipal": [
+1420,
+10501
+]
+}
+},
+{
+"nome": "Cosme de Farias",
+"key": "cosme de farias",
+"lat": -12.9801,
+"lng": -38.489061,
+"rotas": {
+"hge": [
+816,
+5759
+],
+"hgrs": [
+1277,
+8670
+],
+"hgesf": [
+817,
+4885
+],
+"metropolitano": [
+2128,
+30781
+],
+"suburbio": [
+1808,
+20141
+],
+"eladio": [
+1388,
+18949
+],
+"municipal": [
+1929,
+21590
+]
+}
+},
+{
+"nome": "Costa Azul",
+"key": "costa azul",
+"lat": -12.992669,
+"lng": -38.444703,
+"rotas": {
+"hge": [
+1117,
+9753
+],
+"hgrs": [
+1136,
+8411
+],
+"hgesf": [
+1073,
+8257
+],
+"metropolitano": [
+1768,
+26299
+],
+"suburbio": [
+1908,
+22275
+],
+"eladio": [
+1488,
+21084
+],
+"municipal": [
+1697,
+19006
+]
+}
+},
+{
+"nome": "Coutos",
+"key": "coutos",
+"lat": -12.85025,
+"lng": -38.468478,
+"rotas": {
+"hge": [
+2019,
+22682
+],
+"hgrs": [
+2134,
+19198
+],
+"hgesf": [
+1767,
+16736
+],
+"metropolitano": [
+1814,
+20057
+],
+"suburbio": [
+615,
+2744
+],
+"eladio": [
+1305,
+12234
+],
+"municipal": [
+1846,
+14875
+]
+}
+},
+{
+"nome": "Curuzu",
+"key": "curuzu",
+"lat": -12.945742,
+"lng": -38.486729,
+"rotas": {
+"hge": [
+1093,
+10682
+],
+"hgrs": [
+1118,
+6389
+],
+"hgesf": [
+550,
+2668
+],
+"metropolitano": [
+1945,
+29454
+],
+"suburbio": [
+1589,
+16639
+],
+"eladio": [
+1169,
+15447
+],
+"municipal": [
+1710,
+18088
+]
+}
+},
+{
+"nome": "Dom Avelar",
+"key": "dom avelar",
+"lat": -12.903026,
+"lng": -38.448735,
+"rotas": {
+"hge": [
+1481,
+16288
+],
+"hgrs": [
+1602,
+10973
+],
+"hgesf": [
+1229,
+10342
+],
+"metropolitano": [
+1657,
+23136
+],
+"suburbio": [
+1216,
+10312
+],
+"eladio": [
+784,
+9125
+],
+"municipal": [
+1325,
+11767
+]
+}
+},
+{
+"nome": "Engenho Velho da Federação",
+"key": "engenho velho da federacao",
+"lat": -13.000295,
+"lng": -38.496502,
+"rotas": {
+"hge": [
+466,
+2113
+],
+"hgrs": [
+1513,
+11876
+],
+"hgesf": [
+1180,
+8438
+],
+"metropolitano": [
+2110,
+32268
+],
+"suburbio": [
+2018,
+23317
+],
+"eladio": [
+1598,
+22126
+],
+"municipal": [
+2039,
+24975
+]
+}
+},
+{
+"nome": "Engenho Velho de Brotas",
+"key": "engenho velho de brotas",
+"lat": -12.987899,
+"lng": -38.50145,
+"rotas": {
+"hge": [
+614,
+3433
+],
+"hgrs": [
+1406,
+11111
+],
+"hgesf": [
+913,
+5153
+],
+"metropolitano": [
+2151,
+31853
+],
+"suburbio": [
+1911,
+22552
+],
+"eladio": [
+1491,
+21360
+],
+"municipal": [
+2032,
+24001
+]
+}
+},
+{
+"nome": "Escada",
+"key": "escada",
+"lat": -12.883914,
+"lng": -38.484567,
+"rotas": {
+"hge": [
+1575,
+17746
+],
+"hgrs": [
+1690,
+14262
+],
+"hgesf": [
+1323,
+11800
+],
+"metropolitano": [
+2277,
+31524
+],
+"suburbio": [
+1041,
+6551
+],
+"eladio": [
+1404,
+17513
+],
+"municipal": [
+1945,
+20154
+]
+}
+},
+{
+"nome": "Fazenda Grande II",
+"key": "fazenda grande ii",
+"lat": -12.891612,
+"lng": -38.393891,
+"rotas": {
+"hge": [
+2032,
+25304
+],
+"hgrs": [
+1815,
+19505
+],
+"hgesf": [
+1780,
+19358
+],
+"metropolitano": [
+1265,
+15370
+],
+"suburbio": [
+1623,
+13766
+],
+"eladio": [
+688,
+5440
+],
+"municipal": [
+160,
+950
+]
+}
+},
+{
+"nome": "Fazenda Grande do Retiro",
+"key": "fazenda grande do retiro",
+"lat": -12.942609,
+"lng": -38.480055,
+"rotas": {
+"hge": [
+1085,
+10556
+],
+"hgrs": [
+1111,
+6263
+],
+"hgesf": [
+645,
+3027
+],
+"metropolitano": [
+1937,
+29328
+],
+"suburbio": [
+1506,
+14909
+],
+"eladio": [
+1087,
+13718
+],
+"municipal": [
+1628,
+16359
+]
+}
+},
+{
+"nome": "Federação",
+"key": "federacao",
+"lat": -12.995296,
+"lng": -38.507063,
+"rotas": {
+"hge": [
+530,
+4399
+],
+"hgrs": [
+1407,
+14745
+],
+"hgesf": [
+924,
+7554
+],
+"metropolitano": [
+2039,
+32633
+],
+"suburbio": [
+1954,
+24895
+],
+"eladio": [
+1534,
+23704
+],
+"municipal": [
+1968,
+25340
+]
+}
+},
+{
+"nome": "Garcia",
+"key": "garcia",
+"lat": -12.99242,
+"lng": -38.512591,
+"rotas": {
+"hge": [
+552,
+4141
+],
+"hgrs": [
+1400,
+11316
+],
+"hgesf": [
+822,
+6007
+],
+"metropolitano": [
+2091,
+32651
+],
+"suburbio": [
+1851,
+23349
+],
+"eladio": [
+1431,
+22157
+],
+"municipal": [
+1972,
+24799
+]
+}
+},
+{
+"nome": "Graça",
+"key": "graca",
+"lat": -12.999438,
+"lng": -38.522646,
+"rotas": {
+"hge": [
+738,
+5488
+],
+"hgrs": [
+1604,
+12734
+],
+"hgesf": [
+1025,
+7425
+],
+"metropolitano": [
+2294,
+34069
+],
+"suburbio": [
+2054,
+24767
+],
+"eladio": [
+1635,
+23576
+],
+"municipal": [
+2176,
+26217
+]
+}
+},
+{
+"nome": "Horto Bela Vista",
+"key": "horto bela vista",
+"lat": -12.96869,
+"lng": -38.474112,
+"rotas": {
+"hge": [
+886,
+8116
+],
+"hgrs": [
+802,
+5114
+],
+"hgesf": [
+540,
+4243
+],
+"metropolitano": [
+1864,
+29355
+],
+"suburbio": [
+1506,
+18352
+],
+"eladio": [
+1086,
+17160
+],
+"municipal": [
+1627,
+19801
+]
+}
+},
+{
+"nome": "Horto Florestal",
+"key": "horto florestal",
+"lat": -13.000773,
+"lng": -38.48741,
+"rotas": {
+"hge": [
+367,
+2205
+],
+"hgrs": [
+1223,
+11982
+],
+"hgesf": [
+973,
+9106
+],
+"metropolitano": [
+1855,
+29870
+],
+"suburbio": [
+1805,
+23139
+],
+"eladio": [
+1386,
+21948
+],
+"municipal": [
+1784,
+22577
+]
+}
+},
+{
+"nome": "IAPI",
+"key": "iapi",
+"lat": -12.952802,
+"lng": -38.480088,
+"rotas": {
+"hge": [
+1061,
+9255
+],
+"hgrs": [
+1086,
+5463
+],
+"hgesf": [
+416,
+1601
+],
+"metropolitano": [
+1913,
+28529
+],
+"suburbio": [
+1557,
+15713
+],
+"eladio": [
+1137,
+14521
+],
+"municipal": [
+1678,
+17163
+]
+}
+},
+{
+"nome": "Ilha de Bom Jesus dos Passos",
+"key": "ilha de bom jesus dos passos",
+"lat": -12.761151,
+"lng": -38.643293,
+"semRotaRodoviaria": true
+},
+{
+"nome": "Ilha de Maré",
+"key": "ilha de mare",
+"lat": -12.773401,
+"lng": -38.525037,
+"semRotaRodoviaria": true
+},
+{
+"nome": "Ilha dos Frades / Ilha de Santo Antônio",
+"key": "ilha dos frades ilha de santo antonio",
+"lat": -12.780958,
+"lng": -38.639774,
+"semRotaRodoviaria": true
+},
+{
+"nome": "Imbuí",
+"key": "imbui",
+"lat": -12.969759,
+"lng": -38.435043,
+"rotas": {
+"hge": [
+1098,
+10972
+],
+"hgrs": [
+721,
+4642
+],
+"hgesf": [
+1068,
+9492
+],
+"metropolitano": [
+1513,
+23554
+],
+"suburbio": [
+1824,
+21401
+],
+"eladio": [
+1359,
+17839
+],
+"municipal": [
+1442,
+16261
+]
+}
+},
+{
+"nome": "Itacaranha",
+"key": "itacaranha",
+"lat": -12.889126,
+"lng": -38.482089,
+"rotas": {
+"hge": [
+1460,
+17283
+],
+"hgrs": [
+1575,
+13798
+],
+"hgesf": [
+1208,
+11337
+],
+"metropolitano": [
+2162,
+31060
+],
+"suburbio": [
+800,
+6215
+],
+"eladio": [
+1289,
+17050
+],
+"municipal": [
+1830,
+19691
+]
+}
+},
+{
+"nome": "Itaigara",
+"key": "itaigara",
+"lat": -12.99182,
+"lng": -38.464906,
+"rotas": {
+"hge": [
+682,
+5399
+],
+"hgrs": [
+1057,
+9133
+],
+"hgesf": [
+801,
+6275
+],
+"metropolitano": [
+1689,
+27021
+],
+"suburbio": [
+1634,
+20308
+],
+"eladio": [
+1215,
+19117
+],
+"municipal": [
+1618,
+19729
+]
+}
+},
+{
+"nome": "Itapuã",
+"key": "itapua",
+"lat": -12.942418,
+"lng": -38.35874,
+"rotas": {
+"hge": [
+1805,
+23553
+],
+"hgrs": [
+1459,
+17229
+],
+"hgesf": [
+1776,
+22072
+],
+"metropolitano": [
+972,
+13138
+],
+"suburbio": [
+1848,
+21067
+],
+"eladio": [
+1191,
+13968
+],
+"municipal": [
+1208,
+8896
+]
+}
+},
+{
+"nome": "Itinga",
+"key": "itinga",
+"lat": -12.88022,
+"lng": -38.359989,
+"rotas": {
+"hge": [
+2120,
+31022
+],
+"hgrs": [
+1773,
+24699
+],
+"hgesf": [
+2048,
+30281
+],
+"metropolitano": [
+377,
+5555
+],
+"suburbio": [
+1713,
+20761
+],
+"eladio": [
+1504,
+16069
+],
+"municipal": [
+965,
+10535
+]
+}
+},
+{
+"nome": "Jardim Apipema",
+"key": "jardim apipema",
+"lat": -13.004846,
+"lng": -38.517818,
+"rotas": {
+"hge": [
+810,
+6493
+],
+"hgrs": [
+1658,
+13668
+],
+"hgesf": [
+1080,
+8359
+],
+"metropolitano": [
+2285,
+33764
+],
+"suburbio": [
+2109,
+25701
+],
+"eladio": [
+1689,
+24509
+],
+"municipal": [
+2230,
+27151
+]
+}
+},
+{
+"nome": "Jardim Armação",
+"key": "jardim armacao",
+"lat": -12.986076,
+"lng": -38.438653,
+"rotas": {
+"hge": [
+1111,
+10352
+],
+"hgrs": [
+1105,
+8263
+],
+"hgesf": [
+1067,
+8856
+],
+"metropolitano": [
+1733,
+26154
+],
+"suburbio": [
+1902,
+22874
+],
+"eladio": [
+1483,
+21683
+],
+"municipal": [
+1597,
+17222
+]
+}
+},
+{
+"nome": "Jardim Cajazeiras",
+"key": "jardim cajazeiras",
+"lat": -12.917352,
+"lng": -38.449878,
+"rotas": {
+"hge": [
+1289,
+15129
+],
+"hgrs": [
+1430,
+9964
+],
+"hgesf": [
+1037,
+9183
+],
+"metropolitano": [
+1700,
+24667
+],
+"suburbio": [
+1279,
+10893
+],
+"eladio": [
+827,
+10657
+],
+"municipal": [
+1368,
+13298
+]
+}
+},
+{
+"nome": "Jardim Santo Inácio",
+"key": "jardim santo inacio",
+"lat": -12.929328,
+"lng": -38.460899,
+"rotas": {
+"hge": [
+1196,
+13544
+],
+"hgrs": [
+1156,
+6894
+],
+"hgesf": [
+943,
+7599
+],
+"metropolitano": [
+1672,
+24486
+],
+"suburbio": [
+1218,
+11667
+],
+"eladio": [
+799,
+10476
+],
+"municipal": [
+1340,
+13117
+]
+}
+},
+{
+"nome": "Jardim das Margaridas",
+"key": "jardim das margaridas",
+"lat": -12.898964,
+"lng": -38.358057,
+"rotas": {
+"hge": [
+2006,
+25430
+],
+"hgrs": [
+1659,
+19107
+],
+"hgesf": [
+1976,
+23949
+],
+"metropolitano": [
+562,
+7598
+],
+"suburbio": [
+1898,
+22803
+],
+"eladio": [
+1391,
+15845
+],
+"municipal": [
+829,
+5749
+]
+}
+},
+{
+"nome": "João de Barro 1",
+"key": "joao de barro 1",
+"lat": -12.884537,
+"lng": -38.432134,
+"rotas": {
+"hge": [
+1601,
+19302
+],
+"hgrs": [
+1716,
+15817
+],
+"hgesf": [
+1349,
+13356
+],
+"metropolitano": [
+1500,
+20243
+],
+"suburbio": [
+1091,
+8527
+],
+"eladio": [
+257,
+1635
+],
+"municipal": [
+993,
+6979
+]
+}
+},
+{
+"nome": "Lapa",
+"key": "lapa",
+"lat": -12.982096,
+"lng": -38.512551,
+"rotas": {
+"hge": [
+797,
+5742
+],
+"hgrs": [
+1366,
+11019
+],
+"hgesf": [
+876,
+5399
+],
+"metropolitano": [
+2111,
+31762
+],
+"suburbio": [
+1871,
+22460
+],
+"eladio": [
+1451,
+21268
+],
+"municipal": [
+1992,
+23909
+]
+}
+},
+{
+"nome": "Lapinha",
+"key": "lapinha",
+"lat": -12.955371,
+"lng": -38.499149,
+"rotas": {
+"hge": [
+974,
+9631
+],
+"hgrs": [
+1100,
+8759
+],
+"hgesf": [
+399,
+1601
+],
+"metropolitano": [
+1951,
+30869
+],
+"suburbio": [
+1631,
+20229
+],
+"eladio": [
+1212,
+19038
+],
+"municipal": [
+1753,
+21679
+]
+}
+},
+{
+"nome": "Largo da Sete Portas",
+"key": "largo da sete portas",
+"lat": -12.969969,
+"lng": -38.499325,
+"rotas": {
+"hge": [
+795,
+6219
+],
+"hgrs": [
+983,
+7665
+],
+"hgesf": [
+405,
+2356
+],
+"metropolitano": [
+1835,
+29775
+],
+"suburbio": [
+1515,
+19135
+],
+"eladio": [
+1095,
+17944
+],
+"municipal": [
+1636,
+20585
+]
+}
+},
+{
+"nome": "Largo de Roma",
+"key": "largo de roma",
+"lat": -12.936094,
+"lng": -38.506148,
+"rotas": {
+"hge": [
+1087,
+10018
+],
+"hgrs": [
+1356,
+11732
+],
+"hgesf": [
+794,
+6123
+],
+"metropolitano": [
+2226,
+33862
+],
+"suburbio": [
+1831,
+15240
+],
+"eladio": [
+1430,
+17907
+],
+"municipal": [
+1971,
+20548
+]
+}
+},
+{
+"nome": "Liberdade",
+"key": "liberdade",
+"lat": -12.946662,
+"lng": -38.493983,
+"rotas": {
+"hge": [
+1250,
+8675
+],
+"hgrs": [
+1404,
+7527
+],
+"hgesf": [
+584,
+2577
+],
+"metropolitano": [
+2230,
+30593
+],
+"suburbio": [
+1874,
+17777
+],
+"eladio": [
+1454,
+16585
+],
+"municipal": [
+1995,
+19227
+]
+}
+},
+{
+"nome": "Lobato",
+"key": "lobato",
+"lat": -12.922027,
+"lng": -38.488035,
+"rotas": {
+"hge": [
+1354,
+14894
+],
+"hgrs": [
+1469,
+11410
+],
+"hgesf": [
+1102,
+8948
+],
+"metropolitano": [
+2056,
+28672
+],
+"suburbio": [
+1584,
+11995
+],
+"eladio": [
+1183,
+14661
+],
+"municipal": [
+1724,
+17302
+]
+}
+},
+{
+"nome": "Loteamento Aquarius",
+"key": "loteamento aquarius",
+"lat": -12.987785,
+"lng": -38.452245,
+"rotas": {
+"hge": [
+1157,
+8267
+],
+"hgrs": [
+1285,
+9909
+],
+"hgesf": [
+1103,
+7570
+],
+"metropolitano": [
+1917,
+27797
+],
+"suburbio": [
+1936,
+21603
+],
+"eladio": [
+1516,
+20412
+],
+"municipal": [
+1846,
+20504
+]
+}
+},
+{
+"nome": "Luiz Anselmo",
+"key": "luiz anselmo",
+"lat": -12.97572,
+"lng": -38.48556,
+"rotas": {
+"hge": [
+725,
+5549
+],
+"hgrs": [
+1194,
+8093
+],
+"hgesf": [
+722,
+3737
+],
+"metropolitano": [
+2002,
+29781
+],
+"suburbio": [
+1726,
+19564
+],
+"eladio": [
+1306,
+18372
+],
+"municipal": [
+1847,
+21013
+]
+}
+},
+{
+"nome": "Macaúbas",
+"key": "macaubas",
+"lat": -12.965386,
+"lng": -38.495825,
+"rotas": {
+"hge": [
+776,
+6215
+],
+"hgrs": [
+1026,
+7834
+],
+"hgesf": [
+350,
+1671
+],
+"metropolitano": [
+1877,
+29944
+],
+"suburbio": [
+1557,
+19304
+],
+"eladio": [
+1138,
+18112
+],
+"municipal": [
+1679,
+20754
+]
+}
+},
+{
+"nome": "Mangueira",
+"key": "mangueira",
+"lat": -12.923414,
+"lng": -38.499098,
+"rotas": {
+"hge": [
+1523,
+12233
+],
+"hgrs": [
+1792,
+13947
+],
+"hgesf": [
+1230,
+8339
+],
+"metropolitano": [
+2618,
+33395
+],
+"suburbio": [
+2198,
+16405
+],
+"eladio": [
+1843,
+19388
+],
+"municipal": [
+2384,
+22029
+]
+}
+},
+{
+"nome": "Marechal Rondon",
+"key": "marechal rondon",
+"lat": -12.912441,
+"lng": -38.470705,
+"rotas": {
+"hge": [
+1352,
+13607
+],
+"hgrs": [
+1467,
+10123
+],
+"hgesf": [
+1100,
+7662
+],
+"metropolitano": [
+1813,
+24895
+],
+"suburbio": [
+1359,
+12076
+],
+"eladio": [
+939,
+10884
+],
+"municipal": [
+1480,
+13526
+]
+}
+},
+{
+"nome": "Mares",
+"key": "mares",
+"lat": -12.941903,
+"lng": -38.501101,
+"rotas": {
+"hge": [
+1064,
+9366
+],
+"hgrs": [
+1333,
+11080
+],
+"hgesf": [
+770,
+5471
+],
+"metropolitano": [
+2184,
+30992
+],
+"suburbio": [
+1711,
+14315
+],
+"eladio": [
+1310,
+16982
+],
+"municipal": [
+1851,
+19623
+]
+}
+},
+{
+"nome": "Massaranduba",
+"key": "massaranduba",
+"lat": -12.928062,
+"lng": -38.496547,
+"rotas": {
+"hge": [
+1528,
+12261
+],
+"hgrs": [
+1542,
+9259
+],
+"hgesf": [
+1041,
+5412
+],
+"metropolitano": [
+2368,
+32324
+],
+"suburbio": [
+1948,
+15334
+],
+"eladio": [
+1592,
+18317
+],
+"municipal": [
+2133,
+20958
+]
+}
+},
+{
+"nome": "Mata Escura",
+"key": "mata escura",
+"lat": -12.932298,
+"lng": -38.458324,
+"rotas": {
+"hge": [
+1244,
+14090
+],
+"hgrs": [
+915,
+5327
+],
+"hgesf": [
+992,
+8144
+],
+"metropolitano": [
+1720,
+25032
+],
+"suburbio": [
+1267,
+12213
+],
+"eladio": [
+847,
+11021
+],
+"municipal": [
+1388,
+13663
+]
+}
+},
+{
+"nome": "Matatu",
+"key": "matatu",
+"lat": -12.971598,
+"lng": -38.493871,
+"rotas": {
+"hge": [
+906,
+6623
+],
+"hgrs": [
+1082,
+7489
+],
+"hgesf": [
+503,
+2181
+],
+"metropolitano": [
+1934,
+29600
+],
+"suburbio": [
+1613,
+18960
+],
+"eladio": [
+1194,
+17768
+],
+"municipal": [
+1735,
+20409
+]
+}
+},
+{
+"nome": "Monte Serrat",
+"key": "monte serrat",
+"lat": -12.928576,
+"lng": -38.513595,
+"rotas": {
+"hge": [
+1346,
+11324
+],
+"hgrs": [
+1615,
+13038
+],
+"hgesf": [
+1052,
+7429
+],
+"metropolitano": [
+2484,
+35168
+],
+"suburbio": [
+2090,
+16546
+],
+"eladio": [
+1689,
+19213
+],
+"municipal": [
+2230,
+21854
+]
+}
+},
+{
+"nome": "Mussurunga",
+"key": "mussurunga",
+"lat": -12.916129,
+"lng": -38.375049,
+"rotas": {
+"hge": [
+1619,
+20351
+],
+"hgrs": [
+1273,
+14028
+],
+"hgesf": [
+1590,
+18870
+],
+"metropolitano": [
+1231,
+13605
+],
+"suburbio": [
+1662,
+17865
+],
+"eladio": [
+1005,
+10766
+],
+"municipal": [
+747,
+4798
+]
+}
+},
+{
+"nome": "Nazaré",
+"key": "nazare",
+"lat": -12.978442,
+"lng": -38.50764,
+"rotas": {
+"hge": [
+594,
+4758
+],
+"hgrs": [
+1163,
+10035
+],
+"hgesf": [
+674,
+4415
+],
+"metropolitano": [
+1908,
+30777
+],
+"suburbio": [
+1668,
+21476
+],
+"eladio": [
+1249,
+20284
+],
+"municipal": [
+1790,
+22925
+]
+}
+},
+{
+"nome": "Nordeste de Amaralina",
+"key": "nordeste de amaralina",
+"lat": -13.009805,
+"lng": -38.473546,
+"rotas": {
+"hge": [
+644,
+4593
+],
+"hgrs": [
+1494,
+12822
+],
+"hgesf": [
+1243,
+9946
+],
+"metropolitano": [
+2126,
+30710
+],
+"suburbio": [
+2076,
+23980
+],
+"eladio": [
+1656,
+22788
+],
+"municipal": [
+2055,
+23417
+]
+}
+},
+{
+"nome": "Nova Esperança",
+"key": "nova esperanca",
+"lat": -12.842663,
+"lng": -38.372928,
+"rotas": {
+"hge": [
+2190,
+34037
+],
+"hgrs": [
+1900,
+26043
+],
+"hgesf": [
+1938,
+28091
+],
+"metropolitano": [
+679,
+7030
+],
+"suburbio": [
+1602,
+18571
+],
+"eladio": [
+1630,
+17414
+],
+"municipal": [
+1092,
+11879
+]
+}
+},
+{
+"nome": "Nova Sussuarana",
+"key": "nova sussuarana",
+"lat": -12.935079,
+"lng": -38.437649,
+"rotas": {
+"hge": [
+1327,
+14221
+],
+"hgrs": [
+980,
+7897
+],
+"hgesf": [
+1235,
+11656
+],
+"metropolitano": [
+1591,
+23235
+],
+"suburbio": [
+1519,
+15720
+],
+"eladio": [
+1099,
+14528
+],
+"municipal": [
+1520,
+15943
+]
+}
+},
+{
+"nome": "Novo Horizonte",
+"key": "novo horizonte",
+"lat": -12.940983,
+"lng": -38.439391,
+"rotas": {
+"hge": [
+1520,
+15108
+],
+"hgrs": [
+1173,
+8785
+],
+"hgesf": [
+1456,
+12924
+],
+"metropolitano": [
+1784,
+24122
+],
+"suburbio": [
+1740,
+16988
+],
+"eladio": [
+1321,
+15796
+],
+"municipal": [
+1713,
+16830
+]
+}
+},
+{
+"nome": "Novo Marotinho",
+"key": "novo marotinho",
+"lat": -12.915547,
+"lng": -38.42487,
+"rotas": {
+"hge": [
+1618,
+17290
+],
+"hgrs": [
+1271,
+10967
+],
+"hgesf": [
+1442,
+12077
+],
+"metropolitano": [
+1467,
+20969
+],
+"suburbio": [
+1368,
+12505
+],
+"eladio": [
+711,
+5405
+],
+"municipal": [
+1174,
+10694
+]
+}
+},
+{
+"nome": "Ondina",
+"key": "ondina",
+"lat": -13.010398,
+"lng": -38.511699,
+"rotas": {
+"hge": [
+625,
+4300
+],
+"hgrs": [
+1491,
+14530
+],
+"hgesf": [
+1233,
+8785
+],
+"metropolitano": [
+2123,
+32418
+],
+"suburbio": [
+2073,
+25688
+],
+"eladio": [
+1653,
+24496
+],
+"municipal": [
+2052,
+25126
+]
+}
+},
+{
+"nome": "Palestina",
+"key": "palestina",
+"lat": -12.873564,
+"lng": -38.416403,
+"rotas": {
+"hge": [
+1787,
+23720
+],
+"hgrs": [
+1902,
+20236
+],
+"hgesf": [
+1535,
+17774
+],
+"metropolitano": [
+1509,
+20888
+],
+"suburbio": [
+1331,
+13206
+],
+"eladio": [
+444,
+3856
+],
+"municipal": [
+985,
+6497
+]
+}
+},
+{
+"nome": "Paripe",
+"key": "paripe",
+"lat": -12.838006,
+"lng": -38.469203,
+"rotas": {
+"hge": [
+2158,
+23565
+],
+"hgrs": [
+2273,
+20080
+],
+"hgesf": [
+1905,
+17619
+],
+"metropolitano": [
+1989,
+21854
+],
+"suburbio": [
+885,
+4937
+],
+"eladio": [
+1537,
+13886
+],
+"municipal": [
+2078,
+16527
+]
+}
+},
+{
+"nome": "Parque Carvalho",
+"key": "parque carvalho",
+"lat": -12.852081,
+"lng": -38.458279,
+"rotas": {
+"hge": [
+1723,
+21379
+],
+"hgrs": [
+1838,
+17895
+],
+"hgesf": [
+1470,
+15433
+],
+"metropolitano": [
+1703,
+19232
+],
+"suburbio": [
+346,
+1892
+],
+"eladio": [
+1008,
+10931
+],
+"municipal": [
+1549,
+13572
+]
+}
+},
+{
+"nome": "Parque Cruz Aguiar",
+"key": "parque cruz aguiar",
+"lat": -13.008219,
+"lng": -38.489717,
+"rotas": {
+"hge": [
+430,
+2311
+],
+"hgrs": [
+1275,
+12154
+],
+"hgesf": [
+1025,
+9278
+],
+"metropolitano": [
+1907,
+30042
+],
+"suburbio": [
+1857,
+23311
+],
+"eladio": [
+1438,
+22120
+],
+"municipal": [
+1836,
+22749
+]
+}
+},
+{
+"nome": "Parque São Brás",
+"key": "parque sao bras",
+"lat": -12.995932,
+"lng": -38.50202,
+"rotas": {
+"hge": [
+751,
+5082
+],
+"hgrs": [
+1724,
+13546
+],
+"hgesf": [
+1145,
+8237
+],
+"metropolitano": [
+2445,
+34982
+],
+"suburbio": [
+2175,
+25578
+],
+"eladio": [
+1755,
+24387
+],
+"municipal": [
+2296,
+27028
+]
+}
+},
+{
+"nome": "Parque São paulo",
+"key": "parque sao paulo",
+"lat": -12.874522,
+"lng": -38.355071,
+"rotas": {
+"hge": [
+2273,
+27286
+],
+"hgrs": [
+1926,
+20963
+],
+"hgesf": [
+2243,
+25805
+],
+"metropolitano": [
+374,
+2811
+],
+"suburbio": [
+1975,
+20619
+],
+"eladio": [
+1658,
+17701
+],
+"municipal": [
+1207,
+11823
+]
+}
+},
+{
+"nome": "Patamares",
+"key": "patamares",
+"lat": -12.946919,
+"lng": -38.401896,
+"rotas": {
+"hge": [
+1673,
+17410
+],
+"hgrs": [
+1327,
+11086
+],
+"hgesf": [
+1643,
+15929
+],
+"metropolitano": [
+1568,
+19502
+],
+"suburbio": [
+2010,
+20710
+],
+"eladio": [
+1353,
+13611
+],
+"municipal": [
+1437,
+12033
+]
+}
+},
+{
+"nome": "Pau Miúdo",
+"key": "pau miudo",
+"lat": -12.959904,
+"lng": -38.480808,
+"rotas": {
+"hge": [
+845,
+7779
+],
+"hgrs": [
+1106,
+7130
+],
+"hgesf": [
+355,
+1382
+],
+"metropolitano": [
+1821,
+29013
+],
+"suburbio": [
+1528,
+16943
+],
+"eladio": [
+1108,
+15751
+],
+"municipal": [
+1649,
+18392
+]
+}
+},
+{
+"nome": "Pelourinho",
+"key": "pelourinho",
+"lat": -12.973986,
+"lng": -38.510377,
+"rotas": {
+"hge": [
+849,
+5861
+],
+"hgrs": [
+1418,
+11138
+],
+"hgesf": [
+929,
+5518
+],
+"metropolitano": [
+2163,
+31881
+],
+"suburbio": [
+1923,
+22579
+],
+"eladio": [
+1504,
+21387
+],
+"municipal": [
+2045,
+24028
+]
+}
+},
+{
+"nome": "Periperi",
+"key": "periperi",
+"lat": -12.863354,
+"lng": -38.473672,
+"rotas": {
+"hge": [
+1912,
+21011
+],
+"hgrs": [
+2027,
+17526
+],
+"hgesf": [
+1660,
+15065
+],
+"metropolitano": [
+2072,
+22639
+],
+"suburbio": [
+585,
+3598
+],
+"eladio": [
+1302,
+13183
+],
+"municipal": [
+1843,
+15824
+]
+}
+},
+{
+"nome": "Pernambués",
+"key": "pernambues",
+"lat": -12.969937,
+"lng": -38.466133,
+"rotas": {
+"hge": [
+1087,
+9145
+],
+"hgrs": [
+956,
+5731
+],
+"hgesf": [
+726,
+5023
+],
+"metropolitano": [
+1959,
+28111
+],
+"suburbio": [
+1707,
+19380
+],
+"eladio": [
+1287,
+18189
+],
+"municipal": [
+1828,
+20830
+]
+}
+},
+{
+"nome": "Pero Vaz",
+"key": "pero vaz",
+"lat": -12.949928,
+"lng": -38.488639,
+"rotas": {
+"hge": [
+1193,
+10932
+],
+"hgrs": [
+1218,
+6639
+],
+"hgesf": [
+404,
+1833
+],
+"metropolitano": [
+2045,
+29705
+],
+"suburbio": [
+1689,
+16889
+],
+"eladio": [
+1269,
+15698
+],
+"municipal": [
+1810,
+18339
+]
+}
+},
+{
+"nome": "Piatã",
+"key": "piata",
+"lat": -12.948335,
+"lng": -38.387346,
+"rotas": {
+"hge": [
+1787,
+20060
+],
+"hgrs": [
+1446,
+11881
+],
+"hgesf": [
+1794,
+16845
+],
+"metropolitano": [
+1277,
+17605
+],
+"suburbio": [
+1720,
+18814
+],
+"eladio": [
+1063,
+11714
+],
+"municipal": [
+1146,
+10136
+]
+}
+},
+{
+"nome": "Pirajá",
+"key": "piraja",
+"lat": -12.899788,
+"lng": -38.461113,
+"rotas": {
+"hge": [
+1465,
+15703
+],
+"hgrs": [
+1580,
+12219
+],
+"hgesf": [
+1213,
+9757
+],
+"metropolitano": [
+1714,
+23306
+],
+"suburbio": [
+1272,
+10482
+],
+"eladio": [
+840,
+9295
+],
+"municipal": [
+1381,
+11937
+]
+}
+},
+{
+"nome": "Pituaçu",
+"key": "pituacu",
+"lat": -12.965175,
+"lng": -38.414337,
+"rotas": {
+"hge": [
+1434,
+13826
+],
+"hgrs": [
+1042,
+7366
+],
+"hgesf": [
+1390,
+12330
+],
+"metropolitano": [
+1681,
+19943
+],
+"suburbio": [
+1998,
+22531
+],
+"eladio": [
+1341,
+15432
+],
+"municipal": [
+1424,
+13853
+]
+}
+},
+{
+"nome": "Pituba",
+"key": "pituba",
+"lat": -12.99926,
+"lng": -38.455498,
+"rotas": {
+"hge": [
+746,
+5874
+],
+"hgrs": [
+1285,
+11856
+],
+"hgesf": [
+1034,
+8980
+],
+"metropolitano": [
+1917,
+29744
+],
+"suburbio": [
+1867,
+23013
+],
+"eladio": [
+1447,
+21822
+],
+"municipal": [
+1846,
+22451
+]
+}
+},
+{
+"nome": "Plataforma",
+"key": "plataforma",
+"lat": -12.900439,
+"lng": -38.486852,
+"rotas": {
+"hge": [
+1593,
+17703
+],
+"hgrs": [
+1708,
+14219
+],
+"hgesf": [
+1341,
+11757
+],
+"metropolitano": [
+2295,
+31480
+],
+"suburbio": [
+1317,
+7882
+],
+"eladio": [
+1422,
+17470
+],
+"municipal": [
+1963,
+20111
+]
+}
+},
+{
+"nome": "Porto Seco Pirajá",
+"key": "porto seco piraja",
+"lat": -12.910408,
+"lng": -38.454899,
+"rotas": {
+"hge": [
+1407,
+16203
+],
+"hgrs": [
+1592,
+11372
+],
+"hgesf": [
+1155,
+10257
+],
+"metropolitano": [
+1496,
+22277
+],
+"suburbio": [
+1054,
+9454
+],
+"eladio": [
+623,
+8267
+],
+"municipal": [
+1164,
+10908
+]
+}
+},
+{
+"nome": "Praia Grande",
+"key": "praia grande",
+"lat": -12.873056,
+"lng": -38.475688,
+"rotas": {
+"hge": [
+1944,
+21127
+],
+"hgrs": [
+2058,
+17642
+],
+"hgesf": [
+1691,
+15181
+],
+"metropolitano": [
+2143,
+23632
+],
+"suburbio": [
+662,
+4407
+],
+"eladio": [
+1379,
+13993
+],
+"municipal": [
+1920,
+16634
+]
+}
+},
+{
+"nome": "Praia do Flamengo",
+"key": "praia do flamengo",
+"lat": -12.918983,
+"lng": -38.312696,
+"rotas": {
+"hge": [
+2315,
+28048
+],
+"hgrs": [
+1968,
+21725
+],
+"hgesf": [
+2285,
+26567
+],
+"metropolitano": [
+1494,
+17757
+],
+"suburbio": [
+2357,
+25562
+],
+"eladio": [
+1700,
+18463
+],
+"municipal": [
+1718,
+13392
+]
+}
+},
+{
+"nome": "Quilombo do Alto do Tororó",
+"key": "quilombo do alto do tororo",
+"lat": -12.815076,
+"lng": -38.484069,
+"rotas": {
+"hge": [
+2653,
+27958
+],
+"hgrs": [
+2767,
+24474
+],
+"hgesf": [
+2400,
+22012
+],
+"metropolitano": [
+2274,
+23991
+],
+"suburbio": [
+1286,
+8561
+],
+"eladio": [
+1938,
+17510
+],
+"municipal": [
+2479,
+20151
+]
+}
+},
+{
+"nome": "Resgate",
+"key": "resgate",
+"lat": -12.961624,
+"lng": -38.463878,
+"rotas": {
+"hge": [
+1123,
+9405
+],
+"hgrs": [
+743,
+4113
+],
+"hgesf": [
+762,
+5283
+],
+"metropolitano": [
+2101,
+30644
+],
+"suburbio": [
+1721,
+17318
+],
+"eladio": [
+1301,
+16127
+],
+"municipal": [
+1842,
+18768
+]
+}
+},
+{
+"nome": "Retiro",
+"key": "retiro",
+"lat": -12.956939,
+"lng": -38.473934,
+"rotas": {
+"hge": [
+878,
+9182
+],
+"hgrs": [
+903,
+4889
+],
+"hgesf": [
+530,
+2760
+],
+"metropolitano": [
+1730,
+27955
+],
+"suburbio": [
+1348,
+15205
+],
+"eladio": [
+928,
+14013
+],
+"municipal": [
+1469,
+16655
+]
+}
+},
+{
+"nome": "Ribeira",
+"key": "ribeira",
+"lat": -12.9161,
+"lng": -38.496899,
+"rotas": {
+"hge": [
+1522,
+12813
+],
+"hgrs": [
+1791,
+14527
+],
+"hgesf": [
+1229,
+8918
+],
+"metropolitano": [
+2661,
+36657
+],
+"suburbio": [
+2237,
+17208
+],
+"eladio": [
+1836,
+19875
+],
+"municipal": [
+2377,
+22516
+]
+}
+},
+{
+"nome": "Rio Sena",
+"key": "rio sena",
+"lat": -12.879249,
+"lng": -38.478344,
+"rotas": {
+"hge": [
+1949,
+21618
+],
+"hgrs": [
+2064,
+18134
+],
+"hgesf": [
+1697,
+15672
+],
+"metropolitano": [
+2149,
+24123
+],
+"suburbio": [
+668,
+4899
+],
+"eladio": [
+1385,
+14484
+],
+"municipal": [
+1926,
+17125
+]
+}
+},
+{
+"nome": "Rio Vermelho",
+"key": "rio vermelho",
+"lat": -13.010061,
+"lng": -38.489961,
+"rotas": {
+"hge": [
+375,
+2067
+],
+"hgrs": [
+1261,
+12487
+],
+"hgesf": [
+1089,
+8391
+],
+"metropolitano": [
+1893,
+30375
+],
+"suburbio": [
+1843,
+23645
+],
+"eladio": [
+1424,
+22453
+],
+"municipal": [
+1822,
+23082
+]
+}
+},
+{
+"nome": "Roma",
+"key": "roma",
+"lat": -12.934963,
+"lng": -38.503888,
+"rotas": {
+"hge": [
+1274,
+10879
+],
+"hgrs": [
+1543,
+12592
+],
+"hgesf": [
+1013,
+5310
+],
+"metropolitano": [
+2323,
+31465
+],
+"suburbio": [
+1851,
+14788
+],
+"eladio": [
+1450,
+17454
+],
+"municipal": [
+1991,
+20096
+]
+}
+},
+{
+"nome": "Santa Cruz",
+"key": "santa cruz",
+"lat": -13.004277,
+"lng": -38.475464,
+"rotas": {
+"hge": [
+922,
+6828
+],
+"hgrs": [
+1295,
+11127
+],
+"hgesf": [
+1045,
+8251
+],
+"metropolitano": [
+1927,
+29015
+],
+"suburbio": [
+1877,
+22285
+],
+"eladio": [
+1458,
+21093
+],
+"municipal": [
+1856,
+21722
+]
+}
+},
+{
+"nome": "Santa Luzia do Lobato",
+"key": "santa luzia do lobato",
+"lat": -12.931166,
+"lng": -38.488087,
+"rotas": {
+"hge": [
+1159,
+14640
+],
+"hgrs": [
+1274,
+11156
+],
+"hgesf": [
+907,
+8694
+],
+"metropolitano": [
+1861,
+28418
+],
+"suburbio": [
+1389,
+11741
+],
+"eladio": [
+988,
+14407
+],
+"municipal": [
+1529,
+17048
+]
+}
+},
+{
+"nome": "Santa Mônica",
+"key": "santa monica",
+"lat": -12.94875,
+"lng": -38.48403,
+"rotas": {
+"hge": [
+1011,
+10244
+],
+"hgrs": [
+1037,
+5951
+],
+"hgesf": [
+399,
+1816
+],
+"metropolitano": [
+1863,
+29017
+],
+"suburbio": [
+1507,
+16201
+],
+"eladio": [
+1087,
+15009
+],
+"municipal": [
+1628,
+17650
+]
+}
+},
+{
+"nome": "Santo Agostinho",
+"key": "santo agostinho",
+"lat": -12.974687,
+"lng": -38.49692,
+"rotas": {
+"hge": [
+840,
+6072
+],
+"hgrs": [
+1157,
+7754
+],
+"hgesf": [
+621,
+3205
+],
+"metropolitano": [
+2009,
+29864
+],
+"suburbio": [
+1689,
+19224
+],
+"eladio": [
+1269,
+18032
+],
+"municipal": [
+1810,
+20674
+]
+}
+},
+{
+"nome": "Santo Antônio",
+"key": "santo antonio",
+"lat": -12.965496,
+"lng": -38.503635,
+"rotas": {
+"hge": [
+711,
+5667
+],
+"hgrs": [
+1170,
+8712
+],
+"hgesf": [
+628,
+2939
+],
+"metropolitano": [
+2022,
+30823
+],
+"suburbio": [
+1702,
+20183
+],
+"eladio": [
+1282,
+18991
+],
+"municipal": [
+1823,
+21632
+]
+}
+},
+{
+"nome": "Saramandaia",
+"key": "saramandaia",
+"lat": -12.974151,
+"lng": -38.468655,
+"rotas": {
+"hge": [
+1148,
+10024
+],
+"hgrs": [
+1085,
+6254
+],
+"hgesf": [
+855,
+5546
+],
+"metropolitano": [
+2108,
+31986
+],
+"suburbio": [
+1655,
+19167
+],
+"eladio": [
+1235,
+17976
+],
+"municipal": [
+1776,
+20617
+]
+}
+},
+{
+"nome": "Saúde",
+"key": "saude",
+"lat": -12.972545,
+"lng": -38.506182,
+"rotas": {
+"hge": [
+786,
+5707
+],
+"hgrs": [
+1283,
+9595
+],
+"hgesf": [
+705,
+4286
+],
+"metropolitano": [
+2099,
+31726
+],
+"suburbio": [
+1815,
+21065
+],
+"eladio": [
+1395,
+19873
+],
+"municipal": [
+1936,
+22515
+]
+}
+},
+{
+"nome": "Stella Maris",
+"key": "stella maris",
+"lat": -12.93776,
+"lng": -38.334676,
+"rotas": {
+"hge": [
+1896,
+25053
+],
+"hgrs": [
+1549,
+18730
+],
+"hgesf": [
+1866,
+23572
+],
+"metropolitano": [
+1087,
+14836
+],
+"suburbio": [
+1938,
+22567
+],
+"eladio": [
+1281,
+15468
+],
+"municipal": [
+1298,
+10397
+]
+}
+},
+{
+"nome": "Stiep",
+"key": "stiep",
+"lat": -12.98026,
+"lng": -38.447311,
+"rotas": {
+"hge": [
+810,
+8218
+],
+"hgrs": [
+829,
+6876
+],
+"hgesf": [
+766,
+6722
+],
+"metropolitano": [
+1461,
+24763
+],
+"suburbio": [
+1601,
+20740
+],
+"eladio": [
+1181,
+19548
+],
+"municipal": [
+1390,
+17471
+]
+}
+},
+{
+"nome": "Sussuarana",
+"key": "sussuarana",
+"lat": -12.934777,
+"lng": -38.446035,
+"rotas": {
+"hge": [
+1431,
+14972
+],
+"hgrs": [
+919,
+5549
+],
+"hgesf": [
+1261,
+10107
+],
+"metropolitano": [
+1696,
+23986
+],
+"suburbio": [
+1536,
+14176
+],
+"eladio": [
+1116,
+12984
+],
+"municipal": [
+1657,
+15626
+]
+}
+},
+{
+"nome": "São Caetano",
+"key": "sao caetano",
+"lat": -12.932724,
+"lng": -38.481096,
+"rotas": {
+"hge": [
+1098,
+12349
+],
+"hgrs": [
+1213,
+8865
+],
+"hgesf": [
+845,
+6404
+],
+"metropolitano": [
+1876,
+27050
+],
+"suburbio": [
+1422,
+14231
+],
+"eladio": [
+1003,
+13040
+],
+"municipal": [
+1543,
+15681
+]
+}
+},
+{
+"nome": "São Cristóvão",
+"key": "sao cristovao",
+"lat": -12.908277,
+"lng": -38.361035,
+"rotas": {
+"hge": [
+1822,
+22385
+],
+"hgrs": [
+1475,
+16062
+],
+"hgesf": [
+1792,
+20905
+],
+"metropolitano": [
+832,
+10937
+],
+"suburbio": [
+1864,
+19900
+],
+"eladio": [
+1207,
+12800
+],
+"municipal": [
+708,
+4717
+]
+}
+},
+{
+"nome": "São Gonçalo do Retiro",
+"key": "sao goncalo do retiro",
+"lat": -12.95197,
+"lng": -38.468498,
+"rotas": {
+"hge": [
+1011,
+9662
+],
+"hgrs": [
+698,
+3525
+],
+"hgesf": [
+778,
+4324
+],
+"metropolitano": [
+1863,
+28435
+],
+"suburbio": [
+1464,
+15645
+],
+"eladio": [
+1044,
+14453
+],
+"municipal": [
+1585,
+17095
+]
+}
+},
+{
+"nome": "São Rafael",
+"key": "sao rafael",
+"lat": -12.936682,
+"lng": -38.42459,
+"rotas": {
+"hge": [
+1154,
+13780
+],
+"hgrs": [
+808,
+7457
+],
+"hgesf": [
+1124,
+12300
+],
+"metropolitano": [
+1416,
+20243
+],
+"suburbio": [
+1469,
+15934
+],
+"eladio": [
+1022,
+8609
+],
+"municipal": [
+1345,
+12950
+]
+}
+},
+{
+"nome": "São Tomé de Paripe",
+"key": "sao tome de paripe",
+"lat": -12.817597,
+"lng": -38.485404,
+"rotas": {
+"hge": [
+2589,
+27720
+],
+"hgrs": [
+2704,
+24235
+],
+"hgesf": [
+2337,
+21774
+],
+"metropolitano": [
+2211,
+23753
+],
+"suburbio": [
+1223,
+8323
+],
+"eladio": [
+1874,
+17272
+],
+"municipal": [
+2415,
+19913
+]
+}
+},
+{
+"nome": "Tororó",
+"key": "tororo",
+"lat": -12.984606,
+"lng": -38.5092,
+"rotas": {
+"hge": [
+733,
+5418
+],
+"hgrs": [
+1302,
+10695
+],
+"hgesf": [
+813,
+5075
+],
+"metropolitano": [
+2047,
+31438
+],
+"suburbio": [
+1807,
+22136
+],
+"eladio": [
+1388,
+20945
+],
+"municipal": [
+1929,
+23586
+]
+}
+},
+{
+"nome": "Trobogy",
+"key": "trobogy",
+"lat": -12.93294,
+"lng": -38.400865,
+"rotas": {
+"hge": [
+1817,
+21924
+],
+"hgrs": [
+1471,
+15601
+],
+"hgesf": [
+1787,
+20443
+],
+"metropolitano": [
+1450,
+19047
+],
+"suburbio": [
+1730,
+17450
+],
+"eladio": [
+1073,
+10350
+],
+"municipal": [
+1157,
+8772
+]
+}
+},
+{
+"nome": "Uruguai",
+"key": "uruguai",
+"lat": -12.934533,
+"lng": -38.495023,
+"rotas": {
+"hge": [
+1341,
+12488
+],
+"hgrs": [
+1366,
+8195
+],
+"hgesf": [
+866,
+4349
+],
+"metropolitano": [
+2193,
+31261
+],
+"suburbio": [
+1773,
+14271
+],
+"eladio": [
+1417,
+17253
+],
+"municipal": [
+1958,
+19895
+]
+}
+},
+{
+"nome": "Vale das Pedrinhas",
+"key": "vale das pedrinhas",
+"lat": -13.008349,
+"lng": -38.482347,
+"rotas": {
+"hge": [
+670,
+3957
+],
+"hgrs": [
+1244,
+11610
+],
+"hgesf": [
+993,
+8734
+],
+"metropolitano": [
+1876,
+29498
+],
+"suburbio": [
+1826,
+22768
+],
+"eladio": [
+1406,
+21576
+],
+"municipal": [
+1805,
+22205
+]
+}
+},
+{
+"nome": "Valéria",
+"key": "valeria",
+"lat": -12.861071,
+"lng": -38.433227,
+"rotas": {
+"hge": [
+1693,
+21130
+],
+"hgrs": [
+1808,
+17646
+],
+"hgesf": [
+1440,
+15184
+],
+"metropolitano": [
+1609,
+19568
+],
+"suburbio": [
+810,
+5474
+],
+"eladio": [
+1080,
+10277
+],
+"municipal": [
+1621,
+12918
+]
+}
+},
+{
+"nome": "Vila 19 de Maio - Buraco da Gia",
+"key": "vila 19 de maio buraco da gia",
+"lat": -12.992686,
+"lng": -38.486491,
+"rotas": {
+"hge": [
+535,
+2846
+],
+"hgrs": [
+1242,
+8653
+],
+"hgesf": [
+940,
+6542
+],
+"metropolitano": [
+1987,
+29396
+],
+"suburbio": [
+1748,
+20094
+],
+"eladio": [
+1328,
+18902
+],
+"municipal": [
+1869,
+21543
+]
+}
+},
+{
+"nome": "Vila Acupe de Brotas",
+"key": "vila acupe de brotas",
+"lat": -12.993976,
+"lng": -38.494439,
+"rotas": {
+"hge": [
+525,
+3651
+],
+"hgrs": [
+1230,
+10090
+],
+"hgesf": [
+927,
+7978
+],
+"metropolitano": [
+1975,
+30832
+],
+"suburbio": [
+1735,
+21530
+],
+"eladio": [
+1315,
+20339
+],
+"municipal": [
+1856,
+22980
+]
+}
+},
+{
+"nome": "Vila Alto da Boa Esperança",
+"key": "vila alto da boa esperanca",
+"lat": -12.967373,
+"lng": -38.497897,
+"rotas": {
+"hge": [
+774,
+6054
+],
+"hgrs": [
+1121,
+8210
+],
+"hgesf": [
+445,
+2047
+],
+"metropolitano": [
+1972,
+30321
+],
+"suburbio": [
+1652,
+19680
+],
+"eladio": [
+1233,
+18489
+],
+"municipal": [
+1774,
+21130
+]
+}
+},
+{
+"nome": "Vila Alto do Sobradinho",
+"key": "vila alto do sobradinho",
+"lat": -12.99431,
+"lng": -38.502895,
+"rotas": {
+"hge": [
+601,
+4244
+],
+"hgrs": [
+1574,
+12707
+],
+"hgesf": [
+996,
+7398
+],
+"metropolitano": [
+2295,
+34143
+],
+"suburbio": [
+2025,
+24740
+],
+"eladio": [
+1605,
+23548
+],
+"municipal": [
+2146,
+26190
+]
+}
+},
+{
+"nome": "Vila Avenida Vasco da Gama",
+"key": "vila avenida vasco da gama",
+"lat": -12.994736,
+"lng": -38.499265,
+"rotas": {
+"hge": [
+684,
+4591
+],
+"hgrs": [
+1657,
+13054
+],
+"hgesf": [
+1078,
+7746
+],
+"metropolitano": [
+2378,
+34491
+],
+"suburbio": [
+2107,
+25087
+],
+"eladio": [
+1688,
+23896
+],
+"municipal": [
+2229,
+26537
+]
+}
+},
+{
+"nome": "Vila Baixa da Égua",
+"key": "vila baixa da egua",
+"lat": -12.99998,
+"lng": -38.4955,
+"rotas": {
+"hge": [
+366,
+1621
+],
+"hgrs": [
+1413,
+11384
+],
+"hgesf": [
+1080,
+7945
+],
+"metropolitano": [
+2056,
+32080
+],
+"suburbio": [
+1918,
+22825
+],
+"eladio": [
+1498,
+21633
+],
+"municipal": [
+2039,
+24275
+]
+}
+},
+{
+"nome": "Vila Baixa do Formoso",
+"key": "vila baixa do formoso",
+"lat": -12.978491,
+"lng": -38.489854,
+"rotas": {
+"hge": [
+953,
+6143
+],
+"hgrs": [
+1347,
+8804
+],
+"hgesf": [
+887,
+5019
+],
+"metropolitano": [
+2198,
+30915
+],
+"suburbio": [
+1878,
+20275
+],
+"eladio": [
+1459,
+19083
+],
+"municipal": [
+2000,
+21724
+]
+}
+},
+{
+"nome": "Vila Baixa do Porco",
+"key": "vila baixa do porco",
+"lat": -12.986344,
+"lng": -38.501092,
+"rotas": {
+"hge": [
+626,
+3452
+],
+"hgrs": [
+1434,
+11204
+],
+"hgesf": [
+941,
+5247
+],
+"metropolitano": [
+2179,
+31947
+],
+"suburbio": [
+1939,
+22645
+],
+"eladio": [
+1520,
+21454
+],
+"municipal": [
+2061,
+24095
+]
+}
+},
+{
+"nome": "Vila Baixa do Tubo",
+"key": "vila baixa do tubo",
+"lat": -12.976292,
+"lng": -38.487966,
+"rotas": {
+"hge": [
+735,
+5611
+],
+"hgrs": [
+1330,
+8475
+],
+"hgesf": [
+858,
+4118
+],
+"metropolitano": [
+2075,
+31618
+],
+"suburbio": [
+1835,
+22316
+],
+"eladio": [
+1416,
+21124
+],
+"municipal": [
+1957,
+23765
+]
+}
+},
+{
+"nome": "Vila Binóculo",
+"key": "vila binoculo",
+"lat": -12.997168,
+"lng": -38.511341,
+"rotas": {
+"hge": [
+740,
+5123
+],
+"hgrs": [
+1616,
+15469
+],
+"hgesf": [
+1134,
+8278
+],
+"metropolitano": [
+2248,
+33357
+],
+"suburbio": [
+2163,
+25619
+],
+"eladio": [
+1744,
+24428
+],
+"municipal": [
+2177,
+26064
+]
+}
+},
+{
+"nome": "Vila Bolandeira",
+"key": "vila bolandeira",
+"lat": -13.00973,
+"lng": -38.470511,
+"rotas": {
+"hge": [
+733,
+5298
+],
+"hgrs": [
+1479,
+12134
+],
+"hgesf": [
+1228,
+9258
+],
+"metropolitano": [
+2111,
+30022
+],
+"suburbio": [
+2061,
+23291
+],
+"eladio": [
+1641,
+22100
+],
+"municipal": [
+2066,
+21734
+]
+}
+},
+{
+"nome": "Vila Campinas de Brotas",
+"key": "vila campinas de brotas",
+"lat": -12.981115,
+"lng": -38.480289,
+"rotas": {
+"hge": [
+767,
+3948
+],
+"hgrs": [
+937,
+6761
+],
+"hgesf": [
+635,
+4650
+],
+"metropolitano": [
+1682,
+27504
+],
+"suburbio": [
+1442,
+18202
+],
+"eladio": [
+1023,
+17011
+],
+"municipal": [
+1564,
+19652
+]
+}
+},
+{
+"nome": "Vila Candeal Pequeno",
+"key": "vila candeal pequeno",
+"lat": -12.995412,
+"lng": -38.481208,
+"rotas": {
+"hge": [
+608,
+2994
+],
+"hgrs": [
+1327,
+8725
+],
+"hgesf": [
+1025,
+6614
+],
+"metropolitano": [
+2072,
+29468
+],
+"suburbio": [
+1832,
+20166
+],
+"eladio": [
+1413,
+18974
+],
+"municipal": [
+1954,
+21616
+]
+}
+},
+{
+"nome": "Vila Centro Social Urbano",
+"key": "vila centro social urbano",
+"lat": -12.976622,
+"lng": -38.486108,
+"rotas": {
+"hge": [
+691,
+5427
+],
+"hgrs": [
+1133,
+7881
+],
+"hgesf": [
+661,
+3525
+],
+"metropolitano": [
+1941,
+29570
+],
+"suburbio": [
+1665,
+19352
+],
+"eladio": [
+1245,
+18160
+],
+"municipal": [
+1786,
+20801
+]
+}
+},
+{
+"nome": "Vila Fortaleza",
+"key": "vila fortaleza",
+"lat": -12.996516,
+"lng": -38.513349,
+"rotas": {
+"hge": [
+714,
+5322
+],
+"hgrs": [
+1574,
+15592
+],
+"hgesf": [
+1109,
+8477
+],
+"metropolitano": [
+2206,
+33480
+],
+"suburbio": [
+2138,
+25819
+],
+"eladio": [
+1718,
+24627
+],
+"municipal": [
+2135,
+26188
+]
+}
+},
+{
+"nome": "Vila Gantois",
+"key": "vila gantois",
+"lat": -12.99583,
+"lng": -38.508762,
+"rotas": {
+"hge": [
+681,
+4983
+],
+"hgrs": [
+1558,
+15329
+],
+"hgesf": [
+1076,
+8138
+],
+"metropolitano": [
+2190,
+33217
+],
+"suburbio": [
+2105,
+25480
+],
+"eladio": [
+1685,
+24288
+],
+"municipal": [
+2119,
+25924
+]
+}
+},
+{
+"nome": "Vila IAPI",
+"key": "vila iapi",
+"lat": -12.954837,
+"lng": -38.485054,
+"rotas": {
+"hge": [
+1068,
+9578
+],
+"hgrs": [
+1134,
+6346
+],
+"hgesf": [
+245,
+987
+],
+"metropolitano": [
+1960,
+29412
+],
+"suburbio": [
+1604,
+16596
+],
+"eladio": [
+1185,
+15405
+],
+"municipal": [
+1726,
+18046
+]
+}
+},
+{
+"nome": "Vila Iolanda Pires",
+"key": "vila iolanda pires",
+"lat": -12.985248,
+"lng": -38.499117,
+"rotas": {
+"hge": [
+474,
+2870
+],
+"hgrs": [
+1234,
+9894
+],
+"hgesf": [
+932,
+7782
+],
+"metropolitano": [
+1980,
+30636
+],
+"suburbio": [
+1740,
+21334
+],
+"eladio": [
+1320,
+20143
+],
+"municipal": [
+1861,
+22784
+]
+}
+},
+{
+"nome": "Vila Laura",
+"key": "vila laura",
+"lat": -12.970083,
+"lng": -38.487969,
+"rotas": {
+"hge": [
+876,
+7844
+],
+"hgrs": [
+1002,
+6972
+],
+"hgesf": [
+530,
+2615
+],
+"metropolitano": [
+1853,
+29082
+],
+"suburbio": [
+1533,
+18442
+],
+"eladio": [
+1114,
+17250
+],
+"municipal": [
+1655,
+19892
+]
+}
+},
+{
+"nome": "Vila Luis Anselmo",
+"key": "vila luis anselmo",
+"lat": -12.974991,
+"lng": -38.493541,
+"rotas": {
+"hge": [
+812,
+6048
+],
+"hgrs": [
+1028,
+7253
+],
+"hgesf": [
+556,
+2896
+],
+"metropolitano": [
+1879,
+29363
+],
+"suburbio": [
+1559,
+18723
+],
+"eladio": [
+1140,
+17531
+],
+"municipal": [
+1681,
+20173
+]
+}
+},
+{
+"nome": "Vila Matos",
+"key": "vila matos",
+"lat": -13.009129,
+"lng": -38.499325,
+"rotas": {
+"hge": [
+495,
+3050
+],
+"hgrs": [
+1360,
+13281
+],
+"hgesf": [
+1125,
+8836
+],
+"metropolitano": [
+1992,
+31168
+],
+"suburbio": [
+1942,
+24438
+],
+"eladio": [
+1523,
+23247
+],
+"municipal": [
+1921,
+23876
+]
+}
+},
+{
+"nome": "Vila Ogunjá",
+"key": "vila ogunja",
+"lat": -12.983685,
+"lng": -38.497108,
+"rotas": {
+"hge": [
+391,
+2877
+],
+"hgrs": [
+1152,
+9901
+],
+"hgesf": [
+849,
+7790
+],
+"metropolitano": [
+1897,
+30644
+],
+"suburbio": [
+1657,
+21342
+],
+"eladio": [
+1237,
+20150
+],
+"municipal": [
+1778,
+22791
+]
+}
+},
+{
+"nome": "Vila Paraíso",
+"key": "vila paraiso",
+"lat": -12.983388,
+"lng": -38.498997,
+"rotas": {
+"hge": [
+593,
+4033
+],
+"hgrs": [
+1331,
+9727
+],
+"hgesf": [
+752,
+4418
+],
+"metropolitano": [
+2098,
+31800
+],
+"suburbio": [
+1859,
+22498
+],
+"eladio": [
+1439,
+21306
+],
+"municipal": [
+1980,
+23948
+]
+}
+},
+{
+"nome": "Vila Quebra Bunda - Chácara Santo Antonio",
+"key": "vila quebra bunda chacara santo antonio",
+"lat": -12.961959,
+"lng": -38.503668,
+"rotas": {
+"hge": [
+809,
+7433
+],
+"hgrs": [
+991,
+8531
+],
+"hgesf": [
+429,
+2922
+],
+"metropolitano": [
+1861,
+30661
+],
+"suburbio": [
+1522,
+20001
+],
+"eladio": [
+1103,
+18810
+],
+"municipal": [
+1644,
+21451
+]
+}
+},
+{
+"nome": "Vila Ruy Barbosa / Jardim Cruzeiro",
+"key": "vila ruy barbosa jardim cruzeiro",
+"lat": -12.931601,
+"lng": -38.499495,
+"rotas": {
+"hge": [
+1410,
+11611
+],
+"hgrs": [
+1577,
+9122
+],
+"hgesf": [
+1076,
+5275
+],
+"metropolitano": [
+2403,
+32187
+],
+"suburbio": [
+1936,
+15125
+],
+"eladio": [
+1535,
+17791
+],
+"municipal": [
+2076,
+20433
+]
+}
+},
+{
+"nome": "Vila Santa Madalena",
+"key": "vila santa madalena",
+"lat": -13.00182,
+"lng": -38.493969,
+"rotas": {
+"hge": [
+434,
+2926
+],
+"hgrs": [
+1371,
+13906
+],
+"hgesf": [
+1148,
+9251
+],
+"metropolitano": [
+2003,
+31793
+],
+"suburbio": [
+1954,
+25063
+],
+"eladio": [
+1534,
+23872
+],
+"municipal": [
+1932,
+24501
+]
+}
+},
+{
+"nome": "Vila São Tomé de Paripe",
+"key": "vila sao tome de paripe",
+"lat": -12.82628,
+"lng": -38.48014,
+"rotas": {
+"hge": [
+2562,
+25542
+],
+"hgrs": [
+2676,
+22058
+],
+"hgesf": [
+2309,
+19596
+],
+"metropolitano": [
+2339,
+24258
+],
+"suburbio": [
+1289,
+6914
+],
+"eladio": [
+1941,
+15863
+],
+"municipal": [
+2482,
+18504
+]
+}
+},
+{
+"nome": "Vila Vale da Muriçoca",
+"key": "vila vale da muricoca",
+"lat": -12.999971,
+"lng": -38.501917,
+"rotas": {
+"hge": [
+657,
+2920
+],
+"hgrs": [
+1656,
+13068
+],
+"hgesf": [
+1078,
+7760
+],
+"metropolitano": [
+2334,
+33314
+],
+"suburbio": [
+2107,
+25101
+],
+"eladio": [
+1687,
+23910
+],
+"municipal": [
+2228,
+26551
+]
+}
+},
+{
+"nome": "Vila Xurupita",
+"key": "vila xurupita",
+"lat": -12.97479,
+"lng": -38.485885,
+"rotas": {
+"hge": [
+684,
+5769
+],
+"hgrs": [
+1108,
+7828
+],
+"hgesf": [
+637,
+3471
+],
+"metropolitano": [
+1883,
+29312
+],
+"suburbio": [
+1640,
+19298
+],
+"eladio": [
+1220,
+18107
+],
+"municipal": [
+1761,
+20748
+]
+}
+},
+{
+"nome": "Vila da Federação",
+"key": "vila da federacao",
+"lat": -12.998295,
+"lng": -38.510944,
+"rotas": {
+"hge": [
+584,
+4753
+],
+"hgrs": [
+1443,
+15023
+],
+"hgesf": [
+978,
+7907
+],
+"metropolitano": [
+2075,
+32911
+],
+"suburbio": [
+2008,
+25249
+],
+"eladio": [
+1588,
+24058
+],
+"municipal": [
+2004,
+25618
+]
+}
+},
+{
+"nome": "Vitória",
+"key": "vitoria",
+"lat": -12.992978,
+"lng": -38.526319,
+"rotas": {
+"hge": [
+785,
+6145
+],
+"hgrs": [
+1561,
+13536
+],
+"hgesf": [
+999,
+7927
+],
+"metropolitano": [
+2387,
+35564
+],
+"suburbio": [
+2093,
+25006
+],
+"eladio": [
+1673,
+23814
+],
+"municipal": [
+2214,
+26456
+]
+}
+},
+{
+"nome": "Água de Meninos",
+"key": "agua de meninos",
+"lat": -12.956838,
+"lng": -38.502193,
+"rotas": {
+"hge": [
+939,
+8677
+],
+"hgrs": [
+1208,
+10391
+],
+"hgesf": [
+646,
+4782
+],
+"metropolitano": [
+2078,
+32521
+],
+"suburbio": [
+1790,
+15333
+],
+"eladio": [
+1320,
+20670
+],
+"municipal": [
+1861,
+23311
+]
+}
+}
+]
+}

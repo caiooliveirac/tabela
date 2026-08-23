@@ -23,6 +23,7 @@ import ConfirmDialog from "./ConfirmDialog";
 import PinDialog from "./PinDialog";
 import Tutorial from "./Tutorial";
 import SummaryDrawer from "./SummaryDrawer";
+import EncaminharView from "./EncaminharView";
 
 function fmt(ts: string): string {
   const d = new Date(ts);
@@ -97,6 +98,18 @@ const Badge = ({
   );
 };
 
+// Abas do painel. "destino" fica logo depois do semáforo porque é a mesma
+// pergunta vista de outro ângulo: o semáforo diz quem está aceitando agora, o
+// destino diz quem PODE receber este paciente e a que distância.
+const TAB_LABELS = [
+  ["semaphore", "Semáforo"],
+  ["destino", "Destino"],
+  ["timeline", "Casos"],
+  ["upas", "UPAs"],
+] as const;
+const TABS = TAB_LABELS.map(([k]) => k);
+type Tab = (typeof TAB_LABELS)[number][0];
+
 export default function Dashboard() {
   // API data
   const { data: hospitalsData, isLoading, error } = useHospitals();
@@ -120,10 +133,11 @@ export default function Dashboard() {
   const [showReport, setShowReport] = useState(false);
   const [editingChefia, setEditingChefia] = useState<typeof chefiaAlerts[number] | null>(null);
   const [op, setOp] = useState(() => localStorage.getItem("tabela:op") || "");
-  const [tab, setTab] = useState<"semaphore" | "timeline" | "upas">(() => {
+  const [tab, setTab] = useState<Tab>(() => {
     const fromUrl = new URLSearchParams(window.location.search).get("tab");
-    if (fromUrl === "upas" || fromUrl === "semaphore" || fromUrl === "timeline") return fromUrl;
-    return (localStorage.getItem("tabela:tab") as "semaphore" | "timeline" | "upas") || "semaphore";
+    if (fromUrl && (TABS as readonly string[]).includes(fromUrl)) return fromUrl as Tab;
+    const salvo = localStorage.getItem("tabela:tab");
+    return salvo && (TABS as readonly string[]).includes(salvo) ? (salvo as Tab) : "semaphore";
   });
   const [confirm, setConfirm] = useState<{
     msg: string;
@@ -697,13 +711,7 @@ export default function Dashboard() {
 
           {/* Tab switcher */}
           <div data-tutorial-id="tab-switcher" className="flex gap-[2px] bg-white/[.15] rounded-lg p-[3px]">
-            {(
-              [
-                ["semaphore", "Semáforo"],
-                ["timeline", "Casos"],
-                ["upas", "UPAs"],
-              ] as const
-            ).map(([k, l]) => (
+            {TAB_LABELS.map(([k, l]) => (
               <button
                 key={k}
                 onClick={() => setTab(k)}
@@ -879,6 +887,8 @@ export default function Dashboard() {
 
             {tab === "upas" ? (
               <UpasView operador={op} />
+            ) : tab === "destino" ? (
+              <EncaminharView hospitals={hospitals} />
             ) : tab === "semaphore" ? (
               <>
                 {/* Legend — gradient bar */}

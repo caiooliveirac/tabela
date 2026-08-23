@@ -1,0 +1,247 @@
+// ═══════════════════════════════════════════════════════════════
+// Aba Destino — para onde levar ESTE paciente.
+//
+// Duas entradas (bairro da ocorrência + perfil clínico) e um ranking.
+//
+// A ordem é SÓ tempo de carro dentro do que o perfil permite. O semáforo de
+// aceitação aparece na cor da barra e no chip, mas não move ninguém de lugar:
+// o regulador vê que o primeiro da lista está negando e decide com isso na
+// mão. Ordem previsível é ordem que dá para defender no telefone.
+//
+// Quem ficou de fora aparece com o motivo. Some calado seria indistinguível
+// de bug, e o regulador ficaria sem saber se confia na lista.
+// ═══════════════════════════════════════════════════════════════
+import { useState } from "react";
+import type { HospitalData, DestinoRanqueado } from "../lib/types";
+import { scoreToColor, NEUTRAL_STYLE } from "../lib/colors";
+import { usePerfisEncaminhamento, useEncaminhamento } from "../hooks/useEncaminhamento";
+import IntelChip from "./IntelChip";
+
+function tempo(segundos: number | null): string {
+  if (segundos === null) return "—";
+  const min = Math.round(segundos / 60);
+  if (min < 60) return `${min} min`;
+  return `${Math.floor(min / 60)}h${String(min % 60).padStart(2, "0")}`;
+}
+
+function distancia(metros: number | null): string {
+  if (metros === null) return "";
+  return `${(metros / 1000).toFixed(1).replace(".", ",")} km`;
+}
+
+interface Props {
+  hospitals: HospitalData[];
+}
+
+export default function EncaminharView({ hospitals }: Props) {
+  const [local, setLocal] = useState("");
+  const [perfil, setPerfil] = useState("");
+  const [verExcluidos, setVerExcluidos] = useState(false);
+
+  const { data: perfis } = usePerfisEncaminhamento();
+  const { data, isFetching, error } = useEncaminhamento(local, perfil);
+
+  const porId = new Map(hospitals.map((h) => [h.id, h]));
+  const semDados = (h?: HospitalData) => !h || (h.total === 0 && h.intel.length === 0);
+  const cor = (h?: HospitalData) => (semDados(h) ? NEUTRAL_STYLE : scoreToColor(h!.score));
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* ── Entradas ── */}
+      <div className="bg-white rounded-[10px] border border-slate-200 p-4">
+        <div className="text-[11px] font-extrabold text-slate-600 mb-3 uppercase tracking-wide">
+          🚑 Para onde levar
+        </div>
+        <div className="flex gap-3 flex-wrap">
+          <div className="flex-1 min-w-[240px]">
+            <label className="block text-[11px] font-bold text-slate-500 mb-1">
+              Bairro ou endereço da ocorrência
+            </label>
+            <input
+              value={local}
+              onChange={(e) => setLocal(e.target.value)}
+              placeholder="Ex.: Pituba · Rua X, 200, Brotas"
+              className="w-full py-2 px-3 rounded-lg border border-slate-300 text-sm outline-none focus:border-blue-600"
+            />
+          </div>
+          <div className="flex-1 min-w-[240px]">
+            <label className="block text-[11px] font-bold text-slate-500 mb-1">
+              Perfil do paciente
+            </label>
+            <select
+              value={perfil}
+              onChange={(e) => setPerfil(e.target.value)}
+              className="w-full py-2 px-3 rounded-lg border border-slate-300 text-sm outline-none focus:border-blue-600 bg-white cursor-pointer"
+            >
+              <option value="">Selecione…</option>
+              {perfis?.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Estado inicial ── */}
+      {!data && !isFetching && (
+        <div className="bg-white rounded-[10px] border border-slate-200 py-10 px-6 text-center">
+          <div className="text-3xl mb-2">🗺️</div>
+          <div className="text-sm font-bold text-slate-700 mb-1">
+            Informe o bairro e o perfil do paciente
+          </div>
+          <div className="text-xs text-slate-500 max-w-md mx-auto">
+            A lista sai por tempo de carro, dentro dos hospitais que atendem
+            aquele perfil. Hospital que não atende o perfil não aparece — nem
+            se for na esquina da ocorrência.
+          </div>
+        </div>
+      )}
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-[10px] p-3 text-sm font-semibold text-red-700">
+          {(error as Error).message}
+        </div>
+      )}
+
+      {data && (
+        <>
+          {/* ── Contexto ── */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {data.bairro && (
+              <span className="inline-flex items-center px-2 py-[3px] text-xs font-extrabold rounded-[5px] bg-slate-800 text-white">
+                📍 {data.bairro.nome}
+              </span>
+            )}
+            <span className="inline-flex items-center px-2 py-[3px] text-xs font-extrabold rounded-[5px] bg-blue-100 text-blue-800">
+              {data.perfil.label}
+            </span>
+            {data.destinos.length > 0 && (
+              <span className="text-xs text-slate-500 font-semibold">
+                {data.destinos.length} destino{data.destinos.length !== 1 ? "s" : ""} possíve
+                {data.destinos.length !== 1 ? "is" : "l"}
+              </span>
+            )}
+            {isFetching && <span className="text-xs text-slate-400">atualizando…</span>}
+          </div>
+
+          {data.aviso && (
+            <div className="bg-amber-50 border border-amber-300 rounded-[10px] p-3 text-[13px] font-semibold text-amber-900">
+              ⚠️ {data.aviso}
+            </div>
+          )}
+
+          {/* ── Bairro ambíguo ── */}
+          {data.candidatos.length > 0 && (
+            <div className="flex gap-2 flex-wrap">
+              {data.candidatos.map((c) => (
+                <button
+                  key={c.key}
+                  onClick={() => setLocal(c.nome)}
+                  className="py-[6px] px-3 text-xs font-bold rounded-lg border border-slate-300 bg-white text-slate-700 cursor-pointer hover:border-blue-600"
+                >
+                  {c.nome}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* ── Ranking ── */}
+          <div className="flex flex-col gap-2">
+            {data.destinos.map((d: DestinoRanqueado, i: number) => {
+              const h = porId.get(d.hospitalId);
+              const st = cor(h);
+              const alertas = h?.intel.filter((x) => x.tipo !== "pretendo_enviar") ?? [];
+
+              return (
+                <div
+                  key={d.hospitalId}
+                  className="relative flex items-center gap-4 rounded-[14px] bg-white overflow-hidden py-3 pl-5 pr-4"
+                  style={{ border: `2px solid ${st.bd}66`, boxShadow: st.glow }}
+                >
+                  <div
+                    className="absolute left-0 top-0 bottom-0 w-[5px]"
+                    style={{ backgroundColor: st.bd }}
+                  />
+
+                  {/* Posição — a ordem é a informação, então ela é o primeiro
+                      elemento e não compete em cor com o semáforo. */}
+                  <div className="w-8 h-8 shrink-0 rounded-full bg-slate-900 text-white text-sm font-black flex items-center justify-center">
+                    {i + 1}
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-baseline gap-2 flex-wrap">
+                      <span className="text-[17px] font-black text-slate-900">{d.nome}</span>
+                      {!semDados(h) && (
+                        <span
+                          className="inline-flex items-center px-[6px] py-[1px] text-[10px] font-extrabold rounded-[4px]"
+                          style={{ backgroundColor: st.bg, color: st.tx }}
+                        >
+                          {h!.sem === "green" ? "aceitando" : h!.sem === "yellow" ? "atenção" : "negando"}
+                        </span>
+                      )}
+                    </div>
+
+                    {d.ressalva && (
+                      <div className="mt-1 text-[11px] font-bold text-amber-700 flex items-start gap-1">
+                        <span>⚠️</span>
+                        <span>{d.ressalva}</span>
+                      </div>
+                    )}
+
+                    {alertas.length > 0 && (
+                      <div className="mt-[6px] flex flex-col gap-1">
+                        {alertas.map((x) => (
+                          <IntelChip key={x.id} i={x} />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="text-right shrink-0">
+                    <div className="text-xl font-black text-slate-900 leading-none">
+                      {tempo(d.segundos)}
+                    </div>
+                    <div className="text-[11px] text-slate-500 font-semibold mt-1">
+                      {distancia(d.metros)}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* ── Excluídos ── */}
+          {data.excluidos.length > 0 && (
+            <div className="bg-white rounded-[10px] border border-slate-200 overflow-hidden">
+              <button
+                onClick={() => setVerExcluidos((v) => !v)}
+                className="w-full flex items-center justify-between py-[10px] px-4 bg-transparent border-none cursor-pointer text-left"
+              >
+                <span className="text-[11px] font-extrabold text-slate-600 uppercase tracking-wide">
+                  Fora desta lista ({data.excluidos.length})
+                </span>
+                <span className="text-slate-400 text-xs">{verExcluidos ? "▲" : "▼"}</span>
+              </button>
+              {verExcluidos && (
+                <div className="border-t border-slate-200">
+                  {data.excluidos.map((x) => (
+                    <div
+                      key={x.hospitalId}
+                      className="flex items-center justify-between gap-3 py-2 px-4 border-b border-slate-100 last:border-b-0"
+                    >
+                      <span className="text-[13px] font-bold text-slate-500">{x.nome}</span>
+                      <span className="text-[11px] text-slate-400 text-right">{x.motivo}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
