@@ -13,7 +13,7 @@
 
 import { notInArray, sql } from "drizzle-orm";
 import { db } from "../index.js";
-import { bairroRotas } from "../db/schema.js";
+import { bairroRotas, locaisNaoEncontrados } from "../db/schema.js";
 import { LOCAIS } from "./locais.js";
 
 /**
@@ -61,6 +61,48 @@ export async function initBairroRotas(): Promise<void> {
     await db.delete(bairroRotas).where(
         notInArray(bairroRotas.bairroKey, LOCAIS.map((l) => l.key)),
     );
+}
+
+/**
+ * Cria a tabela de aprendizado. Separada do seed porque não tem seed: nasce
+ * vazia e cresce com o que a regulação procura e não acha.
+ */
+export async function initLocaisNaoEncontrados(): Promise<void> {
+    await db.execute(sql`
+        CREATE TABLE IF NOT EXISTS locais_nao_encontrados (
+            termo     varchar(160) PRIMARY KEY,
+            vezes     integer      NOT NULL DEFAULT 1,
+            ultima_em timestamptz  NOT NULL DEFAULT now()
+        )
+    `);
+}
+
+/**
+ * Anota que alguém procurou por algo que não existe no índice.
+ *
+ * Nunca derruba a consulta: se a escrita falhar, o regulador ainda recebe a
+ * lista por afinidade clínica. Aprender é secundário; responder não é.
+ *
+ * O termo já chega normalizado, então "Cajazeiras 8" e "cajazeiras 8" contam
+ * junto. Fragmentos de digitação ("cajaz", "cajazei") também entram — a
+ * curadoria ordena por `vezes`, e o nome completo sobe acima dos pedaços.
+ */
+export async function registrarBuscaSemResultado(termo: string): Promise<void> {
+    if (termo.length < 4 || termo.length > 160) return;
+    try {
+        await db
+            .insert(locaisNaoEncontrados)
+            .values({ termo })
+            .onConflictDoUpdate({
+                target: locaisNaoEncontrados.termo,
+                set: {
+                    vezes: sql`${locaisNaoEncontrados.vezes} + 1`,
+                    ultimaEm: sql`now()`,
+                },
+            });
+    } catch (e) {
+        console.error("[locais] falha ao registrar busca sem resultado:", e);
+    }
 }
 
 export interface Rota {

@@ -15,8 +15,8 @@ import {
     nomeHospital,
     PerfilDesconhecido,
 } from "../services/encaminhamento.js";
-import { acharLocal } from "../services/locais.js";
-import { rotasDoLocal } from "../services/locais-store.js";
+import { acharLocal, normalizar } from "../services/locais.js";
+import { registrarBuscaSemResultado, rotasDoLocal } from "../services/locais-store.js";
 
 const router = Router();
 
@@ -48,6 +48,8 @@ router.get("/", async (req: Request, res: Response) => {
     // uma tela vazia porque o regulador escreveu o lugar de um jeito que o
     // índice não conhece.
     if (achados.length === 0) {
+        // Não bloqueia a resposta: aprender é secundário, responder não é.
+        void registrarBuscaSemResultado(normalizar(busca));
         return res.json({
             perfil: { id: filtro.perfil.id, label: filtro.perfil.label },
             local: null,
@@ -60,7 +62,7 @@ router.get("/", async (req: Request, res: Response) => {
                 metros: null,
             })),
             excluidos: filtro.excluidos.map((x) => ({ ...x, nome: nomeHospital(x.hospitalId) })),
-            aviso: "Local não reconhecido — a lista está por afinidade clínica, sem ordem de distância.",
+            aviso: `Não conhecemos "${busca}". Pergunte a quem está na cena qual é o bairro mais próximo. A lista abaixo está por afinidade clínica, sem ordem de distância — e o termo já foi registrado para entrar no índice.`,
         });
     }
 

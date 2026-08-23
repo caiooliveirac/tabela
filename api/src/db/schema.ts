@@ -79,3 +79,17 @@ export const bairroRotas = pgTable(
   },
   (t) => [primaryKey({ columns: [t.bairroKey, t.hospitalId] })],
 );
+
+// O que a regulação procurou e o índice não conhecia. Existe para o módulo
+// aprender: o que aparece aqui com contagem alta é bairro, conjunto ou apelido
+// que falta em locais-salvador.json.
+//
+// Guarda só o termo NORMALIZADO e a contagem — sem autor, sem IP, sem ligação
+// com caso. Ainda assim, o texto é digitado livre e pode conter o endereço de
+// uma ocorrência: tratar com o mesmo cuidado de cases.caso, e nunca expor em
+// rota pública.
+export const locaisNaoEncontrados = pgTable("locais_nao_encontrados", {
+  termo: varchar("termo", { length: 160 }).primaryKey(),
+  vezes: integer("vezes").notNull().default(1),
+  ultimaEm: timestamp("ultima_em", { withTimezone: true }).notNull().defaultNow(),
+});
