@@ -240,3 +240,41 @@ export type WsEvent =
   | { type: "chefia:updated"; payload: ChefiaAlert }
   | { type: "chefia:removed"; payload: ChefiaAlert }
   | { type: "refresh" };
+
+// ── Encaminhamento ──
+// Para onde levar o paciente: filtro clínico duro (o hospital atende este
+// perfil?) e, dentro dele, ordem por tempo de carro do bairro da ocorrência.
+// Score e alertas NÃO entram na ordem — o painel já os tem e os mostra ao
+// lado como aviso, para o regulador ver que o primeiro da lista está negando
+// e decidir com isso na mão.
+
+export interface PerfilEncaminhamento {
+  id: string;
+  label: string;
+}
+
+export interface DestinoRanqueado {
+  hospitalId: string;
+  nome: string;
+  /** Aviso que o sistema não sabe julgar (material ortopédico, p.ex.). */
+  ressalva: string | null;
+  /** null quando o bairro não foi reconhecido ou é ilha sem rota. */
+  segundos: number | null;
+  metros: number | null;
+}
+
+export interface DestinoExcluido {
+  hospitalId: string;
+  nome: string;
+  motivo: string;
+}
+
+export interface EncaminhamentoResponse {
+  perfil: PerfilEncaminhamento;
+  bairro: { nome: string; key: string } | null;
+  /** Preenchido quando o texto casa com mais de um bairro. */
+  candidatos: { nome: string; key: string }[];
+  destinos: DestinoRanqueado[];
+  excluidos: DestinoExcluido[];
+  aviso: string | null;
+}

@@ -17,6 +17,8 @@ import type {
   UpaRestriction,
   UpaRestrictionsResponse,
   CreateUpaRestrictionPayload,
+  PerfilEncaminhamento,
+  EncaminhamentoResponse,
   WsEvent,
 } from "../lib/types";
 
@@ -125,6 +127,15 @@ export const api = {
       method: "DELETE",
       body: JSON.stringify({ removidoPor, pin }),
     }),
+
+  // ── Encaminhamento (só leitura) ──
+  getPerfisEncaminhamento: () =>
+    request<PerfilEncaminhamento[]>("/encaminhamento/perfis"),
+
+  getEncaminhamento: (local: string, perfil: string) =>
+    request<EncaminhamentoResponse>(
+      `/encaminhamento?local=${encodeURIComponent(local)}&perfil=${encodeURIComponent(perfil)}`,
+    ),
 };
 
 // ── WebSocket ──

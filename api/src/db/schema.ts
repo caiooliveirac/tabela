@@ -4,6 +4,8 @@ import {
   varchar,
   text,
   boolean,
+  integer,
+  primaryKey,
   timestamp,
 } from "drizzle-orm/pg-core";
 
@@ -62,3 +64,18 @@ export const chefiaAlerts = pgTable("chefia_alerts", {
   removidoPor: varchar("removido_por", { length: 100 }),
   removidoEm: timestamp("removido_em", { withTimezone: true }),
 });
+
+// Distância materializada bairro → hospital, calculada fora do ar e semeada no
+// boot a partir de src/data/bairros-salvador.json. Existe para o módulo de
+// encaminhamento não depender da API do Google em plantão: chave vencida ou
+// link caído não derrubam o ranking. Ver services/bairros.ts.
+export const bairroRotas = pgTable(
+  "bairro_rotas",
+  {
+    bairroKey: varchar("bairro_key", { length: 120 }).notNull(),
+    hospitalId: varchar("hospital_id", { length: 50 }).notNull(),
+    segundos: integer("segundos").notNull(),
+    metros: integer("metros").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.bairroKey, t.hospitalId] })],
+);
