@@ -34,6 +34,18 @@ router.get("/perfis", (_req: Request, res: Response) => {
     res.json(PERFIS.map((p) => ({ id: p.id, label: p.label })));
 });
 
+// GET /tabela/api/encaminhamento/config — o que o navegador precisa para o
+// mapa do Google. A chave aqui é a de NAVEGADOR (restrita por referrer no
+// console do Google), nunca a GOOGLE_MAPS_API_KEY do gerar-locais.py: chave de
+// servidor publicada no bundle é cota de terceiro esperando para ser gasta.
+// Sem a variável, o painel cai no Leaflet e o plantão segue funcionando.
+router.get("/config", (_req: Request, res: Response) => {
+    res.json({
+        mapsKey: process.env.GOOGLE_MAPS_BROWSER_KEY || null,
+        mapId: process.env.GOOGLE_MAPS_MAP_ID || "DEMO_MAP_ID",
+    });
+});
+
 // GET /tabela/api/encaminhamento/hospitais — pontos para o mapa desenhar
 router.get("/hospitais", (_req: Request, res: Response) => {
     res.json(
@@ -180,7 +192,9 @@ async function montarResposta(
 ) {
     const base = {
         perfil: { id: filtro.perfil.id, label: filtro.perfil.label },
-        local: { nome: local.nome, key: local.key, tipo: local.tipo },
+        // lat/lng entram para o mapa traçar as rotas a partir da origem do
+        // ranking quando a busca foi por texto — clique já tem o próprio ponto.
+        local: { nome: local.nome, key: local.key, tipo: local.tipo, lat: local.lat, lng: local.lng },
         candidatos: [] as unknown[],
         encaixe,
         excluidos: filtro.excluidos.map((x) => ({ ...x, nome: nomeHospital(x.hospitalId) })),

@@ -1,6 +1,8 @@
 # Módulo de encaminhamento — para onde levar ESTE paciente
 
-Status: **desenho**. Nada implementado ainda.
+Status: **em produção** (aba Destino). Este arquivo guarda as decisões de
+desenho; o mapa do Google e a busca por endereço estão na seção
+[Mapa Google e busca por endereço](#mapa-google-e-busca-por-endereço).
 
 Não confundir com [`destinos-regulacao.md`](destinos-regulacao.md): aquele é
 retrospectivo ("para onde os pacientes foram"), compilado pelo bot. Este é
@@ -345,7 +347,85 @@ cuidado de `cases.caso`, e nunca em rota pública.
   modal de alerta, ou casamento por palavra-chave?
 - **Maternidades**: fica em repo próprio, fora deste módulo. O usuário quer
   reativá-lo — tarefa separada, não escopo daqui.
-- **Endereço livre fora de lugar conhecido**: hoje o casamento é por nome. O
-  registro em `locais_nao_encontrados` é a alternativa barata — a lista cresce
-  com o uso em vez de depender de geocodificar em plantão, o que traria a
-  chave do Google de volta para o caminho crítico.
+- **Endereço livre fora de lugar conhecido**: ~~hoje o casamento é por nome~~
+  resolvido pelo autocomplete do Google (seção abaixo): o endereço vira
+  coordenada no navegador e entra no fluxo do clique — encaixe no lugar
+  conhecido, rota materializada. O registro em `locais_nao_encontrados`
+  continua valendo como trilha de curadoria do índice.
+
+## Mapa Google e busca por endereço
+
+Desde 2026-08 a aba Destino usa o mapa do Google quando o servidor tem
+`GOOGLE_MAPS_BROWSER_KEY`; sem a variável (LAB sem chave, script fora do ar) o
+painel cai no Leaflet/OSM de antes, que continua no repo como fallback. A
+decisão nº 1 não mudou: **o ranking segue saindo das rotas materializadas no
+Postgres**. O Google entrou como camada de visual e de busca — se ele cair no
+meio do plantão, o que se perde é desenho de rota e sugestão de endereço,
+nunca a lista de destinos.
+
+O que a camada Google acrescenta:
+
+- **Rotas plotadas**: os três primeiros destinos com tempo ganham a rota
+  desenhada no mapa, na cor da posição do ranking (azul, roxo, verde-azulado);
+  o pino do hospital ganha o mesmo número do card. A linha é geometria
+  (Directions, uma chamada por destino, com cache por sessão); o tempo exibido
+  continua o materializado.
+- **Busca por rua e ponto de referência**: o campo "Onde é a ocorrência"
+  sugere endereços do Google (Places Autocomplete, restrito à caixa da RMS,
+  com session token). Escolher uma sugestão vira coordenada e reusa o fluxo do
+  clique no mapa: encaixe no lugar conhecido mais próximo + aviso do tamanho
+  da aproximação. Bairro, largo e apelido continuam resolvendo primeiro no
+  índice local, de graça.
+
+### Chaves — nunca reusar a de servidor
+
+| Variável | Onde vive | Para quê |
+|---|---|---|
+| `GOOGLE_MAPS_API_KEY` | `.env` (server-side) | só o `gerar-locais.py`, fora do ar |
+| `GOOGLE_MAPS_BROWSER_KEY` | `.env` → compose → `/tabela/api/encaminhamento/config` | Maps JS no navegador |
+| `GOOGLE_MAPS_MAP_ID` | idem (opcional) | estilo do mapa; sem ela usa `DEMO_MAP_ID` |
+
+A chave de navegador aparece no bundle por definição — a proteção é a
+restrição no console do Google, não o esconderijo:
+
+1. Criar chave nova em APIs & Services → Credentials.
+2. Application restriction: **HTTP referrers** → `https://mnrs.com.br/*`
+   (e `http://localhost:4001/*` se quiser Google no LAB).
+3. API restriction: **Maps JavaScript API**, **Places API (New)** e
+   **Directions API** — nada além.
+4. `GOOGLE_MAPS_BROWSER_KEY=...` no `.env` do LIVE (e do LAB, se for o caso).
+
+Custo por consulta na aba: 1 map load por abertura da aba, ~1 sessão de
+Autocomplete por endereço escolhido, até 3 Directions por origem nova (com
+cache na sessão). No volume da regulação (dezenas de consultas/dia) isso fica
+dentro da cota gratuita mensal por SKU do Google Maps Platform; conferir os
+preços vigentes no console antes de mudar a escala.
+
+### Estudo — como crescer o índice de lugares
+
+O índice tem 291 lugares e a mediana do encaixe é 406 m; o problema é a cauda
+(Valéria e Cassange, vizinho a mais de 2 km). As alavancas, da mais barata
+para a mais cara:
+
+1. **Apelidos** (`APELIDOS` no `gerar-locais.py`): custo zero — nenhuma
+   chamada de API, nenhuma linha de rota nova. Primeiro lugar para gastar
+   curadoria.
+2. **Colheita de `locais_nao_encontrados`**: o que a regulação procurou e não
+   achou já está anotado. Curadoria mensal:
+   `SELECT termo, vezes FROM locais_nao_encontrados ORDER BY vezes DESC LIMIT 50;`
+   — nome completo vira `REFERENCIAS` (vira ponto novo, geocodificado com as
+   duas guardas do script) ou `APELIDOS` (vira sinônimo, de graça).
+3. **Categorias novas do OSM**: candidatas com bom sinal são
+   `amenity=university`/`amenity=college` (a "frente da faculdade" é endereço
+   de ocorrência) e `leisure=park`. Escola municipal são centenas com nomes
+   parecidos — volume sem curadoria vira ambiguidade de busca, que foi o
+   motivo de barrar `shop=mall` e `landuse=residential` na primeira rodada.
+4. **Regerar o seed**: cada rodada do `gerar-locais.py` custa a matriz
+   (lugares × 7 hospitais, Routes API) — na casa de centenas de lugares é
+   dezena de dólares, e o diff do JSON mostra o que mudou antes do commit.
+
+**Rua não entra no banco, e agora não precisa.** Salvador tem >10 mil vias:
+materializar rota por rua custaria ~US$ 350 por rodada, o centroide de uma via
+longa mente mais que o encaixe de 400 m, e a busca por rua já é exatamente o
+que o Autocomplete resolve com precisão de número de porta — pagando por uso,
+só quando alguém procura.

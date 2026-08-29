@@ -38,6 +38,12 @@ services:
       # Grupo dos reguladores (o mesmo do tabela-notifier): recebe os avisos de
       # UPA restrita e responde /upas. Vazio = avisos no grupo desligados.
       TELEGRAM_REGULADORES_CHAT_ID: ${TELEGRAM_REGULADORES_CHAT_ID:-}
+      # Mapa do Google na aba Destino. Chave de NAVEGADOR, restrita por
+      # referrer (mnrs.com.br) no console — não reusar a GOOGLE_MAPS_API_KEY
+      # de servidor do gerar-locais.py. Vazio = aba usa o Leaflet.
+      GOOGLE_MAPS_BROWSER_KEY: ${GOOGLE_MAPS_BROWSER_KEY:-}
+      # Opcional: Map ID criado no console para estilizar o mapa.
+      GOOGLE_MAPS_MAP_ID: ${GOOGLE_MAPS_MAP_ID:-}
     networks:
       internal:
         aliases:

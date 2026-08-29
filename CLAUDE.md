@@ -54,3 +54,6 @@ Procedimentos completos: `~/labctl/README.md` no servidor magalu.
 - Dev local no Mac: o db do compose dev colide com a porta 5433 (túnel ssh) —
   usar override de porta. No LAB do servidor o 5433 é do próprio LAB.
 - `docker-compose.yml.bak-*` no LIVE são backups intencionais (untracked).
+- Aba Destino: mapa Google só com `GOOGLE_MAPS_BROWSER_KEY` no `.env` (chave
+  de navegador, restrita por referrer — NÃO é a `GOOGLE_MAPS_API_KEY` do
+  `gerar-locais.py`); sem ela cai no Leaflet. Ver `docs/encaminhamento-modulo.md`.
