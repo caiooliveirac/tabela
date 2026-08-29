@@ -20,6 +20,7 @@ import type {
   PerfilEncaminhamento,
   EncaminhamentoResponse,
   HospitalPonto,
+  EncaminhamentoConfig,
   WsEvent,
 } from "../lib/types";
 
@@ -144,6 +145,8 @@ export const api = {
     ),
 
   getHospitaisMapa: () => request<HospitalPonto[]>("/encaminhamento/hospitais"),
+
+  getEncaminhamentoConfig: () => request<EncaminhamentoConfig>("/encaminhamento/config"),
 };
 
 // ── WebSocket ──

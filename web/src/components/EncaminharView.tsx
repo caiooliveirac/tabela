@@ -22,10 +22,14 @@ import {
   usePerfisEncaminhamento,
   useEncaminhamento,
   useHospitaisMapa,
+  useEncaminhamentoConfig,
 } from "../hooks/useEncaminhamento";
-// Leaflet são ~150 KB. Carregar sob demanda mantém o painel leve para quem
-// nunca abre esta aba — que é a maioria das visitas ao /tabela.
+// Mapas sob demanda: quem nunca abre esta aba não paga pelo peso deles.
+// Google quando o servidor tem GOOGLE_MAPS_BROWSER_KEY; Leaflet continua como
+// fallback para LAB sem chave e para quando o script do Google não sobe.
 const MapaSalvador = lazy(() => import("./MapaSalvador"));
+const MapaGoogle = lazy(() => import("./MapaGoogle"));
+import BuscaEndereco from "./BuscaEndereco";
 import IntelChip from "./IntelChip";
 
 function tempo(segundos: number | null): string {
@@ -126,10 +130,13 @@ export default function EncaminharView({ hospitals, timelineCases }: Props) {
   const [verMapa, setVerMapa] = useState(
     () => localStorage.getItem("tabela:destinoMapa") !== "false",
   );
+  const [googleFalhou, setGoogleFalhou] = useState(false);
 
   const { data: perfis } = usePerfisEncaminhamento();
   const { data: hospitaisMapa = [] } = useHospitaisMapa();
+  const { data: cfg } = useEncaminhamentoConfig();
   const { data, isFetching, error } = useEncaminhamento(local, perfil, ponto);
+  const mapsKey = googleFalhou ? null : (cfg?.mapsKey ?? null);
 
   useEffect(() => {
     localStorage.setItem("tabela:destinoMapa", String(verMapa));
@@ -146,6 +153,27 @@ export default function EncaminharView({ hospitals, timelineCases }: Props) {
     setPonto({ lat, lng });
     setLocal("");
   };
+  // Sugestão do Google escolhida: vira ponto (mesmo fluxo do clique — encaixe
+  // no lugar conhecido, rota materializada), e o rótulo fica no campo para o
+  // regulador ver o que escolheu. Digitar de novo derruba o ponto, como hoje.
+  const escolherEndereco = (lat: number, lng: number, rotulo: string) => {
+    setPonto({ lat, lng });
+    setLocal(rotulo);
+  };
+
+  // O mapa desenha as rotas a partir da origem do ranking: o ponto exato
+  // quando houve clique/endereço, ou o centro do lugar quando foi texto.
+  const origemRotas =
+    ponto ??
+    (data?.local?.lat != null && data?.local?.lng != null
+      ? { lat: data.local.lat, lng: data.local.lng }
+      : null);
+  // Só os primeiros com tempo viram linha: 3 rotas contam a história sem
+  // virar novelo, e cada uma é uma chamada cobrada de Directions.
+  const rotasMapa = (data?.destinos ?? [])
+    .filter((d) => d.segundos !== null)
+    .slice(0, 3)
+    .map((d) => d.hospitalId);
 
   const porId = new Map(hospitals.map((h) => [h.id, h]));
   const casosPorHospital = new Map<string, CaseRow[]>();
@@ -164,14 +192,11 @@ export default function EncaminharView({ hospitals, timelineCases }: Props) {
         </div>
         <div className="flex gap-3 flex-wrap items-end">
           <div className="flex-1 min-w-[240px]">
-            <label className="block text-[11px] font-bold text-slate-500 mb-1">
-              Onde é a ocorrência
-            </label>
-            <input
-              value={local}
-              onChange={(e) => digitar(e.target.value)}
-              placeholder="Bairro, largo, estação, apelido ou endereço"
-              className="w-full py-2 px-3 rounded-lg border border-slate-300 text-sm outline-none focus:border-blue-600"
+            <BuscaEndereco
+              valor={local}
+              mapsKey={mapsKey}
+              onDigitar={digitar}
+              onEscolherEndereco={escolherEndereco}
             />
           </div>
           <div className="flex-1 min-w-[240px]">
@@ -208,7 +233,8 @@ export default function EncaminharView({ hospitals, timelineCases }: Props) {
           <div className="mt-3">
             <div className="text-[11px] text-slate-500 mb-[6px]">
               Clique onde está a ocorrência. O ranking sai do lugar conhecido mais
-              próximo — a linha tracejada mostra o quanto foi aproximado.
+              próximo — a linha tracejada mostra o quanto foi aproximado
+              {mapsKey ? "; as linhas coloridas são as rotas dos primeiros destinos" : ""}.
             </div>
             <Suspense
               fallback={
@@ -217,12 +243,30 @@ export default function EncaminharView({ hospitals, timelineCases }: Props) {
                 </div>
               }
             >
-              <MapaSalvador
-                ponto={ponto}
-                encaixe={data?.encaixe ?? null}
-                hospitais={hospitaisMapa}
-                onEscolher={clicarNoMapa}
-              />
+              {cfg === undefined && !googleFalhou ? (
+                // Config ainda no ar: esperar evita baixar o Leaflet à toa
+                // para logo depois trocá-lo pelo Google.
+                <div className="w-full h-[320px] rounded-[10px] border border-slate-200 bg-slate-50" />
+              ) : mapsKey ? (
+                <MapaGoogle
+                  mapsKey={mapsKey}
+                  mapId={cfg?.mapId ?? "DEMO_MAP_ID"}
+                  ponto={ponto}
+                  encaixe={data?.encaixe ?? null}
+                  hospitais={hospitaisMapa}
+                  origem={origemRotas}
+                  rotas={rotasMapa}
+                  onEscolher={clicarNoMapa}
+                  onFalha={() => setGoogleFalhou(true)}
+                />
+              ) : (
+                <MapaSalvador
+                  ponto={ponto}
+                  encaixe={data?.encaixe ?? null}
+                  hospitais={hospitaisMapa}
+                  onEscolher={clicarNoMapa}
+                />
+              )}
             </Suspense>
           </div>
         )}
@@ -236,7 +280,7 @@ export default function EncaminharView({ hospitals, timelineCases }: Props) {
             Informe o local e o perfil do paciente
           </div>
           <div className="text-xs text-slate-500 max-w-md mx-auto">
-            Vale bairro, largo, estação, terminal ou apelido — "Iguatemi" e
+            Vale bairro, rua, ponto de referência ou apelido — "Iguatemi" e
             "CAB" funcionam. A lista sai por tempo de carro, dentro dos
             hospitais que atendem aquele perfil. Hospital que não atende não
             aparece, nem se for na esquina da ocorrência.
@@ -290,7 +334,7 @@ export default function EncaminharView({ hospitals, timelineCases }: Props) {
               {data.encaixe.metros >= 1000
                 ? `${(data.encaixe.metros / 1000).toFixed(1).replace(".", ",")} km`
                 : `${data.encaixe.metros} m`}{" "}
-              do ponto que você clicou.
+              do ponto marcado.
             </div>
           )}
 

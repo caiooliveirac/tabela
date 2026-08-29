@@ -14,6 +14,15 @@ export function usePerfisEncaminhamento() {
   });
 }
 
+/** Chave e Map ID do Google. Config do servidor: só muda com deploy/env. */
+export function useEncaminhamentoConfig() {
+  return useQuery({
+    queryKey: ["encaminhamento", "config"],
+    queryFn: api.getEncaminhamentoConfig,
+    staleTime: Infinity,
+  });
+}
+
 /** Pontos dos hospitais para o mapa. Config do servidor: não muda sem deploy. */
 export function useHospitaisMapa() {
   return useQuery({

@@ -283,6 +283,17 @@ export interface LocalRef {
   nome: string;
   key: string;
   tipo: TipoLocal;
+  /** Presentes no `local` resolvido (o mapa traça rotas a partir daqui);
+   *  ausentes nos `candidatos`, que são só nomes para desambiguar. */
+  lat?: number;
+  lng?: number;
+}
+
+/** GET /encaminhamento/config — o que o navegador precisa para o mapa Google. */
+export interface EncaminhamentoConfig {
+  /** null = sem chave no servidor; o painel usa o Leaflet. */
+  mapsKey: string | null;
+  mapId: string;
 }
 
 export interface HospitalPonto {
