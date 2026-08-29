@@ -17,6 +17,9 @@ services:
       retries: 10
 
   api:
+    # Em produção: pull da imagem do GHCR (construída pelo build-push.yml).
+    # `build:` fica para dev local — `docker compose build` sobrescreve a tag.
+    image: ${IMAGE_API:-ghcr.io/caiooliveirac/tabela-api:latest}
     build:
       context: .
       dockerfile: docker/Dockerfile.api
@@ -55,6 +58,7 @@ services:
       retries: 5
 
   web:
+    image: ${IMAGE_WEB:-ghcr.io/caiooliveirac/tabela-web:latest}
     build:
       context: .
       dockerfile: docker/Dockerfile.web
