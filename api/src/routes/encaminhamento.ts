@@ -19,8 +19,20 @@ import {
 } from "../services/encaminhamento.js";
 import { acharLocal, localMaisProximo, normalizar, type Local } from "../services/locais.js";
 import { registrarBuscaSemResultado, rotasDoLocal } from "../services/locais-store.js";
+import { limitePorIp } from "../lib/limitePorIp.js";
 
 const router = Router();
+
+// Só a consulta é limitada: é ela que um script martelaria, e é a resposta
+// dela que faz o navegador desenhar rotas cobradas no Google. /perfis,
+// /hospitais e /config são estáticos, saem uma vez por aba aberta e ficam
+// fora — bloquear a carga do painel por causa de consulta demais seria punir
+// o plantão inteiro. Números com a central inteira atrás de um IP em mente:
+// um regulador digitando gera ~1 consulta por tecla debounced.
+const limiteConsulta = limitePorIp(
+    { limite: 60, ms: 5 * 60_000 }, // rajada: 60 em 5 min
+    { limite: 600, ms: 60 * 60_000 }, // paciência: 600 na hora
+);
 
 /**
  * Teto do encaixe do clique. O pior caso entre lugares reais é Valéria, a
@@ -60,7 +72,7 @@ router.get("/hospitais", (_req: Request, res: Response) => {
 
 // GET /tabela/api/encaminhamento?perfil=<id>&local=<texto>
 // GET /tabela/api/encaminhamento?perfil=<id>&lat=<n>&lng=<n>   (clique no mapa)
-router.get("/", async (req: Request, res: Response) => {
+router.get("/", limiteConsulta, async (req: Request, res: Response) => {
     const busca = String(req.query.local ?? "").trim();
     const perfilId = String(req.query.perfil ?? "").trim();
     const lat = req.query.lat === undefined ? null : Number(req.query.lat);
