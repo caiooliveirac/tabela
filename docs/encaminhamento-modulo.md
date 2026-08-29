@@ -401,6 +401,12 @@ cache na sessão). No volume da regulação (dezenas de consultas/dia) isso fica
 dentro da cota gratuita mensal por SKU do Google Maps Platform; conferir os
 preços vigentes no console antes de mudar a escala.
 
+`GET /encaminhamento` tem limite por IP (`lib/limitePorIp.ts`): 60 consultas
+em 5 min e 600 na hora — folgado para a central inteira atrás de um IP,
+letal para script. Isso segura abuso de clique via painel; **não** protege a
+chave extraída do bundle, que fala com o Google sem passar pela nossa API —
+para essa, a restrição por referrer acima continua sendo a única defesa.
+
 ### Estudo — como crescer o índice de lugares
 
 O índice tem 291 lugares e a mediana do encaixe é 406 m; o problema é a cauda
