@@ -133,11 +133,12 @@ export default function Dashboard() {
   const [showReport, setShowReport] = useState(false);
   const [editingChefia, setEditingChefia] = useState<typeof chefiaAlerts[number] | null>(null);
   const [op, setOp] = useState(() => localStorage.getItem("tabela:op") || "");
+  // A aba vem só do endereço (?tab=... ou /tabela/destino); sem nada, Semáforo.
+  // Não lembrar a última aba: /tabela sempre abre no Semáforo.
   const [tab, setTab] = useState<Tab>(() => {
-    const fromUrl = new URLSearchParams(window.location.search).get("tab");
-    if (fromUrl && (TABS as readonly string[]).includes(fromUrl)) return fromUrl as Tab;
-    const salvo = localStorage.getItem("tabela:tab");
-    return salvo && (TABS as readonly string[]).includes(salvo) ? (salvo as Tab) : "semaphore";
+    const fromUrl = new URLSearchParams(window.location.search).get("tab")
+      ?? window.location.pathname.slice(import.meta.env.BASE_URL.length);
+    return (TABS as readonly string[]).includes(fromUrl) ? (fromUrl as Tab) : "semaphore";
   });
   const [confirm, setConfirm] = useState<{
     msg: string;
@@ -179,7 +180,6 @@ export default function Dashboard() {
   useEffect(() => {
     if (!tutActive && op !== "Tutorial") localStorage.setItem("tabela:op", op);
   }, [op, tutActive]);
-  useEffect(() => { localStorage.setItem("tabela:tab", tab); }, [tab]);
   // Cada aba com endereço próprio, para copiar e mandar. /tabela/destino e
   // /tabela/upas são páginas do portal (prévia de link própria no WhatsApp)
   // que voltam para /tabela/?tab=...; aqui só se reescreve a barra.
