@@ -180,6 +180,15 @@ export default function Dashboard() {
     if (!tutActive && op !== "Tutorial") localStorage.setItem("tabela:op", op);
   }, [op, tutActive]);
   useEffect(() => { localStorage.setItem("tabela:tab", tab); }, [tab]);
+  // Cada aba com endereço próprio, para copiar e mandar. /tabela/destino e
+  // /tabela/upas são páginas do portal (prévia de link própria no WhatsApp)
+  // que voltam para /tabela/?tab=...; aqui só se reescreve a barra.
+  useEffect(() => {
+    const base = import.meta.env.BASE_URL;
+    const url = tab === "destino" || tab === "upas" ? `${base}${tab}`
+      : tab === "semaphore" ? base : `${base}?tab=${tab}`;
+    history.replaceState(history.state, "", url + location.hash);
+  }, [tab]);
   useEffect(() => { localStorage.setItem("tabela:showSummary", String(showSummary)); }, [showSummary]);
 
   // Derived data — substitui fonte quando tutorial ativo
