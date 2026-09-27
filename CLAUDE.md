@@ -54,6 +54,11 @@ Procedimentos completos: `~/labctl/README.md` no servidor magalu.
 - Dev local no Mac: o db do compose dev colide com a porta 5433 (túnel ssh) —
   usar override de porta. No LAB do servidor o 5433 é do próprio LAB.
 - `docker-compose.yml.bak-*` no LIVE são backups intencionais (untracked).
+- **Login único**: `mnrs.com.br/tabela/` (tela, `/api/*`, `/ws`) exige o login do
+  portal (`auth_request` no nginx do HOST → porteiro do kairos; bloco em
+  `nginx-host.conf`, estudo em `docs/login-unico.md`). Chamada de serviço usa
+  `http://127.0.0.1:3001/tabela/api`, nunca a URL pública. O LAB não tem portão.
+  Merge na `main` já faz deploy no LIVE (`deploy.yml` → magalu).
 - Aba Destino: mapa Google só com `GOOGLE_MAPS_BROWSER_KEY` no `.env` (chave
   de navegador, restrita por referrer — NÃO é a `GOOGLE_MAPS_API_KEY` do
   `gerar-locais.py`); sem ela cai no Leaflet. Ver `docs/encaminhamento-modulo.md`.

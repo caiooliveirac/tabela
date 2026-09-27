@@ -27,6 +27,51 @@ import type {
 const API_BASE =
   import.meta.env.VITE_API_URL || `${window.location.origin}/tabela/api`;
 
+// ── Sessão do portal (login único, ADR 0013 do kairos) ──
+// O nginx do host confere o cookie mnrs_sso antes de /tabela/. Sem sessão, a
+// API responde 401 (e a página, 302 para o portal). Recarregar leva ao login;
+// se já recarregou há menos de 30 s, é laço: para e mostra o aviso.
+const LOGIN_URL = "https://mnrs.com.br/?proximo=tabela";
+const RELOAD_KEY = "tabela:sessao-reload";
+const RELOAD_JANELA_MS = 30_000;
+
+function semSessao(res: Response): boolean {
+  if (res.status === 401 || res.redirected) return true;
+  return (res.headers.get("content-type") ?? "").includes("text/html");
+}
+
+function avisoSessao(): void {
+  if (document.getElementById("tabela-sessao-aviso")) return;
+  const el = document.createElement("div");
+  el.id = "tabela-sessao-aviso";
+  el.setAttribute("role", "alert");
+  el.style.cssText =
+    "position:fixed;top:0;left:0;right:0;z-index:9999;padding:12px 16px;" +
+    "background:#b91c1c;color:#fff;font:600 15px system-ui,sans-serif;text-align:center";
+  el.textContent = "Sua sessão expirou. ";
+  const link = document.createElement("a");
+  link.href = LOGIN_URL;
+  link.textContent = "Entre de novo.";
+  link.style.cssText = "color:#fff;text-decoration:underline";
+  el.appendChild(link);
+  document.body.appendChild(el);
+}
+
+function sessaoExpirada(): void {
+  let ultimo: number;
+  try {
+    ultimo = Number(sessionStorage.getItem(RELOAD_KEY)) || 0;
+    if (Date.now() - ultimo >= RELOAD_JANELA_MS) {
+      sessionStorage.setItem(RELOAD_KEY, String(Date.now()));
+      window.location.reload();
+      return;
+    }
+  } catch {
+    // sem sessionStorage não há trava contra laço: só avisa
+  }
+  avisoSessao();
+}
+
 async function request<T>(
   path: string,
   options?: RequestInit
@@ -38,6 +83,11 @@ async function request<T>(
       ...options?.headers,
     },
   });
+
+  if (semSessao(res)) {
+    sessaoExpirada();
+    throw new Error("Sessão expirada");
+  }
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: res.statusText }));
@@ -155,6 +205,19 @@ type WsHandler = (event: WsEvent) => void;
 let ws: WebSocket | null = null;
 let handlers: WsHandler[] = [];
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let wsFalhas = 0;
+
+// O handshake do WebSocket não expõe o status HTTP: depois de algumas
+// reconexões falhas, um GET leve numa rota protegida diz se é sessão vencida.
+// (/health fica aberta no portão e não serve para isto.)
+async function sondarSessao(): Promise<void> {
+  try {
+    const res = await fetch(`${API_BASE}/hospitals/list`);
+    if (semSessao(res)) sessaoExpirada();
+  } catch {
+    // rede fora: segue tentando reconectar
+  }
+}
 
 function getWsUrl(): string {
   if (import.meta.env.VITE_WS_URL) return import.meta.env.VITE_WS_URL;
@@ -170,6 +233,7 @@ export function connectWs(): void {
 
   ws.onopen = () => {
     console.log("🔌 WS connected");
+    wsFalhas = 0;
     if (reconnectTimer) {
       clearTimeout(reconnectTimer);
       reconnectTimer = null;
@@ -188,6 +252,8 @@ export function connectWs(): void {
   ws.onclose = () => {
     console.log("🔌 WS disconnected — reconnecting in 3s");
     ws = null;
+    wsFalhas += 1;
+    if (wsFalhas % 3 === 0) void sondarSessao();
     reconnectTimer = setTimeout(connectWs, 3000);
   };
 

@@ -1,5 +1,18 @@
 # Changelog — Painel de Vagas SAMU Salvador
 
+## Sessão 27/09/2026 — Login único do portal (preparação)
+
+### Portão no nginx do host (ainda desligado)
+- **`nginx-host.conf`**: bloco com `auth_request` no porteiro do kairos (ADR 0013). Tela sem sessão → 302 para `https://mnrs.com.br/?proximo=tabela`; `/tabela/api/` e `/tabela/ws` sem sessão → 401 `{"erro":"login"}`. Abertos: `= /tabela/api/health` e as imagens `og-whatsapp*.png`. `/tabela/upas*` e `/tabela/destino` (portal/giro) não mudam. Só vale depois de aplicado no magalu, com aprovação.
+- **`docker/nginx.conf`**: `Cache-Control` `private` no index e nos assets (nada do painel na borda do Cloudflare).
+
+### Client
+- **Sessão vencida** (`web/src/api/client.ts`): 401, redirect ou HTML vindo da API recarrega a página (cai no login). Trava de 30 s em `sessionStorage` contra laço; na repetição, faixa "Sua sessão expirou. Entre de novo." com link para o portal. WebSocket: a cada 3 reconexões falhas sonda `/hospitals/list`.
+
+### Docs
+- `docs/login-unico.md`: consumidores conferidos no magalu (kairos e giro-de-leitos usam a URL pública; notifier, labctl e bot Plantões usam a porta interna).
+- `CLAUDE.md`: pegadinha do login único e do deploy automático no merge.
+
 ## Sessão 06/03/2026 — Refinamentos visuais e UX
 
 ### Summary Drawer (Tabela Resumo)
