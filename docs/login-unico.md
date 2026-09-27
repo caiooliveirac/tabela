@@ -1,10 +1,13 @@
-# Login único no tabela — estudo (2026-09-27)
+# Login único no tabela (2026-09-27)
 
 Objetivo: só quem passou pelo login do portal (`mnrs.com.br/`, porteiro do
 kairos, ADR 0013) vê o painel e sabe qual paciente está em qual hospital.
 Hoje tudo em `/tabela/` (tela, `/tabela/api/*`, `/tabela/ws`) é público.
 
-**Estado: estudo. Nada aplicado.**
+**Estado (2026-09-27): código pronto neste repo; portão ainda DESLIGADO no
+nginx do host.** O bloco a aplicar é `nginx-host.conf` (testado com `nginx -t`
+e com porteiro/tabela simulados). Ligar exige aprovação, aviso aos
+reguladores e os consumidores abaixo resolvidos.
 
 ## Como o login único já funciona (kairos, ADR 0013)
 
@@ -70,35 +73,51 @@ cookie no `wss://mnrs.com.br/tabela/ws`.
 |---|---|
 | `/tabela/upas`, `/tabela/destino` | páginas de prévia de link (og:image) do portal; só redirecionam para o painel, que aí pede login |
 | `/tabela/og-whatsapp-v2.png` (e o `og-whatsapp.png`) | sem ela a prévia no WhatsApp some (o robô não tem cookie) |
-| `/tabela/api/health` | health de fora (opcional; o promote usa a porta interna?) |
+| `/tabela/api/health` | health de fora (o promote usa a porta interna) |
 
 O `index.html` com as meta tags fica **atrás** do portão: o robô do WhatsApp
 passa a ver a prévia do portal. Se a prévia do tabela importar, dá para seguir
 o esquema do `/tabela/upas` (página estática no portal com og:image própria).
 
-## Quem chama o tabela sem navegador — conferir antes de ligar
+## Quem chama o tabela sem navegador — conferido no magalu (2026-09-27)
 
-| Consumidor | Chama por | Impacto |
+| Consumidor | Chama por | Ao ligar o portão |
 |---|---|---|
-| Bot Plantões SAMU (`plantoes`, `TABELA_API_URL`) | `http://127.0.0.1:3001/tabela/api` | nenhum (porta interna) |
-| `chefiaBot` / avisos de UPA | dentro da própria API | nenhum |
-| Kairós, adaptador `fontes/tabela.ts` (`/api/cases`, `/api/upas/restrictions`) | `LEGADO_TABELA_URL=https://mnrs.com.br/tabela` (ESTADO.md) | **quebra**: trocar para a porta interna (se o kairos roda em container, pelo IP do host na rede do docker) |
-| `tabela-notifier` (fora do repo) | desconhecido | **conferir no magalu** (`grep -r mnrs.com.br ~/tabela-notifier`) — se usa a URL pública, quebra |
-| `labctl promote` (health em `/tabela/`) | desconhecido | **conferir**: se bate na URL pública, vai ver 302 e fazer rollback |
-| LAB (`localhost:4001` pelo túnel) | vite direto | nenhum; o LAB fica sem portão |
+| Bot Plantões SAMU (`plantoes`, pm2) | `TABELA_API_URL=http://127.0.0.1:3001/tabela/api` | nada muda |
+| `chefiaBot` / avisos de UPA | dentro da própria API | nada muda |
+| `tabela-notifier` (systemd) | `http://127.0.0.1:3001/tabela/api` fixo em `notifier.mjs` | nada muda |
+| `labctl promote` / `rollback` | `HEALTH_URL=http://127.0.0.1:3001/tabela/` (`apps/tabela.conf`) | nada muda |
+| Kairós (container `kairos`, `network_mode: host`) | `LEGADO_TABELA_URL=https://mnrs.com.br/tabela` | **quebra** → trocar para `http://127.0.0.1:3001/tabela` (host network alcança) |
+| giro-de-leitos (`parser-api`, `_upa_restrictions_watcher`) | `TABELA_RESTRICTIONS_URL` padrão `https://mnrs.com.br/tabela/api/upas/restrictions` | **já quebrado hoje** (HTTP 403 do Cloudflare); com o portão seria 401. Container em rede bridge: `127.0.0.1:3001` do host não é alcançável — precisa de rota interna (ver abaixo) |
+| `health-sentinel` / `pos-reboot-check.sh` | `curl -L https://mnrs.com.br/tabela/` | segue 200 (vai até o portal), mas passa a vigiar o portal, não o painel → trocar por `127.0.0.1:3001/tabela/` |
+| `samu-ai-bot` (`server/index.js`: `/api/cases` e `wss://…/tabela/ws`) | URL pública | parado (nem pm2 nem systemd); se voltar, quebra |
+| UA `node` em `/tabela/api/hospitals` (≈40 pedidos 13–26/set, via Cloudflare) | URL pública | NÃO DETERMINADO (nenhum código no servidor chama essa rota); vai receber 401 |
+| LAB (`localhost:4001` pelo túnel) | vite direto | sem portão |
 
-## Ajustes pequenos no repo que acompanham
+giro-de-leitos: opções para a rota interna (decisão do dono do giro) — ligar
+o `parser-api` à rede do compose do tabela e usar `http://tabela-web-1:3001/…`,
+ou publicar a 3001 também no IP do gateway do docker. Não é pré-requisito do
+portão (já falha hoje), mas o aviso de UPA restrita no WhatsApp segue mudo até lá.
 
-1. **`web/src/api/client.ts`**: resposta 401 (ou `res.redirected`) de
-   `/tabela/api` → `location.reload()`, que leva ao login; o WebSocket que
-   fecha e não reconecta faz o mesmo. Na prática quase não dispara (sessão de
-   30 dias deslizante), mas sem isso o painel aberto no plantão fica mudo sem
-   aviso quando a sessão vence.
-2. **`docker/nginx.conf`**: `Cache-Control "public"` dos `/tabela/assets/`
-   vira `"private"`. Se o Cloudflare estiver na frente de `mnrs.com.br` (está
-   para o `triagem`), um asset `public` pode ficar na borda e sair sem passar
-   pelo portão. Os bundles não têm paciente, mas é a regra que o triagem adotou.
-3. **`nginx-host.conf`**: passa a ser a fonte do bloco com o portão.
+## O que mudou no repo (feito)
+
+1. **`web/src/api/client.ts`**: 401, `res.redirected` ou HTML no lugar de JSON
+   vindo de `/tabela/api` → `location.reload()`, que cai no login. Trava contra
+   laço: horário do último reload em `sessionStorage`; repetiu em < 30 s (ou
+   sem `sessionStorage`) → faixa "Sua sessão expirou. Entre de novo." com link
+   para `https://mnrs.com.br/?proximo=tabela`. WebSocket: a cada 3 reconexões
+   falhas, `GET /tabela/api/hospitals/list` (rota protegida; `/health` fica
+   aberta) decide se é sessão vencida.
+2. **`docker/nginx.conf`**: `Cache-Control` vira `private` (index
+   `"private, no-cache"`, assets `"private, max-age=31536000, immutable"`).
+   O Cloudflare está na frente de `mnrs.com.br` (`server: cloudflare`): nada
+   do painel pode ficar na borda e sair sem passar pelo portão.
+3. **`nginx-host.conf`**: é a fonte do bloco com o portão (como aplicar,
+   testar e reverter no comentário do topo).
+
+**Atenção:** merge na `main` dispara `.github/workflows/deploy.yml`, que hoje
+faz `reset --hard` + `docker compose build/up` no magalu (o secret
+`EC2_HOST` aponta para lá). Merge = deploy no LIVE.
 
 ## Riscos de uso
 
