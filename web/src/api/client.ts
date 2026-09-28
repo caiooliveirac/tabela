@@ -35,7 +35,7 @@ const LOGIN_URL = "https://mnrs.com.br/?proximo=tabela";
 const RELOAD_KEY = "tabela:sessao-reload";
 const RELOAD_JANELA_MS = 30_000;
 
-function semSessao(res: Response): boolean {
+export function semSessao(res: Response): boolean {
   if (res.status === 401 || res.redirected) return true;
   return (res.headers.get("content-type") ?? "").includes("text/html");
 }
@@ -57,7 +57,7 @@ function avisoSessao(): void {
   document.body.appendChild(el);
 }
 
-function sessaoExpirada(): void {
+export function sessaoExpirada(): void {
   let ultimo: number;
   try {
     ultimo = Number(sessionStorage.getItem(RELOAD_KEY)) || 0;
@@ -72,6 +72,20 @@ function sessaoExpirada(): void {
   avisoSessao();
 }
 
+// ── Fora do plantão (portão de turno do plantoes, via porteiro) ──
+// Sessão válida, mas a conta não está de plantão agora: o nginx responde 403
+// (API e WebSocket em JSON; a tela, com a página "Tabela fechada fora do
+// plantão"). Nada da Tabela pode ficar aberto: fecha o WebSocket e troca a
+// tela inteira por essa página — ela se reconfere sozinha a cada 2 min.
+let fechandoFora = false;
+export function foraDoPlantao(): void {
+  if (fechandoFora) return;
+  fechandoFora = true;
+  disconnectWs();
+  document.body.replaceChildren();
+  window.location.replace(window.location.href);
+}
+
 async function request<T>(
   path: string,
   options?: RequestInit
@@ -83,6 +97,11 @@ async function request<T>(
       ...options?.headers,
     },
   });
+
+  if (res.status === 403) {
+    foraDoPlantao();
+    throw new Error("Fora do plantão");
+  }
 
   if (semSessao(res)) {
     sessaoExpirada();
@@ -212,11 +231,27 @@ let wsFalhas = 0;
 // (/health fica aberta no portão e não serve para isto.)
 async function sondarSessao(): Promise<void> {
   try {
-    const res = await fetch(`${API_BASE}/hospitals/list`);
-    if (semSessao(res)) sessaoExpirada();
+    const res = await fetch(`${API_BASE}/hospitals/list`, { cache: "no-store" });
+    if (res.status === 403) foraDoPlantao();
+    else if (semSessao(res)) sessaoExpirada();
   } catch {
     // rede fora: segue tentando reconectar
   }
+}
+
+// Aba esquecida aberta (inclusive escondida, quando o React Query para de
+// consultar) continua recebendo o WebSocket: confere a sessão a cada minuto e
+// ao voltar para a aba. O servidor também fecha cada WebSocket a cada 5 min
+// (api/src/ws/handler.ts) para o portão reconferir na reconexão.
+const SONDAR_A_CADA_MS = 60_000;
+let vigiando = false;
+function vigiarSessao(): void {
+  if (vigiando) return;
+  vigiando = true;
+  setInterval(() => void sondarSessao(), SONDAR_A_CADA_MS);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") void sondarSessao();
+  });
 }
 
 function getWsUrl(): string {
@@ -225,8 +260,13 @@ function getWsUrl(): string {
   return `${proto}//${window.location.host}/tabela/ws`;
 }
 
+/** Fechamento do servidor para reconferir o portão: reconecta na hora. */
+const WS_RECONFERIR = 4000;
+
 export function connectWs(): void {
+  if (fechandoFora) return;
   if (ws && ws.readyState <= WebSocket.OPEN) return;
+  vigiarSessao();
 
   const url = getWsUrl();
   ws = new WebSocket(url);
@@ -249,11 +289,17 @@ export function connectWs(): void {
     }
   };
 
-  ws.onclose = () => {
-    console.log("🔌 WS disconnected — reconnecting in 3s");
+  ws.onclose = (ev) => {
     ws = null;
+    if (ev.code === WS_RECONFERIR) {
+      connectWs();
+      return;
+    }
+    console.log("🔌 WS disconnected — reconnecting in 3s");
     wsFalhas += 1;
-    if (wsFalhas % 3 === 0) void sondarSessao();
+    // Handshake recusado (403 fora do plantão, 401 sem sessão) não expõe o
+    // status: já na primeira falha pergunta à API.
+    if (wsFalhas === 1 || wsFalhas % 3 === 0) void sondarSessao();
     reconnectTimer = setTimeout(connectWs, 3000);
   };
 
