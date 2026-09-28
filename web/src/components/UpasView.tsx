@@ -4,6 +4,7 @@ import type { UpaRestriction } from "../lib/types";
 import { useUpaRestrictions, useRestrictUpa, useLiberateUpa } from "../hooks/useUpaRestrictions";
 import UpaRestrictionModal from "./UpaRestrictionModal";
 import PinDialog from "./PinDialog";
+import { foraDoPlantao, semSessao, sessaoExpirada } from "../api/client";
 
 // Aba UPAs — visão da cidade do Giro de Leitos, consumindo a API pública do
 // giro-de-leitos montada em /tabela/upas/api (nginx).
@@ -516,7 +517,12 @@ export default function UpasView({ operador = "" }: { operador?: string }) {
   const load = useCallback(async () => {
     try {
       const [s, h] = await Promise.all([
-        fetch(`${API}/summary`, { cache: "no-store" }).then((r) => r.json()),
+        fetch(`${API}/summary`, { cache: "no-store" }).then((r) => {
+          // Dados das UPAs atrás do mesmo portão da Tabela (nginx-host.conf).
+          if (r.status === 403) foraDoPlantao();
+          else if (semSessao(r)) sessaoExpirada();
+          return r.json();
+        }),
         fetch(`${API}/history?limit=500`, { cache: "no-store" }).then((r) => r.json()).catch(() => ({ events: [] })),
       ]);
       const novas: UnitRow[] = (s.units || []).filter((u: UnitRow) => u.updated_at);

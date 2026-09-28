@@ -35,7 +35,7 @@ const LOGIN_URL = "https://mnrs.com.br/?proximo=tabela";
 const RELOAD_KEY = "tabela:sessao-reload";
 const RELOAD_JANELA_MS = 30_000;
 
-function semSessao(res: Response): boolean {
+export function semSessao(res: Response): boolean {
   if (res.status === 401 || res.redirected) return true;
   return (res.headers.get("content-type") ?? "").includes("text/html");
 }
@@ -57,7 +57,7 @@ function avisoSessao(): void {
   document.body.appendChild(el);
 }
 
-function sessaoExpirada(): void {
+export function sessaoExpirada(): void {
   let ultimo: number;
   try {
     ultimo = Number(sessionStorage.getItem(RELOAD_KEY)) || 0;
@@ -78,7 +78,7 @@ function sessaoExpirada(): void {
 // plantão"). Nada da Tabela pode ficar aberto: fecha o WebSocket e troca a
 // tela inteira por essa página — ela se reconfere sozinha a cada 2 min.
 let fechandoFora = false;
-function foraDoPlantao(): void {
+export function foraDoPlantao(): void {
   if (fechandoFora) return;
   fechandoFora = true;
   disconnectWs();
