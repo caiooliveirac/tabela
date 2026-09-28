@@ -1,5 +1,13 @@
 # Changelog — Painel de Vagas SAMU Salvador
 
+## Sessão 28/09/2026 — Tabela só de plantão
+
+O plantoes passou a recusar a Tabela para conta fora do plantão (portão de turno, plantoes docs/monitor-acessos.md): o porteiro responde 403.
+
+- **`nginx-host.conf`**: `error_page 403` — tela mostra "Tabela fechada fora do plantão" (se reconfere a cada 2 min, abre sozinha quando a chegada é registrada); `/tabela/api/` e `/tabela/ws` → 403 `{"erro":"fora_do_plantao"}`. Aplicar no magalu à mão, depois do porteiro (kairos#6).
+- **Client** (`web/src/api/client.ts`): 403 da API fecha o WebSocket e troca a tela pela página do nginx. Sonda a sessão a cada 60 s (inclusive com a aba escondida) e ao voltar para a aba; WebSocket recusado sonda já na 1ª falha.
+- **API** (`api/src/ws/handler.ts`): cada WebSocket é fechado a cada 5 min (código 4000); o client reconecta na hora e o portão confere de novo. Antes, um WebSocket aberto seguia recebendo casos depois de senha trocada, conta suspensa ou fim do plantão.
+
 ## Sessão 27/09/2026 — Login único do portal (preparação)
 
 ### Portão no nginx do host (ainda desligado)
