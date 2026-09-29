@@ -25,14 +25,17 @@ vínculo sai da página de status; se ela sair do ar, vale o último salvo em
   desativada não entram na conta.
 - **Trava:** a parada fica presa ao local onde chegou; nunca passa para o
   vizinho (HGESF, 16º Centro e Mário Leal estão a 90–180 m um do outro). Segue
-  enquanto a viatura estiver a até 200 m de um ponto do local; ou a até 150 m
-  de onde parou (2+ posições a até 50 m) — o GPS oscila; ou, sem passar de
-  300 m do local, a até 150 m da última posição. Pulo para longe (ainda até
-  300 m) espera a próxima posição: parou ali, segue; continuou, fecha na hora
-  do pulo (`seguir`).
+  enquanto a viatura estiver a até 200 m de um ponto do local, ou a até 150 m
+  de onde parou na chegada (2+ posições a até 50 m) — o GPS oscila.
+  **Chegada** (20 min): também segue a viatura até 300 m do local, a até
+  150 m da última posição; pulo para longe espera a próxima posição (parou
+  ali, segue; continuou, fecha na hora do pulo). Depois da chegada, sair para
+  longe fecha na hora: lanchonete ou ocorrência perto, depois de liberar, não
+  vira retenção (`seguir`).
 - **Estacionamento aprendido** (`aprenderPontos`, a cada 30 min, paradas de
   10+ min dos últimos 30 dias fora da base): cada parada grava onde o GPS
-  ficou parado mais tempo (`estavel_lat/lng/n`). 3 viaturas diferentes em 2
+  ficou parado mais tempo entre as paradas que começaram na chegada
+  (`estavel_lat/lng/n`). 3 viaturas diferentes em 2
   dias no mesmo lugar (40 m), a 60–300 m do pino, viram ponto do local. O
   mesmo lugar aprendido por dois locais fica com quem tem mais viaturas;
   em cima do pino de outro local, nunca. Aparece como círculo no mapa.
@@ -56,6 +59,15 @@ vínculo sai da página de status; se ela sair do ar, vale o último salvo em
   cadastro oficial). Quem transmite aparece, mesmo que a planilha diga que
   está desativada.
 
+## Diagnóstico e vigia
+
+`GET /tabela/api/frota/diagnostico` (serviço: `http://127.0.0.1:3001/...`):
+idade da última coleta, erros recentes (coleta, vínculos, aviso Telegram,
+aprendizado — repetidos viram uma linha com contagem), paradas abertas e à
+espera de pulo, e o aprendizado (pontos ativos e histórico de
+aprendeu/esqueceu). Fica em `frota_estado` (`erros`, `aprendizado`): o log
+do container some a cada deploy, isto não.
+
 ## Linha do tempo e aviso aos reguladores
 
 - `GET /tabela/api/frota/linha-do-tempo?horas=N` (1–72): paradas que tocam a
@@ -63,6 +75,8 @@ vínculo sai da página de status; se ela sair do ar, vale o último salvo em
 - Aos 40 min, mensagem no grupo **REGULADORES - RECADOS** (Telegram,
   `TELEGRAM_REGULADORES_CHAT_ID`). Uma por parada: editada a cada coleta,
   fechada com a saída ou "sem sinal" (`aviso.ts`; `aviso_msg_id` na tabela).
+  O Telegram mostra no balão a hora do envio e não marca edição de bot: por
+  isso a mensagem editada termina com "aviso das 14:18, atualizado às 14:34".
   `FROTA_AVISOS_TELEGRAM=0` desliga.
 
 ## Cruzamento com o Acolhimentos

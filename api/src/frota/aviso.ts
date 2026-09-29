@@ -13,6 +13,8 @@ export interface DadosAviso {
     hospitalNome: string;
     entrada: Date;
     ultimaVez: Date;
+    /** Quando o aviso saiu. O Telegram mostra essa hora no balão, mesmo depois de editado. */
+    avisoEm?: Date | null;
 }
 
 export type EstadoAviso =
@@ -31,22 +33,37 @@ const min = (de: Date, ate: Date) => Math.max(0, Math.floor((ate.getTime() - de.
 /** "na UPA", "na UE"; o resto (hospital, PA, Centro) é masculino. */
 const artigo = (nome: string) => (/^(UPA|UE)\b/.test(nome) ? "a" : "o");
 
-export function textoAviso(d: DadosAviso, e: EstadoAviso): string {
+/**
+ * Texto da mensagem. Com `agora`, a edição diz de quando é o aviso e quando
+ * foi atualizado — o Telegram não marca edição de bot, e "saiu às 14:33"
+ * num balão das 14:18 parece hora do futuro.
+ */
+export function textoAviso(d: DadosAviso, e: EstadoAviso, agora?: Date): string {
     const quem = `<b>${escapeHtml(d.nome)}</b>${d.tipo ? ` (${escapeHtml(d.tipo)})` : ""}`;
     const onde = `<b>${escapeHtml(d.hospitalNome)}</b>`;
     const a = artigo(d.hospitalNome);
+    const editado =
+        d.avisoEm && agora && hhmm(agora) !== hhmm(d.avisoEm)
+            ? `\n<i>aviso das ${hhmm(d.avisoEm)}, atualizado às ${hhmm(agora)}</i>`
+            : "";
     if (e.tipo === "parada") {
         return (
             `⏱ ${quem} parada há <b>${e.minutos} min</b> n${a} ${onde}\n` +
             `entrou ${hhmm(d.entrada)} · posição confirmada ${hhmm(d.ultimaVez)}\n` +
-            `<a href="${PAINEL}">ver no painel</a>`
+            `<a href="${PAINEL}">ver no painel</a>` +
+            editado
         );
     }
     if (e.tipo === "saiu") {
-        return `✅ ${quem} saiu d${a} ${onde} às ${hhmm(e.saida)} — <b>${min(d.entrada, e.saida)} min</b> parada (entrou ${hhmm(d.entrada)})`;
+        return (
+            `✅ ${quem} saiu d${a} ${onde} às ${hhmm(e.saida)} — <b>${min(d.entrada, e.saida)} min</b> parada ` +
+            `(entrou ${hhmm(d.entrada)})` +
+            editado
+        );
     }
     return (
         `⚪ ${quem} n${a} ${onde}: sem sinal desde ${hhmm(d.ultimaVez)} — ` +
-        `pelo menos <b>${min(d.entrada, d.ultimaVez)} min</b> parada (entrou ${hhmm(d.entrada)})`
+        `pelo menos <b>${min(d.entrada, d.ultimaVez)} min</b> parada (entrou ${hhmm(d.entrada)})` +
+        editado
     );
 }

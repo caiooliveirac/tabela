@@ -11,9 +11,9 @@
 import { sql } from "drizzle-orm";
 import { db } from "../index.js";
 import { CATALOGO, DESATIVADAS_ATE_SEGUNDA_ORDEM } from "./catalogo.js";
-import { LOCAIS_FROTA, type HospitalFrota } from "./hospitais.js";
+import { LOCAIS_FROTA, type HospitalFrota, type PontoAprendido } from "./hospitais.js";
 import {
-    ALERTA_MIN, aprenderPontos, avancarPermanencias, duracaoMin, ehMoto,
+    ALERTA_MIN, APRENDE_RAIO_M, aprenderPontos, avancarPermanencias, distanciaM, duracaoMin, ehMoto,
     type Evidencia, type Fechamento, type Permanencia,
 } from "./regras.js";
 import { textoAviso, type DadosAviso } from "./aviso.js";
@@ -41,6 +41,25 @@ let abertas = new Map<string, Permanencia>();
 let locais: readonly HospitalFrota[] = LOCAIS_FROTA;
 let aprendidoEm = 0;
 let rodando = false;
+
+// ── Diagnóstico (GET /frota/diagnostico) ────────────────────────
+// Os logs do container somem a cada deploy; isto fica em frota_estado.
+// Erro repetido (SAMU+ fora do ar a cada 2 min) vira uma linha com contagem.
+interface ErroFrota { onde: string; msg: string; desde: string; ate: string; vezes: number }
+interface MudancaPonto { em: string; local: string; acao: "aprendeu" | "esqueceu"; lat: number; lng: number; viaturas: number }
+const ERROS_MAX = 30;
+const MUDANCAS_MAX = 100;
+let erros: ErroFrota[] = [];
+let aprendizado: {
+    em: string | null;
+    evidencias: number;
+    /** Pontos ativos por local — restaurados no boot, para o deploy não "reaprender" tudo. */
+    pontos: Record<string, PontoAprendido[]>;
+    mudancas: MudancaPonto[];
+} = { em: null, evidencias: 0, pontos: {}, mudancas: [] };
+
+const comPontos = (pontos: Record<string, PontoAprendido[]>) =>
+    LOCAIS_FROTA.map((h) => (pontos[h.id]?.length ? { ...h, pontos: pontos[h.id] } : h));
 /** Último texto publicado por parada — só edita a mensagem quando muda. */
 const textoPublicado = new Map<number, string>();
 
@@ -80,6 +99,27 @@ async function criarTabelas(): Promise<void> {
         )`);
 }
 
+async function salvarEstado(chave: string, valor: unknown): Promise<void> {
+    await db.execute(sql`
+        INSERT INTO frota_estado (chave, valor, atualizado_em)
+        VALUES (${chave}, ${JSON.stringify(valor)}::jsonb, now())
+        ON CONFLICT (chave) DO UPDATE SET valor = EXCLUDED.valor, atualizado_em = now()`);
+}
+
+async function registrarErro(onde: string, e: unknown): Promise<void> {
+    const msg = (e instanceof Error ? e.message : String(e)).slice(0, 300);
+    console.error(`[frota] ${onde}:`, msg);
+    const agora = new Date().toISOString();
+    const [ultimo] = erros;
+    if (ultimo && ultimo.onde === onde && ultimo.msg === msg) {
+        ultimo.ate = agora;
+        ultimo.vezes++;
+    } else {
+        erros = [{ onde, msg, desde: agora, ate: agora, vezes: 1 }, ...erros].slice(0, ERROS_MAX);
+    }
+    await salvarEstado("erros", erros).catch((x) => console.error("[frota] salvar erros:", (x as Error).message));
+}
+
 async function carregar(): Promise<void> {
     for (const r of await consultar(sql`
         SELECT id, chave, hospital_id, entrada, ultima_vez, alerta_em, aviso_msg_id, na_base,
@@ -102,6 +142,11 @@ async function carregar(): Promise<void> {
                     : null,
         });
     }
+    for (const r of await consultar(sql`SELECT chave, valor FROM frota_estado WHERE chave IN ('erros', 'aprendizado')`)) {
+        if (r.chave === "erros") erros = r.valor as ErroFrota[];
+        else aprendizado = { ...aprendizado, ...(r.valor as Partial<typeof aprendizado>) };
+    }
+    locais = comPontos(aprendizado.pontos);
     const [v] = await consultar(sql`SELECT valor, atualizado_em FROM frota_estado WHERE chave = 'dispositivos'`);
     if (v) {
         dispositivos = v.valor as DispositivoSamu[];
@@ -115,10 +160,7 @@ async function atualizarVinculos(): Promise<void> {
     if (!lidos.length) throw new Error("status-unidades: nenhuma unidade");
     dispositivos = lidos;
     vinculosEm = new Date();
-    await db.execute(sql`
-        INSERT INTO frota_estado (chave, valor, atualizado_em)
-        VALUES ('dispositivos', ${JSON.stringify(lidos)}::jsonb, now())
-        ON CONFLICT (chave) DO UPDATE SET valor = EXCLUDED.valor, atualizado_em = now()`);
+    await salvarEstado("dispositivos", lidos);
 }
 
 /** Evidência: onde o GPS parou em cada parada de 10 min ou mais (fora da base), 30 dias. */
@@ -139,9 +181,26 @@ async function aprender(): Promise<void> {
         lng: Number(r.estavel_lng),
         dia: String(r.dia),
     }));
-    const pontos = aprenderPontos(evidencias, LOCAIS_FROTA);
-    locais = LOCAIS_FROTA.map((h) => (pontos.has(h.id) ? { ...h, pontos: pontos.get(h.id) } : h));
-    if (pontos.size) console.log(`[frota] estacionamentos aprendidos: ${[...pontos].map(([id, p]) => `${id}×${p.length}`).join(", ")}`);
+    const pontos = Object.fromEntries(aprenderPontos(evidencias, LOCAIS_FROTA));
+    const antes = locais;
+    locais = comPontos(pontos);
+
+    // Só registra o que mudou: um ponto a menos de 40 m do anterior é o mesmo.
+    const em = new Date().toISOString();
+    const mudancas: MudancaPonto[] = [];
+    const difere = (de: readonly HospitalFrota[], para: readonly HospitalFrota[], acao: MudancaPonto["acao"]) => {
+        for (const h of de) {
+            const outros = para.find((x) => x.id === h.id)?.pontos ?? [];
+            for (const p of h.pontos ?? []) {
+                if (!outros.some((o) => distanciaM(o, p) <= APRENDE_RAIO_M)) mudancas.push({ em, local: h.id, acao, ...p });
+            }
+        }
+    };
+    difere(locais, antes, "aprendeu");
+    difere(antes, locais, "esqueceu");
+    for (const m of mudancas) console.log(`[frota] ${m.acao} estacionamento: ${m.local} (${m.lat.toFixed(5)}, ${m.lng.toFixed(5)}; ${m.viaturas} viaturas)`);
+    aprendizado = { em, evidencias: evidencias.length, pontos, mudancas: [...mudancas, ...aprendizado.mudancas].slice(0, MUDANCAS_MAX) };
+    await salvarEstado("aprendizado", aprendizado);
 }
 
 async function ciclo(): Promise<void> {
@@ -149,7 +208,7 @@ async function ciclo(): Promise<void> {
     rodando = true;
     try {
         if (Date.now() - aprendidoEm > APRENDE_MS) {
-            await aprender().catch((e) => console.warn("[frota] aprender:", (e as Error).message));
+            await aprender().catch((e) => registrarErro("aprender", e));
         }
         posicoes = await buscarPosicoes(TOKEN);
 
@@ -158,7 +217,7 @@ async function ciclo(): Promise<void> {
         const velho = !vinculosEm || Date.now() - vinculosEm.getTime() > VINCULOS_MS;
         if ((velho || equipeNova) && Date.now() - tentouVinculosEm > VINCULOS_MIN_MS) {
             // Página fora do ar não para a coleta: segue com o último vínculo.
-            await atualizarVinculos().catch((e) => console.warn("[frota] vínculos:", (e as Error).message));
+            await atualizarVinculos().catch((e) => registrarErro("vínculos", e));
         }
 
         const agora = new Date();
@@ -198,10 +257,10 @@ async function ciclo(): Promise<void> {
         coletadoEm = agora;
         erro = null;
         // Telegram fora do ar não é falha de coleta.
-        await avisar(r.fechadas, agora).catch((e) => console.error("[frota] aviso:", (e as Error).message));
+        await avisar(r.fechadas, agora).catch((e) => registrarErro("aviso", e));
     } catch (e) {
         erro = (e as Error).message;
-        console.error("[frota] coleta:", erro);
+        await registrarErro("coleta", e);
     } finally {
         rodando = false;
     }
@@ -220,7 +279,10 @@ export function descreverChave(chave: string): { nome: string; tipo: string | nu
 function dadosAviso(p: Permanencia): DadosAviso {
     const q = descreverChave(p.chave);
     const h = LOCAIS_FROTA.find((x) => x.id === p.hospitalId);
-    return { nome: q.nome, tipo: q.tipo, hospitalNome: h?.nome ?? p.hospitalId, entrada: p.entrada, ultimaVez: p.ultimaVez };
+    return {
+        nome: q.nome, tipo: q.tipo, hospitalNome: h?.nome ?? p.hospitalId,
+        entrada: p.entrada, ultimaVez: p.ultimaVez, avisoEm: p.alertaEm,
+    };
 }
 
 /**
@@ -231,14 +293,21 @@ async function avisar(fechadas: Fechamento[], agora: Date): Promise<void> {
     if (!AVISOS) return;
     for (const p of abertas.values()) {
         if (!p.alertaEm || p.id === undefined) continue;
-        const texto = textoAviso(dadosAviso(p), { tipo: "parada", minutos: duracaoMin(p, agora) });
+        const texto = textoAviso(dadosAviso(p), { tipo: "parada", minutos: duracaoMin(p, agora) }, agora);
         if (!p.avisoMsgId) {
             const id = await enviarReguladores(texto);
-            if (!id) continue;
+            if (!id) {
+                await registrarErro("aviso Telegram", "envio falhou — detalhe em [telegram] no log");
+                continue;
+            }
             p.avisoMsgId = id;
             await db.execute(sql`UPDATE frota_permanencias SET aviso_msg_id = ${id} WHERE id = ${p.id}`);
         } else if (textoPublicado.get(p.id) !== texto) {
-            await editarReguladores(p.avisoMsgId, texto);
+            // Falhou: não marca como publicado, a próxima coleta tenta de novo.
+            if (!(await editarReguladores(p.avisoMsgId, texto))) {
+                await registrarErro("aviso Telegram", "edição falhou");
+                continue;
+            }
         }
         textoPublicado.set(p.id, texto);
     }
@@ -246,7 +315,9 @@ async function avisar(fechadas: Fechamento[], agora: Date): Promise<void> {
         const p = f.permanencia;
         if (!p.avisoMsgId) continue;
         const estado = f.saida ? { tipo: "saiu" as const, saida: f.saida } : { tipo: "sem-sinal" as const };
-        await editarReguladores(p.avisoMsgId, textoAviso(dadosAviso(p), estado));
+        if (!(await editarReguladores(p.avisoMsgId, textoAviso(dadosAviso(p), estado, agora)))) {
+            await registrarErro("aviso Telegram", "edição da saída falhou");
+        }
         if (p.id !== undefined) textoPublicado.delete(p.id);
     }
 }
@@ -394,6 +465,24 @@ export async function initFrota(): Promise<void> {
     void ciclo();
     setInterval(() => void ciclo(), COLETA_MS);
     console.log(`[frota] coletor ligado (${abertas.size} permanências abertas)`);
+}
+
+/**
+ * Para vigiar sem depender do log do container: erros recentes, o que o GPS
+ * ensinou (e quando), paradas abertas e à espera de decisão (pulo).
+ */
+export function diagnostico() {
+    const agora = Date.now();
+    return {
+        ativo: Boolean(TOKEN),
+        coletadoEm: coletadoEm?.toISOString() ?? null,
+        coletaHaMin: coletadoEm ? Math.floor((agora - coletadoEm.getTime()) / 60_000) : null,
+        erroAtual: erro,
+        erros,
+        abertas: abertas.size,
+        esperandoPulo: [...abertas.values()].filter((p) => p.fora).length,
+        aprendizado,
+    };
 }
 
 export function painelAtual(): PainelFrota {

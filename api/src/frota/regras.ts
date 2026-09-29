@@ -16,6 +16,12 @@ export const RAIO_SAIDA_M = 200;
 export const RAIO_BUSCA_M = 300;
 /** GPS parado: posição a até 50 m da anterior. */
 export const PARADO_M = 50;
+/**
+ * A chegada: nos primeiros 20 min a parada segue a viatura até o
+ * estacionamento. Depois, só fica perto do local ou de onde ela parou —
+ * lanchonete ou ocorrência a 250 m, depois de liberar, não vira retenção.
+ */
+export const JANELA_CHEGADA_MIN = 20;
 /** Parada no hospital que vira alerta. */
 export const ALERTA_MIN = 40;
 /** Posição até 15 min: verde. Até 60 min: âmbar. Mais velha: fora do mapa. */
@@ -170,7 +176,10 @@ export interface Permanencia {
     fora?: { lat: number; lng: number; em: Date } | null;
     /** Posições paradas seguidas (a até 50 m uma da outra). Só em memória. */
     corrida?: PontoParado | null;
-    /** Onde o GPS ficou parado mais tempo nesta parada: é daqui que se aprende. */
+    /**
+     * Onde o GPS ficou parado mais tempo, entre as paradas que começaram na
+     * chegada (20 min): é daqui que se aprende o estacionamento.
+     */
     estavel?: PontoParado | null;
 }
 
@@ -179,7 +188,12 @@ interface PontoParado {
     lng: number;
     /** Posições (uma a cada ~2 min). */
     n: number;
+    /** Primeira posição parada ali (só em memória; o `estavel` do banco não tem). */
+    desde?: Date;
 }
+
+const naChegada = (p: Pick<Permanencia, "entrada">, em: Date) =>
+    em.getTime() - p.entrada.getTime() <= JANELA_CHEGADA_MIN * MIN;
 
 export interface Fechamento {
     permanencia: Permanencia;
@@ -202,15 +216,15 @@ export function duracaoMin(p: Pick<Permanencia, "entrada" | "ultimaVez">, agora:
 /**
  * A parada aberta segue? Nunca troca de local: fica no mesmo, ou fecha.
  * - "fica": a até 200 m de um ponto do local; ou a até 150 m de onde a
- *   viatura parou (o GPS oscila); ou, sem passar de 300 m do local, a até
- *   150 m da última posição (manobra até o estacionamento);
- * - "fora": pulou para longe, ainda a até 300 m — a próxima posição decide:
- *   parou ali (fica) ou seguiu (saiu, na hora do pulo);
- * - "saiu": passou de 300 m, ou entrou na própria base.
+ *   viatura parou na chegada (o GPS oscila); ou, na chegada (20 min) e sem
+ *   passar de 300 m do local, a até 150 m da última posição (manobra);
+ * - "fora": na chegada, pulou para longe, ainda a até 300 m — a próxima
+ *   posição decide: parou ali (fica) ou seguiu (saiu, na hora do pulo);
+ * - "saiu": passou de 300 m, pulou depois da chegada, ou entrou na própria base.
  */
 export function seguir(
     p: Permanencia,
-    l: Pick<Leitura, "lat" | "lng">,
+    l: Pick<Leitura, "lat" | "lng" | "em">,
     h: HospitalFrota | undefined,
     dBase: number,
 ): "fica" | "fora" | "saiu" {
@@ -221,23 +235,25 @@ export function seguir(
     if (dBase <= RAIO_M) return "saiu";
     if (dLocal <= RAIO_SAIDA_M) return "fica";
     const perto = (q: { lat: number; lng: number } | null | undefined) => q != null && distanciaM(l, q) <= RAIO_M;
-    if ((p.corrida && p.corrida.n >= 2 && perto(p.corrida)) || perto(p.estavel)) return "fica";
-    if (dLocal > RAIO_BUSCA_M) return "saiu";
+    // O `estavel` só guarda parada da chegada; a corrida atual, só se começou nela.
+    const corridaDaChegada = p.corrida && p.corrida.n >= 2 && p.corrida.desde && naChegada(p, p.corrida.desde);
+    if ((corridaDaChegada && perto(p.corrida)) || perto(p.estavel)) return "fica";
+    if (dLocal > RAIO_BUSCA_M || !naChegada(p, l.em)) return "saiu";
     if (perto(p.fora)) return "fica";
     if (p.lat != null && p.lng != null && perto({ lat: p.lat, lng: p.lng })) return "fica";
     return p.fora ? "saiu" : "fora";
 }
 
-/** Sequência de posições paradas e a mais longa da parada (o `estavel`). */
-function acompanhar(p: Permanencia, l: { lat: number; lng: number }): Pick<Permanencia, "corrida" | "estavel"> {
+/** Sequência de posições paradas e a mais longa da chegada (o `estavel`). */
+function acompanhar(p: Permanencia, l: Pick<Leitura, "lat" | "lng" | "em">): Pick<Permanencia, "corrida" | "estavel"> {
     // Voltando de um pulo, a posição anterior é a do pulo.
-    const c = p.fora ? { lat: p.fora.lat, lng: p.fora.lng, n: 1 } : p.corrida;
-    const corrida =
+    const c: PontoParado | null | undefined = p.fora ? { lat: p.fora.lat, lng: p.fora.lng, n: 1, desde: p.fora.em } : p.corrida;
+    const corrida: PontoParado =
         c && distanciaM(l, c) <= PARADO_M
-            ? { lat: c.lat + (l.lat - c.lat) / (c.n + 1), lng: c.lng + (l.lng - c.lng) / (c.n + 1), n: c.n + 1 }
-            : { lat: l.lat, lng: l.lng, n: 1 };
-    const estavel = corrida.n >= 2 && corrida.n > (p.estavel?.n ?? 0) ? corrida : (p.estavel ?? null);
-    return { corrida, estavel };
+            ? { lat: c.lat + (l.lat - c.lat) / (c.n + 1), lng: c.lng + (l.lng - c.lng) / (c.n + 1), n: c.n + 1, desde: c.desde ?? l.em }
+            : { lat: l.lat, lng: l.lng, n: 1, desde: l.em };
+    const melhor = corrida.n >= 2 && corrida.n > (p.estavel?.n ?? 0) && naChegada(p, corrida.desde!);
+    return { corrida, estavel: melhor ? corrida : (p.estavel ?? null) };
 }
 
 export function avancarPermanencias(
@@ -298,7 +314,7 @@ export function avancarPermanencias(
                 naBase: dBase <= RAIO_M,
                 lat: l.lat,
                 lng: l.lng,
-                corrida: { lat: l.lat, lng: l.lng, n: 1 },
+                corrida: { lat: l.lat, lng: l.lng, n: 1, desde: l.em },
                 estavel: null,
             };
             proximas.set(l.chave, p);

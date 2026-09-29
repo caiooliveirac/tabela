@@ -282,14 +282,15 @@ export default function FrotaView({ painel, carregando, erro, foco, focar }: Pro
             lugar: nunca passa para o vizinho, mesmo que o GPS a mostre mais perto dele.
           </li>
           <li>
-            Depois de chegar, a contagem segue enquanto a viatura estiver a até {L.raioSaidaM} m do local, ou a até{" "}
-            {L.raioM} m de onde ela parou (o GPS oscila), até {L.raioBuscaM} m do local — o estacionamento pode ser
-            longe da porta. Se pular para longe, a posição seguinte decide: parou ali, segue contando; continuou
-            andando, a parada fecha na hora do pulo.
+            A contagem segue enquanto a viatura estiver a até {L.raioSaidaM} m do local, ou a até {L.raioM} m de onde
+            ela parou ao chegar (o GPS oscila). Nos primeiros {L.janelaChegadaMin} min, a chegada, ela é seguida até{" "}
+            {L.raioBuscaM} m do local — o estacionamento pode ser longe da porta: se pular para longe, a posição
+            seguinte decide (parou ali, segue contando; continuou, fecha na hora do pulo). Depois disso, sair para
+            longe fecha a parada na hora — lanchonete ou ocorrência perto não viram retenção.
           </li>
           <li>
-            O painel aprende os estacionamentos: quando 3 viaturas diferentes, em 2 dias, param no mesmo lugar (40 m)
-            longe do pino, esse lugar ganha um círculo e passa a valer como o próprio hospital ou UPA.
+            O painel aprende os estacionamentos: quando 3 viaturas diferentes, em 2 dias, param ao chegar no mesmo
+            lugar (40 m) longe do pino, esse lugar ganha um círculo e passa a valer como o próprio hospital ou UPA.
           </li>
           <li>
             As bases do Pau Miúdo e de Cajazeiras ficam coladas no HGESF, no Mário Leal e no Municipal; várias outras
