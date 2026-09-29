@@ -32,6 +32,25 @@ vínculo sai da página de status; se ela sair do ar, vale o último salvo em
   cadastro oficial). Quem transmite aparece, mesmo que a planilha diga que
   está desativada.
 
+## Linha do tempo e aviso aos reguladores
+
+- `GET /tabela/api/frota/linha-do-tempo?horas=N` (1–72): paradas que tocam a
+  janela; as abertas sempre entram.
+- Aos 40 min, mensagem no grupo **REGULADORES - RECADOS** (Telegram,
+  `TELEGRAM_REGULADORES_CHAT_ID`). Uma por parada: editada a cada coleta,
+  fechada com a saída ou "sem sinal" (`aviso.ts`; `aviso_msg_id` na tabela).
+  `FROTA_AVISOS_TELEGRAM=0` desliga.
+
+## Cruzamento com o Acolhimentos
+
+`acolhimentos.ts` lê `GET https://acolhimentos.mnrs.com.br/api/servico/acolhimentos`
+(repo `caio-olive/help-mnrs`, token `ACOLHIMENTOS_TOKEN`) e casa cada parada
+do GPS com a notificação da mesma viatura no mesmo hospital cujo intervalo
+(chegada → liberação) se sobrepõe, com 15 min de folga. Na linha do tempo:
+faixa cinza = notificado (tique na passagem), faixa roxa = maca retida,
+barra vazada = notificação sem parada no GPS, "sem notificação" = USA 40+ min
+sem registro. O Acolhimentos só cobre USA.
+
 ## Dados copiados (atualizar na fonte e trazer para cá)
 
 - `catalogo.ts` — viaturas e bases: ChecagemdeBases `bot/src/data/bases.ts` e

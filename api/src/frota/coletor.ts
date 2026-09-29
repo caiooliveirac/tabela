@@ -14,6 +14,7 @@ import { HOSPITAIS_FROTA } from "./hospitais.js";
 import { ALERTA_MIN, avancarPermanencias, duracaoMin, ehMoto, type Fechamento, type Permanencia } from "./regras.js";
 import { textoAviso, type DadosAviso } from "./aviso.js";
 import { editarReguladores, enviarReguladores } from "../lib/telegram.js";
+import { ABERTA_MAX_MS, acolhimentosLigado, buscarAcolhimentos, cruzar, janela, type Acolhimento } from "./acolhimentos.js";
 import { buscarDispositivos, buscarPosicoes, type DispositivoSamu, type PosicaoSamu } from "./samumais.js";
 import { leiturasParaPermanencia, montarPainel, resolverPosicoes, type PainelFrota } from "./painel.js";
 
@@ -209,6 +210,35 @@ export interface ParadaHistorico {
     motivoFim: "saiu" | "sem-sinal" | null;
     minutos: number;
     alertou: boolean;
+    /** O que a equipe notificou no Acolhimentos para esta parada. */
+    acolhimento: NotificacaoResumo | null;
+    /** USA parada 40+ min sem notificação no Acolhimentos (que só cobre USA). */
+    semNotificacao: boolean;
+}
+
+export interface NotificacaoResumo {
+    chegada: string | null;
+    passagem: string | null;
+    liberada: string | null;
+    /** Onde a faixa termina: liberação, ou até 2 h depois da chegada. */
+    fim: string;
+    minutos: number | null;
+    maca: { inicio: string; fim: string | null } | null;
+    motivos: string[];
+}
+
+function resumo(a: Acolhimento, agora: number): NotificacaoResumo {
+    const maca = a.retencoes.find((r) => r.equipamento === "maca") ?? null;
+    const j = janela(a, agora);
+    return {
+        chegada: a.chegada,
+        passagem: a.passagem,
+        liberada: a.liberada,
+        fim: new Date(j ? j[1] : agora).toISOString(),
+        minutos: a.totalS != null ? Math.round(a.totalS / 60) : null,
+        maca: maca ? { inicio: maca.inicio, fim: maca.fim } : null,
+        motivos: a.motivos,
+    };
 }
 
 /** Paradas em hospital que tocam as últimas `horas` (as abertas sempre entram). */
@@ -219,6 +249,12 @@ export async function linhaDoTempo(horas: number): Promise<{
     alertaMin: number;
     hospitais: { id: string; nome: string }[];
     paradas: ParadaHistorico[];
+    acolhimentos: {
+        ligado: boolean;
+        erro: string | null;
+        /** Notificações sem parada do GPS casada (viatura sem sinal, outro hospital…). */
+        soltas: (NotificacaoResumo & { unidade: string; hospitalId: string })[];
+    };
 }> {
     const agora = new Date();
     const desde = new Date(agora.getTime() - horas * 3_600_000);
@@ -229,7 +265,8 @@ export async function linhaDoTempo(horas: number): Promise<{
         alertaMin: ALERTA_MIN,
         hospitais: HOSPITAIS_FROTA.map((h) => ({ id: h.id, nome: h.nome })),
     };
-    if (!TOKEN) return { ...base, paradas: [] };
+    const semCruzamento = { ligado: acolhimentosLigado(), erro: null, soltas: [] };
+    if (!TOKEN) return { ...base, paradas: [], acolhimentos: semCruzamento };
     const linhas = await consultar(sql`
         SELECT id, chave, hospital_id, entrada, ultima_vez, saida, motivo_fim, alerta_em
         FROM frota_permanencias
@@ -255,9 +292,36 @@ export async function linhaDoTempo(horas: number): Promise<{
             motivoFim: aberta ? null : (r.motivo_fim as "saiu" | "sem-sinal"),
             minutos,
             alertou: r.alerta_em != null,
+            acolhimento: null,
+            semNotificacao: false,
         };
     });
-    return { ...base, paradas };
+
+    if (!acolhimentosLigado()) return { ...base, paradas, acolhimentos: semCruzamento };
+    try {
+        // Quem chegou até 2 h antes da janela ainda pode estar dentro dela.
+        const lidos = await buscarAcolhimentos(new Date(desde.getTime() - ABERTA_MAX_MS), agora);
+        const { casadas, soltas } = cruzar(paradas, lidos, agora.getTime());
+        for (const p of paradas) {
+            const a = casadas.get(p.id);
+            p.acolhimento = a ? resumo(a, agora.getTime()) : null;
+            p.semNotificacao = !a && p.tipo === "USA" && p.minutos >= ALERTA_MIN;
+        }
+        return {
+            ...base,
+            paradas,
+            acolhimentos: {
+                ligado: true,
+                erro: null,
+                soltas: soltas
+                    .filter((a) => a.hospital && janela(a, agora.getTime())![1] >= desde.getTime())
+                    .map((a) => ({ ...resumo(a, agora.getTime()), unidade: a.unidade, hospitalId: a.hospital! })),
+            },
+        };
+    } catch (e) {
+        // Acolhimentos fora do ar não derruba a linha do tempo do GPS.
+        return { ...base, paradas, acolhimentos: { ...semCruzamento, erro: (e as Error).message } };
+    }
 }
 
 export async function initFrota(): Promise<void> {

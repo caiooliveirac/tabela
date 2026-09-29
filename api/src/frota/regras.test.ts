@@ -188,3 +188,24 @@ test("aviso aos reguladores: parada, saída e sem sinal, com hora de Salvador e 
     assert.match(textoAviso(d, { tipo: "sem-sinal" }), /sem sinal desde 14:20 — pelo menos <b>42 min<\/b>/);
     assert.match(textoAviso({ ...d, nome: "A<B" }, { tipo: "parada", minutos: 40 }), /A&lt;B/);
 });
+
+test("acolhimentos: casa por viatura + hospital + sobreposição; sobra vira solta", async () => {
+    const { cruzar } = await import("./acolhimentos.js");
+    const iso = (hhmm: string) => t(hhmm).toISOString();
+    const paradas = [
+        { id: 1, chave: "CB02", hospitalId: "hge", entrada: iso("10:00"), fim: iso("10:50") },
+        { id: 2, chave: "CB02", hospitalId: "hge", entrada: iso("15:00"), fim: iso("15:20") },
+        { id: 3, chave: "SM01", hospitalId: "hgrs", entrada: iso("10:00"), fim: iso("10:30") },
+    ];
+    const base = { status: "completed", vagaZero: false, totalS: null, motivos: [], retencoes: [], passagem: null };
+    const a = [
+        { ...base, id: "a", unidade: "CB02", hospital: "hge", chegada: iso("10:05"), liberada: iso("10:45") },
+        { ...base, id: "b", unidade: "SM01", hospital: "hge", chegada: iso("10:05"), liberada: iso("10:25") }, // outro hospital
+        { ...base, id: "c", unidade: "CN10", hospital: "hge", chegada: null, liberada: null },                // sem hora
+    ];
+    const { casadas, soltas } = cruzar(paradas, a, t("16:00").getTime());
+    assert.equal(casadas.get(1)?.id, "a");
+    assert.equal(casadas.has(2), false, "a notificação das 10h não casa com a parada das 15h");
+    assert.equal(casadas.has(3), false);
+    assert.deepEqual(soltas.map((x) => x.id), ["b"]);
+});
