@@ -369,3 +369,27 @@ export interface PainelFrota {
   viaturas: ViaturaFrota[];
   foraDoCatalogoSemSinal: number;
 }
+
+export interface ParadaHistorico {
+  id: number;
+  chave: string;
+  nome: string;
+  tipo: string | null;
+  base: string | null;
+  hospitalId: string;
+  entrada: string;
+  fim: string;
+  aberta: boolean;
+  motivoFim: "saiu" | "sem-sinal" | null;
+  minutos: number;
+  alertou: boolean;
+}
+
+export interface LinhaDoTempoFrota {
+  ativo: boolean;
+  desde: string;
+  ate: string;
+  alertaMin: number;
+  hospitais: { id: string; nome: string }[];
+  paradas: ParadaHistorico[];
+}

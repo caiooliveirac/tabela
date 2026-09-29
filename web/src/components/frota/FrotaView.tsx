@@ -11,6 +11,7 @@ import type { PainelFrota, ViaturaFrota } from "../../lib/types";
 import { useEncaminhamentoConfig } from "../../hooks/useEncaminhamento";
 import { COR, corDaParada, duracao, ha, hora } from "./formato";
 import type { Foco } from "./MapaFrota";
+import LinhaDoTempo from "./LinhaDoTempo";
 
 const MapaFrota = lazy(() => import("./MapaFrota"));
 
@@ -167,7 +168,7 @@ export default function FrotaView({ painel, carregando, erro, foco, focar }: Pro
       )}
 
       {/* ── Mapa + quem está em hospital ── */}
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <div id="frota-mapa" className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div>
           {mapsKey && (
             <div className="flex justify-end mb-[6px]">
@@ -247,6 +248,16 @@ export default function FrotaView({ painel, carregando, erro, foco, focar }: Pro
         </div>
       </div>
 
+      {/* ── Quanto tempo cada viatura ficou em cada hospital ── */}
+      <LinhaDoTempo
+        onHospital={(id) => {
+          const h = painel.hospitais.find((x) => x.id === id);
+          if (!h) return;
+          focar({ lat: h.lat, lng: h.lng, zoom: 17 });
+          document.getElementById("frota-mapa")?.scrollIntoView({ behavior: "smooth", block: "center" });
+        }}
+      />
+
       {/* ── Quem não está no mapa, e por quê ── */}
       <div className="bg-white rounded-[10px] border border-slate-200 p-4">
         <div className="text-[11px] font-extrabold text-slate-600 uppercase tracking-wide mb-3">
@@ -317,6 +328,10 @@ export default function FrotaView({ painel, carregando, erro, foco, focar }: Pro
           <li>
             Sem posição nova há {L.recenteMin} min, o relógio para — não se conta tempo que não se viu. Sem posição há 1
             h, a parada é encerrada como "sem sinal".
+          </li>
+          <li>
+            Aos {L.alertaMin} min sai uma mensagem no grupo REGULADORES - RECADOS (Telegram). A mesma mensagem é
+            atualizada com o tempo corrente e fecha quando a viatura sai.
           </li>
           <li>Desativadas até segunda ordem (29/09): 36, 39, 48, 64, 66, 67 e 68.</li>
         </ul>

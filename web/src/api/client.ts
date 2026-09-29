@@ -22,6 +22,7 @@ import type {
   HospitalPonto,
   EncaminhamentoConfig,
   PainelFrota,
+  LinhaDoTempoFrota,
   WsEvent,
 } from "../lib/types";
 
@@ -219,6 +220,8 @@ export const api = {
   getEncaminhamentoConfig: () => request<EncaminhamentoConfig>("/encaminhamento/config"),
 
   getFrota: () => request<PainelFrota>("/frota"),
+  getLinhaDoTempoFrota: (horas: number) =>
+    request<LinhaDoTempoFrota>(`/frota/linha-do-tempo?horas=${horas}`),
 };
 
 // ── WebSocket ──

@@ -177,3 +177,14 @@ test("painel: equipe → viatura, desativada fora da permanência, extra fora do
     assert.equal(por("equipe:12").nome, "Equipe 12");
     assert.equal(por("CN10").motivo, "não aparece no SAMU+");
 });
+
+test("aviso aos reguladores: parada, saída e sem sinal, com hora de Salvador e HTML escapado", async () => {
+    const { textoAviso } = await import("./aviso.js");
+    const d = { nome: "CB26", tipo: "USB", hospitalNome: "HGESF", entrada: t("13:38"), ultimaVez: t("14:20") };
+    const parada = textoAviso(d, { tipo: "parada", minutos: 43 });
+    assert.match(parada, /<b>CB26<\/b> \(USB\) parada há <b>43 min<\/b> no <b>HGESF<\/b>/);
+    assert.match(parada, /entrou 13:38 · posição confirmada 14:20/);
+    assert.match(textoAviso(d, { tipo: "saiu", saida: t("14:40") }), /saiu do <b>HGESF<\/b> às 14:40 — <b>62 min<\/b>/);
+    assert.match(textoAviso(d, { tipo: "sem-sinal" }), /sem sinal desde 14:20 — pelo menos <b>42 min<\/b>/);
+    assert.match(textoAviso({ ...d, nome: "A<B" }, { tipo: "parada", minutos: 40 }), /A&lt;B/);
+});
