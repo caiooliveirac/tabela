@@ -350,12 +350,15 @@ export interface ViaturaFrota {
   sinal: number | null;
   velocidade: number | null;
   noHospital: {
+    id: number | null;
     hospitalId: string;
     hospitalNome: string;
     entrada: string;
     ultimaVez: string;
     minutos: number;
     alerta: boolean;
+    naBase: boolean;
+    distanciaM: number | null;
   } | null;
 }
 
@@ -383,6 +386,7 @@ export interface ParadaHistorico {
   motivoFim: "saiu" | "sem-sinal" | null;
   minutos: number;
   alertou: boolean;
+  naBase: boolean;
   acolhimento: NotificacaoAcolhimento | null;
   semNotificacao: boolean;
 }

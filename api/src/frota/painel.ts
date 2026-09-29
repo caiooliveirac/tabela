@@ -7,7 +7,7 @@ import type { HospitalFrota } from "./hospitais.js";
 import type { DispositivoSamu, PosicaoSamu } from "./samumais.js";
 import {
     ALERTA_MIN, MAPA_MIN, RAIO_M, RAIO_SAIDA_M, RECENTE_MIN,
-    duracaoMin, ehMoto, instanteSamu, naBase, situacao, vincular,
+    distanciaM, duracaoMin, ehMoto, instanteSamu, naBase, situacao, vincular,
     type Leitura, type Permanencia, type Situacao,
 } from "./regras.js";
 
@@ -31,12 +31,18 @@ export interface ViaturaFrota {
     sinal: number | null;
     velocidade: number | null;
     noHospital: {
+        /** Id da parada (frota_permanencias) — casa com a linha do tempo. */
+        id: number | null;
         hospitalId: string;
         hospitalNome: string;
         entrada: string;
         ultimaVez: string;
         minutos: number;
         alerta: boolean;
+        /** Parada na própria base, que fica no hospital: sem alerta. */
+        naBase: boolean;
+        /** Distância da última posição ao prédio do hospital. */
+        distanciaM: number | null;
     } | null;
 }
 
@@ -123,7 +129,7 @@ export function montarPainel(entrada: {
     agora: Date;
 }): PainelFrota {
     const { catalogo, desativadas, hospitais, resolvidas, abertas, agora } = entrada;
-    const nomeHospital = new Map(hospitais.map((h) => [h.id, h.nome]));
+    const porHospital = new Map(hospitais.map((h) => [h.id, h]));
     // Bateria/sinal de quem não transmitiu vêm da página de status (último valor).
     const vinculo = vincular(entrada.dispositivos, catalogo);
     const dispPorCodigo = new Map<string, DispositivoSamu>();
@@ -165,12 +171,18 @@ export function montarPainel(entrada: {
             noHospital:
                 p && s.situacao === "mapa"
                     ? {
+                          id: p.id ?? null,
                           hospitalId: p.hospitalId,
-                          hospitalNome: nomeHospital.get(p.hospitalId) ?? p.hospitalId,
+                          hospitalNome: porHospital.get(p.hospitalId)?.nome ?? p.hospitalId,
                           entrada: p.entrada.toISOString(),
                           ultimaVez: p.ultimaVez.toISOString(),
                           minutos,
-                          alerta: minutos >= ALERTA_MIN,
+                          alerta: !p.naBase && minutos >= ALERTA_MIN,
+                          naBase: p.naBase,
+                          distanciaM:
+                              r && r.posicao.lat !== null && r.posicao.lng !== null && porHospital.has(p.hospitalId)
+                                  ? Math.round(distanciaM({ lat: r.posicao.lat, lng: r.posicao.lng }, porHospital.get(p.hospitalId)!))
+                                  : null,
                       }
                     : null,
         };

@@ -9,9 +9,10 @@
 import { lazy, Suspense, useMemo, useState } from "react";
 import type { PainelFrota, ViaturaFrota } from "../../lib/types";
 import { useEncaminhamentoConfig } from "../../hooks/useEncaminhamento";
-import { COR, corDaParada, duracao, ha, hora } from "./formato";
+import { COR, duracao, ha } from "./formato";
 import type { Foco } from "./MapaFrota";
 import LinhaDoTempo from "./LinhaDoTempo";
+import TabelaHospitais from "./TabelaHospitais";
 
 const MapaFrota = lazy(() => import("./MapaFrota"));
 
@@ -95,21 +96,6 @@ export default function FrotaView({ painel, carregando, erro, foco, focar }: Pro
     };
   }, [painel]);
 
-  const hospitais = useMemo(() => {
-    const por = new Map<string, ViaturaFrota[]>();
-    for (const v of grupos.noMapa) {
-      if (!v.noHospital) continue;
-      por.set(v.noHospital.hospitalId, [...(por.get(v.noHospital.hospitalId) ?? []), v]);
-    }
-    return [...por.entries()]
-      .map(([id, dentro]) => ({
-        id,
-        nome: dentro[0].noHospital!.hospitalNome,
-        dentro: dentro.sort((a, b) => b.noHospital!.minutos - a.noHospital!.minutos),
-      }))
-      .sort((a, b) => b.dentro[0].noHospital!.minutos - a.dentro[0].noHospital!.minutos);
-  }, [grupos.noMapa]);
-
   if (!painel) {
     return (
       <div className="bg-white rounded-[10px] border border-slate-200 p-6 text-sm text-slate-500">
@@ -126,7 +112,8 @@ export default function FrotaView({ painel, carregando, erro, foco, focar }: Pro
   }
 
   const L = painel.limites;
-  const emHospital = grupos.noMapa.filter((v) => v.noHospital).length;
+  const emHospital = grupos.noMapa.filter((v) => v.noHospital && !v.noHospital.naBase).length;
+  const naBaseHospital = grupos.noMapa.filter((v) => v.noHospital?.naBase).length;
   const emAlerta = grupos.noMapa.filter((v) => v.noHospital?.alerta).length;
   const posicaoHa = (v: ViaturaFrota) => (v.posicao ? `última posição há ${duracao(v.posicao.idadeMin)}` : "");
 
@@ -137,6 +124,7 @@ export default function FrotaView({ painel, carregando, erro, foco, focar }: Pro
         <Numero valor={grupos.noMapa.length} rotulo="no mapa" cor={COR.recente} detalhe="Posição da última hora" />
         <Numero valor={emHospital} rotulo="paradas em hospital" cor={COR.hospital} detalhe={`Dentro de ${L.raioM} m de um hospital`} />
         <Numero valor={emAlerta} rotulo={`há ${L.alertaMin} min ou mais`} cor={emAlerta ? COR.alerta : "#cbd5e1"} detalhe="Retenção de maca" />
+        <Numero valor={naBaseHospital} rotulo="na base (no hospital)" cor={COR.base} detalhe="Base do Pau Miúdo e de Cajazeiras: ao lado do hospital, sem alerta" />
         <Numero valor={grupos.semSinal.length} rotulo="sem sinal" cor={COR.atrasada} detalhe="Deviam estar na rua e não transmitem há mais de 1 h" />
         <Numero valor={grupos.foraDoTurno.length} rotulo="fora do turno" cor="#cbd5e1" detalhe="SD e 10h, de noite" />
         <Numero valor={grupos.desativadas.length} rotulo="desativadas" cor="#94a3b8" detalhe="Até segunda ordem ou no cadastro oficial" />
@@ -167,21 +155,11 @@ export default function FrotaView({ painel, carregando, erro, foco, focar }: Pro
         </div>
       )}
 
-      {/* ── Mapa + quem está em hospital ── */}
-      <div id="frota-mapa" className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <div>
-          {mapsKey && (
-            <div className="flex justify-end mb-[6px]">
-              <button
-                onClick={alternarAltura}
-                className="py-[4px] px-3 text-xs font-bold rounded-lg border border-slate-300 bg-white text-slate-700 cursor-pointer hover:border-blue-600"
-              >
-                {mapaAlto ? "⤡ Reduzir mapa" : "⤢ Ampliar mapa"}
-              </button>
-            </div>
-          )}
-          {mapsKey ? (
-            <Suspense fallback={<div className="w-full h-[460px] rounded-[10px] border border-slate-200 bg-slate-50" />}>
+      {/* ── Mapa em tela cheia de largura, com a situação por cima ── */}
+      <div id="frota-mapa">
+        {mapsKey ? (
+          <div className="relative">
+            <Suspense fallback={<div className="w-full h-[68vh] min-h-[420px] rounded-[10px] border border-slate-200 bg-slate-50" />}>
               <MapaFrota
                 mapsKey={mapsKey}
                 mapId={cfg?.mapId ?? "DEMO_MAP_ID"}
@@ -192,61 +170,47 @@ export default function FrotaView({ painel, carregando, erro, foco, focar }: Pro
                 onFalha={() => setGoogleFalhou(true)}
               />
             </Suspense>
-          ) : (
-            <div className="w-full h-[160px] rounded-[10px] border border-slate-200 bg-slate-50 flex items-center justify-center text-xs text-slate-500 text-center px-6">
-              {cfg === undefined ? "carregando o mapa…" : "Mapa do Google indisponível agora. Os painéis ao lado e abaixo têm tudo o que o mapa mostraria."}
+            {/* A situação continua à vista com o mapa ampliado e a página rolada. */}
+            <div className="absolute top-2 left-2 z-10 flex gap-[6px] flex-wrap max-w-[calc(100%-70px)] pointer-events-none">
+              {[
+                { n: grupos.noMapa.length, t: "no mapa", c: COR.recente },
+                { n: emHospital, t: "em hospital", c: COR.hospital },
+                { n: emAlerta, t: `${L.alertaMin}+ min`, c: emAlerta ? COR.alerta : "#94a3b8" },
+                { n: grupos.semSinal.length, t: "sem sinal", c: COR.atrasada },
+              ].map((x) => (
+                <span
+                  key={x.t}
+                  className="flex items-center gap-[5px] bg-white/95 rounded-full px-[9px] py-[3px] text-[12px] font-bold text-slate-700 shadow"
+                >
+                  <span className="w-[8px] h-[8px] rounded-full" style={{ backgroundColor: x.c }} />
+                  <span className="tabular-nums text-slate-900">{x.n}</span> {x.t}
+                </span>
+              ))}
             </div>
-          )}
-        </div>
-
-        <div className="bg-white rounded-[10px] border border-slate-200 p-3 lg:max-h-[460px] lg:overflow-y-auto">
-          <div className="text-[11px] font-extrabold text-slate-600 uppercase tracking-wide mb-2">
-            Nos hospitais agora
+            <button
+              onClick={alternarAltura}
+              className="absolute bottom-6 left-2 z-10 py-[5px] px-3 text-xs font-bold rounded-lg border border-slate-300 bg-white/95 text-slate-700 cursor-pointer shadow hover:border-blue-600"
+            >
+              {mapaAlto ? "⤡ Reduzir mapa" : "⤢ Ampliar mapa"}
+            </button>
           </div>
-          {!hospitais.length && (
-            <div className="text-[13px] text-slate-400">Nenhuma viatura parada em hospital.</div>
-          )}
-          {hospitais.map((h) => (
-            <div key={h.id} className="mb-3">
-              <button
-                onClick={() => {
-                  const p = painel.hospitais.find((x) => x.id === h.id);
-                  if (p) focar({ lat: p.lat, lng: p.lng, zoom: 17 });
-                }}
-                className="text-[14px] font-black text-slate-900 bg-transparent border-none p-0 cursor-pointer hover:underline"
-              >
-                {h.nome}
-              </button>
-              {h.dentro.map((v) => {
-                const n = v.noHospital!;
-                const cor = corDaParada(n.minutos, L.alertaMin);
-                return (
-                  <div key={v.chave} className="mt-[6px]">
-                    <div className="flex items-baseline justify-between text-[12px]">
-                      <span className="font-extrabold text-slate-800">
-                        {v.nome}
-                        {v.tipo && <span className="font-semibold text-slate-400"> {v.tipo}</span>}
-                      </span>
-                      <span className="font-bold tabular-nums" style={{ color: cor }}>
-                        {n.alerta ? `${duracao(n.minutos)} ⚠` : `${n.minutos} de ${L.alertaMin} min`}
-                      </span>
-                    </div>
-                    <div className="h-[6px] rounded-full bg-slate-100 overflow-hidden mt-[3px]">
-                      <div
-                        className="h-full rounded-full"
-                        style={{ width: `${Math.min(100, (n.minutos / L.alertaMin) * 100)}%`, backgroundColor: cor }}
-                      />
-                    </div>
-                    <div className="text-[10px] text-slate-400 mt-[2px]">
-                      entrou {hora(n.entrada)} · posição de {hora(v.posicao!.em)}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ))}
-        </div>
+        ) : (
+          <div className="w-full h-[160px] rounded-[10px] border border-slate-200 bg-slate-50 flex items-center justify-center text-xs text-slate-500 text-center px-6">
+            {cfg === undefined ? "carregando o mapa…" : "Mapa do Google indisponível agora. A tabela e as listas abaixo têm tudo o que o mapa mostraria."}
+          </div>
+        )}
       </div>
+
+      {/* ── Quem está em hospital agora, e desde quando ── */}
+      <TabelaHospitais
+        painel={painel}
+        noMapa={grupos.noMapa}
+        onVer={(v) => {
+          if (!v.posicao) return;
+          focar({ lat: v.posicao.lat, lng: v.posicao.lng, zoom: 17 });
+          document.getElementById("frota-mapa")?.scrollIntoView({ behavior: "smooth", block: "center" });
+        }}
+      />
 
       {/* ── Quanto tempo cada viatura ficou em cada hospital ── */}
       <LinhaDoTempo
@@ -318,8 +282,9 @@ export default function FrotaView({ painel, carregando, erro, foco, focar }: Pro
             de {L.raioSaidaM} m — o GPS oscila na borda e não pode abrir e fechar a parada a cada leitura.
           </li>
           <li>
-            Parada na própria base não conta: as bases do Pau Miúdo e de Cajazeiras ficam coladas no HGESF, no Mário
-            Leal e no Municipal.
+            As bases do Pau Miúdo e de Cajazeiras ficam coladas no HGESF, no Mário Leal e no Municipal. Viatura parada
+            na própria base aparece na tabela em cinza, como "base no hospital", com a hora de entrada — mas não conta
+            para o alerta.
           </li>
           <li>
             Aos {L.alertaMin} min o círculo fica vermelho e abre um aviso em qualquer aba do painel. "Ciente" fecha o

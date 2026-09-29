@@ -307,7 +307,7 @@ export default function MapaGoogle({
   return (
     <div
       ref={div}
-      className={`w-full ${alto ? "h-[75vh]" : "h-[320px]"} rounded-[10px] border border-slate-200 overflow-hidden bg-slate-50`}
+      className={`w-full ${alto ? "h-[85vh]" : "h-[55vh]"} min-h-[360px] rounded-[10px] border border-slate-200 overflow-hidden bg-slate-50`}
       // Header sticky do painel em z-100; mesmo cuidado do MapaSalvador.
       style={{ position: "relative", zIndex: 0 }}
     />

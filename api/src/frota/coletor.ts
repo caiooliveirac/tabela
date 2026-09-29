@@ -52,6 +52,7 @@ async function criarTabelas(): Promise<void> {
             alerta_em   timestamptz
         )`);
     await db.execute(sql`ALTER TABLE frota_permanencias ADD COLUMN IF NOT EXISTS aviso_msg_id bigint`);
+    await db.execute(sql`ALTER TABLE frota_permanencias ADD COLUMN IF NOT EXISTS na_base boolean NOT NULL DEFAULT false`);
     await db.execute(sql`
         CREATE INDEX IF NOT EXISTS frota_permanencias_abertas_idx
         ON frota_permanencias (chave) WHERE motivo_fim IS NULL`);
@@ -65,7 +66,7 @@ async function criarTabelas(): Promise<void> {
 
 async function carregar(): Promise<void> {
     for (const r of await consultar(sql`
-        SELECT id, chave, hospital_id, entrada, ultima_vez, alerta_em, aviso_msg_id
+        SELECT id, chave, hospital_id, entrada, ultima_vez, alerta_em, aviso_msg_id, na_base
         FROM frota_permanencias WHERE motivo_fim IS NULL`)) {
         abertas.set(String(r.chave), {
             id: Number(r.id),
@@ -75,6 +76,7 @@ async function carregar(): Promise<void> {
             ultimaVez: new Date(r.ultima_vez as string),
             alertaEm: r.alerta_em ? new Date(r.alerta_em as string) : null,
             avisoMsgId: r.aviso_msg_id != null ? Number(r.aviso_msg_id) : null,
+            naBase: r.na_base === true,
         });
     }
     const [v] = await consultar(sql`SELECT valor, atualizado_em FROM frota_estado WHERE chave = 'dispositivos'`);
@@ -120,8 +122,8 @@ async function ciclo(): Promise<void> {
         );
         for (const p of r.novas) {
             const [linha] = await consultar(sql`
-                INSERT INTO frota_permanencias (chave, hospital_id, entrada, ultima_vez)
-                VALUES (${p.chave}, ${p.hospitalId}, ${p.entrada.toISOString()}, ${p.ultimaVez.toISOString()})
+                INSERT INTO frota_permanencias (chave, hospital_id, entrada, ultima_vez, na_base)
+                VALUES (${p.chave}, ${p.hospitalId}, ${p.entrada.toISOString()}, ${p.ultimaVez.toISOString()}, ${p.naBase})
                 RETURNING id`);
             p.id = Number(linha.id);
         }
@@ -210,6 +212,8 @@ export interface ParadaHistorico {
     motivoFim: "saiu" | "sem-sinal" | null;
     minutos: number;
     alertou: boolean;
+    /** Parada na própria base, que fica no hospital (sem alerta). */
+    naBase: boolean;
     /** O que a equipe notificou no Acolhimentos para esta parada. */
     acolhimento: NotificacaoResumo | null;
     /** USA parada 40+ min sem notificação no Acolhimentos (que só cobre USA). */
@@ -268,7 +272,7 @@ export async function linhaDoTempo(horas: number): Promise<{
     const semCruzamento = { ligado: acolhimentosLigado(), erro: null, soltas: [] };
     if (!TOKEN) return { ...base, paradas: [], acolhimentos: semCruzamento };
     const linhas = await consultar(sql`
-        SELECT id, chave, hospital_id, entrada, ultima_vez, saida, motivo_fim, alerta_em
+        SELECT id, chave, hospital_id, entrada, ultima_vez, saida, motivo_fim, alerta_em, na_base
         FROM frota_permanencias
         WHERE motivo_fim IS NULL OR COALESCE(saida, ultima_vez) >= ${desde.toISOString()}
         ORDER BY entrada`);
@@ -292,6 +296,7 @@ export async function linhaDoTempo(horas: number): Promise<{
             motivoFim: aberta ? null : (r.motivo_fim as "saiu" | "sem-sinal"),
             minutos,
             alertou: r.alerta_em != null,
+            naBase: r.na_base === true,
             acolhimento: null,
             semNotificacao: false,
         };
@@ -305,7 +310,7 @@ export async function linhaDoTempo(horas: number): Promise<{
         for (const p of paradas) {
             const a = casadas.get(p.id);
             p.acolhimento = a ? resumo(a, agora.getTime()) : null;
-            p.semNotificacao = !a && p.tipo === "USA" && p.minutos >= ALERTA_MIN;
+            p.semNotificacao = !a && !p.naBase && p.tipo === "USA" && p.minutos >= ALERTA_MIN;
         }
         return {
             ...base,

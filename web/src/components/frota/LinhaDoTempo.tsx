@@ -23,6 +23,8 @@ const FAIXA_PX = 24;
 const COR_BARRA = { curta: "#1d4ed8", chegando: "#d97706", longa: "#b91c1c" } as const;
 const COR_NOTIFICADO = "#334155";
 const COR_MACA = "#7c3aed";
+/** Parada na própria base, que fica no hospital: sem alerta, em cinza. */
+const COR_BASE = "#94a3b8";
 const FUSO_MS = -3 * 3_600_000; // America/Bahia, sem horário de verão
 
 type Solta = LinhaDoTempoFrota["acolhimentos"]["soltas"][number];
@@ -67,7 +69,7 @@ function descricao(i: Item, hospitalNome: string): string {
   const p = i.p;
   const quem = `${p.nome}${p.tipo ? ` (${p.tipo}${p.base ? ` · ${p.base}` : ""})` : ""}`;
   const fim = p.aberta ? "ainda lá" : p.motivoFim === "sem-sinal" ? `sem sinal desde ${hora(p.fim)}` : `saiu ${hora(p.fim)}`;
-  const gps = `${quem} no ${hospitalNome} · entrou ${hora(p.entrada)} · ${p.minutos} min · ${fim}`;
+  const gps = `${quem} ${p.naBase ? "na própria base, junto do" : "no"} ${hospitalNome} · entrou ${hora(p.entrada)} · ${p.minutos} min · ${fim}`;
   if (p.acolhimento) return `${gps}. Acolhimentos: ${notificado(p.acolhimento)}`;
   if (p.semNotificacao) return `${gps}. Sem notificação no Acolhimentos.`;
   return gps;
@@ -108,7 +110,7 @@ export default function LinhaDoTempo({ onHospital }: { onHospital?: (id: string)
     ];
     const linhas = data.hospitais.map((h) => {
       const doHospital = itens.filter((i) => (i.tipo === "parada" ? i.p.hospitalId : i.n.hospitalId) === h.id);
-      const paradas = data.paradas.filter((p) => p.hospitalId === h.id);
+      const paradas = data.paradas.filter((p) => p.hospitalId === h.id && !p.naBase);
       const barras = emFaixas(doHospital);
       return {
         ...h,
@@ -223,7 +225,7 @@ export default function LinhaDoTempo({ onHospital }: { onHospital?: (id: string)
 
                       const p = item.p;
                       const n = p.acolhimento;
-                      const cor = corDaBarra(p.minutos, data.alertaMin);
+                      const cor = p.naBase ? COR_BASE : corDaBarra(p.minutos, data.alertaMin);
                       const alturaBarra = cruzando ? FAIXA_PX - 10 : FAIXA_PX - 6;
                       // Posição de um horário da notificação dentro do espaço da linha.
                       const px = (iso: string) => vista.x(Date.parse(iso));
@@ -240,11 +242,11 @@ export default function LinhaDoTempo({ onHospital }: { onHospital?: (id: string)
                               outline: contorno, outlineOffset: 1, fontSize: 10, lineHeight: `${alturaBarra}px`,
                             }}
                           >
-                            {p.minutos > data.alertaMin && (
+                            {!p.naBase && p.minutos > data.alertaMin && (
                               <span className="absolute top-0 bottom-0 w-[2px] bg-white/80" style={{ left: `${(data.alertaMin / p.minutos) * 100}%` }} />
                             )}
                             <span className="relative px-[4px]">
-                              {p.nome} {p.minutos}′{p.aberta ? " ▸" : ""}
+                              {p.nome} {p.naBase ? "base " : ""}{p.minutos}′{p.aberta ? " ▸" : ""}
                               {n ? " 📋" : p.semNotificacao ? " · sem notificação" : ""}
                             </span>
                           </button>
@@ -311,6 +313,9 @@ export default function LinhaDoTempo({ onHospital }: { onHospital?: (id: string)
               {data.alertaMin} min ou mais (traço = quando passou dos {data.alertaMin})
             </span>
             <span>▸ ainda lá</span>
+            <span className="flex items-center gap-1">
+              <span className="inline-block w-[14px] h-[10px] rounded-[3px]" style={{ background: COR_BASE }} /> na própria base (sem alerta)
+            </span>
             <span className="flex items-center gap-1">
               <span className="inline-block w-[14px] h-[10px] rounded-[3px] opacity-50" style={{ background: COR_BARRA.curta }} /> fechou sem sinal
             </span>

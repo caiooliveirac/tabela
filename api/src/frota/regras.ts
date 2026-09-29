@@ -141,6 +141,12 @@ export interface Permanencia {
     entrada: Date;
     ultimaVez: Date;
     alertaEm: Date | null;
+    /**
+     * Parada na própria base, que fica no hospital (Pau Miúdo ao lado do
+     * HGESF/Mário Leal, Cajazeiras no Municipal). Aparece na tabela e na linha
+     * do tempo com a hora de entrada, mas não conta para o alerta de 40 min.
+     */
+    naBase: boolean;
     /** Mensagem do aviso no grupo dos reguladores (Telegram), para editar. */
     avisoMsgId?: number | null;
 }
@@ -184,13 +190,16 @@ export function avancarPermanencias(
         // Posição velha não abre nem confirma nada.
         if (agora.getTime() - l.em.getTime() > SEM_SINAL_FECHA_MIN * MIN) continue;
         const atual = proximas.get(l.chave);
-        const emCasa = naBase(l);
+        const dBase = l.base ? distanciaM(l, l.base) : Infinity;
         if (atual) {
             if (l.em.getTime() <= atual.ultimaVez.getTime()) continue;
             const h = porId.get(atual.hospitalId);
-            if (h && !emCasa && distanciaM(l, h) <= RAIO_SAIDA_M) {
+            // Mesma histerese do hospital para a borda da base: entra a 150 m,
+            // sai a 200 m. Base ↔ hospital fecha uma parada e abre a outra.
+            const mesmoLugar = atual.naBase ? dBase <= RAIO_SAIDA_M : dBase > RAIO_M;
+            if (h && mesmoLugar && distanciaM(l, h) <= RAIO_SAIDA_M) {
                 const nova: Permanencia = { ...atual, ultimaVez: l.em };
-                if (!nova.alertaEm && duracaoMin(nova, agora) >= ALERTA_MIN) nova.alertaEm = agora;
+                if (!nova.naBase && !nova.alertaEm && duracaoMin(nova, agora) >= ALERTA_MIN) nova.alertaEm = agora;
                 proximas.set(l.chave, nova);
                 alteradas.push(nova);
                 continue;
@@ -198,7 +207,7 @@ export function avancarPermanencias(
             proximas.delete(l.chave);
             fechadas.push({ permanencia: atual, saida: l.em, motivo: "saiu" });
         }
-        const h = emCasa ? null : hospitalNoRaio(l, hospitais);
+        const h = hospitalNoRaio(l, hospitais);
         if (h) {
             const p: Permanencia = {
                 chave: l.chave,
@@ -206,6 +215,7 @@ export function avancarPermanencias(
                 entrada: l.em,
                 ultimaVez: l.em,
                 alertaEm: null,
+                naBase: dBase <= RAIO_M,
             };
             proximas.set(l.chave, p);
             novas.push(p);
