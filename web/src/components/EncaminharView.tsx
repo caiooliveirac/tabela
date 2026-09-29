@@ -31,7 +31,7 @@ const MapaSalvador = lazy(() => import("./MapaSalvador"));
 const MapaGoogle = lazy(() => import("./MapaGoogle"));
 import BuscaEndereco from "./BuscaEndereco";
 import { useFrota } from "../hooks/useFrota";
-import { COR } from "./frota/formato";
+import { COR, artigo } from "./frota/formato";
 import IntelChip from "./IntelChip";
 
 function tempo(segundos: number | null): string {
@@ -326,7 +326,7 @@ export default function EncaminharView({ hospitals, timelineCases }: Props) {
                 </span>
                 {paradas.length > 0 && (
                   <span className="ml-auto font-semibold text-slate-600">
-                    Paradas agora: {paradas.map((v) => `${v.nome} no ${v.noHospital!.hospitalNome} (${v.noHospital!.minutos} min)`).join(" · ")}
+                    Paradas agora: {paradas.map((v) => `${v.nome} n${artigo(v.noHospital!.hospitalNome)} ${v.noHospital!.hospitalNome} (${v.noHospital!.minutos} min)`).join(" · ")}
                   </span>
                 )}
               </div>

@@ -1,6 +1,7 @@
 // ═══════════════════════════════════════════════════════════════
 // Linha do tempo por hospital: cada barra é uma viatura parada no raio de
-// 150 m, da entrada à saída. Uma linha por hospital (ordem fixa do painel);
+// 150 m, da entrada à saída. Uma linha por hospital (ordem fixa do painel),
+// depois as UPAs — só as que tiveram parada na janela;
 // viaturas ao mesmo tempo no mesmo hospital empilham em faixas.
 //
 // Cor = quanto tempo durou (azul até 29 min, âmbar 30–39, vermelho 40+),
@@ -15,7 +16,7 @@
 import { useMemo, useState } from "react";
 import type { LinhaDoTempoFrota, NotificacaoAcolhimento, ParadaHistorico } from "../../lib/types";
 import { useLinhaDoTempoFrota } from "../../hooks/useFrota";
-import { hora } from "./formato";
+import { artigo, hora } from "./formato";
 
 const JANELAS = [6, 12, 24] as const;
 const FAIXA_PX = 24;
@@ -69,7 +70,7 @@ function descricao(i: Item, hospitalNome: string): string {
   const p = i.p;
   const quem = `${p.nome}${p.tipo ? ` (${p.tipo}${p.base ? ` · ${p.base}` : ""})` : ""}`;
   const fim = p.aberta ? "ainda lá" : p.motivoFim === "sem-sinal" ? `sem sinal desde ${hora(p.fim)}` : `saiu ${hora(p.fim)}`;
-  const gps = `${quem} ${p.naBase ? "na própria base, junto do" : "no"} ${hospitalNome} · entrou ${hora(p.entrada)} · ${p.minutos} min · ${fim}`;
+  const gps = `${quem} ${p.naBase ? "na própria base, junto d" : "n"}${artigo(hospitalNome)} ${hospitalNome} · entrou ${hora(p.entrada)} · ${p.minutos} min · ${fim}`;
   if (p.acolhimento) return `${gps}. Acolhimentos: ${notificado(p.acolhimento)}`;
   if (p.semNotificacao) return `${gps}. Sem notificação no Acolhimentos.`;
   return gps;
@@ -108,9 +109,10 @@ export default function LinhaDoTempo({ onHospital }: { onHospital?: (id: string)
         }),
       ),
     ];
-    const linhas = data.hospitais.map((h) => {
+    const linhas = data.hospitais.flatMap((h) => {
       const doHospital = itens.filter((i) => (i.tipo === "parada" ? i.p.hospitalId : i.n.hospitalId) === h.id);
       const paradas = data.paradas.filter((p) => p.hospitalId === h.id && !p.naBase);
+      if (h.tipo === "upa" && !doHospital.length) return [];
       const barras = emFaixas(doHospital);
       return {
         ...h,

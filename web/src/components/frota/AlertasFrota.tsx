@@ -2,7 +2,7 @@
 // "Ciente". Canto inferior direito para não brigar com os avisos das UPAs,
 // que usam o superior.
 import type { ViaturaFrota } from "../../lib/types";
-import { COR, duracao, hora } from "./formato";
+import { COR, artigo, duracao, hora } from "./formato";
 
 interface Props {
   pendentes: ViaturaFrota[];
@@ -32,7 +32,7 @@ export default function AlertasFrota({ pendentes, alertaMin, onVer, onCiente }: 
               Parada de {alertaMin} min ou mais
             </div>
             <div className="text-[16px] font-black text-slate-900 leading-tight mt-[2px]">
-              {v.nome} há {duracao(n.minutos)} no {n.hospitalNome}
+              {v.nome} há {duracao(n.minutos)} n{artigo(n.hospitalNome)} {n.hospitalNome}
             </div>
             <div className="text-[11px] text-slate-500 mt-[2px]">
               entrou {hora(n.entrada)}

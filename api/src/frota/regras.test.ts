@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { CATALOGO, DESATIVADAS_ATE_SEGUNDA_ORDEM } from "./catalogo.js";
-import { HOSPITAIS_FROTA } from "./hospitais.js";
+import { CATALOGO, COORDENADAS_BASES, DESATIVADAS_ATE_SEGUNDA_ORDEM } from "./catalogo.js";
+import { HOSPITAIS_FROTA, LOCAIS_FROTA } from "./hospitais.js";
 import {
     avancarPermanencias, distanciaM, duracaoMin, hospitalNoRaio, instanteSamu,
     situacao, vincular, type Permanencia,
@@ -27,6 +27,39 @@ test("hospitais: os 11 do painel, todos na RMS", () => {
     for (const h of HOSPITAIS_FROTA) {
         assert.ok(h.lat > -13.1 && h.lat < -12.7 && h.lng > -38.6 && h.lng < -38.2, h.id);
     }
+});
+
+test("UPAs: 20 na RMS, ids únicos junto dos hospitais, nenhuma no raio de outra", () => {
+    const upas = LOCAIS_FROTA.filter((h) => h.tipo === "upa");
+    assert.equal(upas.length, 20);
+    assert.equal(new Set(LOCAIS_FROTA.map((h) => h.id)).size, LOCAIS_FROTA.length);
+    for (const u of upas) {
+        assert.ok(u.lat > -13.1 && u.lat < -12.7 && u.lng > -38.6 && u.lng < -38.2, u.id);
+        for (const o of upas) if (o !== u) assert.ok(distanciaM(u, o) > 2 * 150, `${u.id} × ${o.id}`);
+    }
+});
+
+test("UPA: parada abre e alerta; base dentro da UPA fica naBase, sem alerta", () => {
+    const valeria = LOCAIS_FROTA.find((h) => h.id === "upa_valeria")!;
+    const ponto = { lat: valeria.lat + 50 / 111_195, lng: valeria.lng };
+    let abertas = new Map<string, Permanencia>();
+    for (const hhmm of ["10:00", "10:30", "10:45"]) {
+        const r = avancarPermanencias(
+            abertas,
+            [
+                { chave: "VL56", em: t(hhmm), ...ponto, base: COORDENADAS_BASES["VALÉRIA"] },
+                { chave: "PP20", em: t(hhmm), ...ponto, base: COORDENADAS_BASES.PERIPERI },
+            ],
+            LOCAIS_FROTA,
+            t(hhmm),
+        );
+        abertas = r.abertas;
+    }
+    assert.equal(abertas.get("VL56")?.hospitalId, "upa_valeria");
+    assert.equal(abertas.get("VL56")?.naBase, true);
+    assert.equal(abertas.get("VL56")?.alertaEm, null);
+    assert.equal(abertas.get("PP20")?.naBase, false);
+    assert.equal(abertas.get("PP20")?.alertaEm?.toISOString(), t("10:45").toISOString());
 });
 
 test("data_evento do SAMU+ é hora de Salvador", () => {

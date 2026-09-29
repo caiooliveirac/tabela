@@ -122,9 +122,9 @@ export default function FrotaView({ painel, carregando, erro, foco, focar }: Pro
       {/* ── O momento, em números ── */}
       <div className="flex gap-2 flex-wrap">
         <Numero valor={grupos.noMapa.length} rotulo="no mapa" cor={COR.recente} detalhe="Posição da última hora" />
-        <Numero valor={emHospital} rotulo="paradas em hospital" cor={COR.hospital} detalhe={`Dentro de ${L.raioM} m de um hospital`} />
+        <Numero valor={emHospital} rotulo="paradas em hospital/UPA" cor={COR.hospital} detalhe={`Dentro de ${L.raioM} m de um hospital ou UPA`} />
         <Numero valor={emAlerta} rotulo={`há ${L.alertaMin} min ou mais`} cor={emAlerta ? COR.alerta : "#cbd5e1"} detalhe="Retenção de maca" />
-        <Numero valor={naBaseHospital} rotulo="na base (no hospital)" cor={COR.base} detalhe="Base do Pau Miúdo e de Cajazeiras: ao lado do hospital, sem alerta" />
+        <Numero valor={naBaseHospital} rotulo="na base (no hospital)" cor={COR.base} detalhe="Base colada no hospital ou dentro da UPA: sem alerta" />
         <Numero valor={grupos.semSinal.length} rotulo="sem sinal" cor={COR.atrasada} detalhe="Deviam estar na rua e não transmitem há mais de 1 h" />
         <Numero valor={grupos.foraDoTurno.length} rotulo="fora do turno" cor="#cbd5e1" detalhe="SD e 10h, de noite" />
         <Numero valor={grupos.desativadas.length} rotulo="desativadas" cor="#94a3b8" detalhe="Até segunda ordem ou no cadastro oficial" />
@@ -174,7 +174,7 @@ export default function FrotaView({ painel, carregando, erro, foco, focar }: Pro
             <div className="absolute top-2 left-2 z-10 flex gap-[6px] flex-wrap max-w-[calc(100%-70px)] pointer-events-none">
               {[
                 { n: grupos.noMapa.length, t: "no mapa", c: COR.recente },
-                { n: emHospital, t: "em hospital", c: COR.hospital },
+                { n: emHospital, t: "em hospital/UPA", c: COR.hospital },
                 { n: emAlerta, t: `${L.alertaMin}+ min`, c: emAlerta ? COR.alerta : "#94a3b8" },
                 { n: grupos.semSinal.length, t: "sem sinal", c: COR.atrasada },
               ].map((x) => (
@@ -278,12 +278,13 @@ export default function FrotaView({ painel, carregando, erro, foco, focar }: Pro
         <ul className="list-disc pl-5 mt-2 space-y-1">
           <li>O SAMU+ informa a última posição de cada viatura; o painel lê a cada 2 minutos.</li>
           <li>
-            Entrou no círculo de {L.raioM} m de um hospital, começa a contar. Só para de contar quando se afasta mais
+            Entrou no círculo de {L.raioM} m de um hospital ou UPA, começa a contar. Só para de contar quando se afasta mais
             de {L.raioSaidaM} m — o GPS oscila na borda e não pode abrir e fechar a parada a cada leitura.
           </li>
           <li>
-            As bases do Pau Miúdo e de Cajazeiras ficam coladas no HGESF, no Mário Leal e no Municipal. Viatura parada
-            na própria base aparece na tabela em cinza, como "base no hospital", com a hora de entrada — mas não conta
+            As bases do Pau Miúdo e de Cajazeiras ficam coladas no HGESF, no Mário Leal e no Municipal; várias outras
+            funcionam dentro de UPA (San Martin, Periperi, Santo Antônio, São Cristóvão…). Viatura parada na própria
+            base aparece na tabela em cinza, como "base no hospital", com a hora de entrada — mas não conta
             para o alerta.
           </li>
           <li>

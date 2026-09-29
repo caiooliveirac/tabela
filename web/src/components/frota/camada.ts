@@ -1,6 +1,7 @@
 // ═══════════════════════════════════════════════════════════════
 // Camada da frota num mapa do Google — usada pela aba Frota e pelo mapa do
-// Destino. Desenha o raio de cada hospital e uma etiqueta por viatura.
+// Destino. Desenha o raio de cada hospital e UPA e uma etiqueta por viatura.
+// A UPA só mostra o nome quando tem viatura dentro — são 20, poluiriam o mapa.
 //
 // O raio é o desenho da regra: cinza = ninguém parado, azul = tem viatura
 // dentro, vermelho pulsando = alguém passou de 40 min. A etiqueta tem a cor
@@ -11,7 +12,7 @@
 // balão aberto não some a cada 30 s.
 // ═══════════════════════════════════════════════════════════════
 import type { HospitalPonto, PainelFrota, ViaturaFrota } from "../../lib/types";
-import { COR, corDaIdade, duracao, hora } from "./formato";
+import { COR, artigo, corDaIdade, duracao, hora } from "./formato";
 
 export interface OpcoesCamada {
   /** "todos": raio em todo hospital (aba Frota). "ocupados": só onde há viatura (Destino). */
@@ -55,12 +56,12 @@ function balaoViatura(v: ViaturaFrota): string {
   ];
   if (v.noHospital?.naBase) {
     const h = v.noHospital;
-    linhas.push(`Na própria base, junto do ${esc(h.hospitalNome)} desde ${hora(h.entrada)} (${duracao(h.minutos)}) — não conta para o alerta`);
+    linhas.push(`Na própria base, junto d${artigo(h.hospitalNome)} ${esc(h.hospitalNome)} desde ${hora(h.entrada)} (${duracao(h.minutos)}) — não conta para o alerta`);
   } else if (v.noHospital) {
     const h = v.noHospital;
     linhas.push(
       `<span style="color:${h.alerta ? COR.alerta : COR.hospital};font-weight:800">` +
-        `No ${esc(h.hospitalNome)} desde ${hora(h.entrada)} — ${duracao(h.minutos)}` +
+        `N${artigo(h.hospitalNome)} ${esc(h.hospitalNome)} desde ${hora(h.entrada)} — ${duracao(h.minutos)}` +
         `${h.alerta ? " ⚠" : ""}</span>`,
     );
   } else if (v.naBase) {
@@ -141,9 +142,11 @@ export class CamadaFrota {
         reg.el.style.cssText =
           `background:#fff;color:#0f172a;border:2px solid ${cor};border-radius:999px;` +
           "padding:2px 7px;font:800 11px/1.2 'DM Sans',sans-serif;white-space:nowrap;cursor:pointer;" +
-          "box-shadow:0 1px 4px rgba(15,23,42,.25)";
+          "box-shadow:0 1px 4px rgba(15,23,42,.25)" +
+          (h.tipo === "upa" && !dentro.length ? ";display:none" : "");
         reg.el.innerHTML =
-          `H ${esc(h.nome)}` + (dentro.length ? ` <span style="color:${cor}">· ${dentro.length}</span>` : "");
+          `${h.tipo === "upa" ? "" : "H "}${esc(h.nome)}` +
+          (dentro.length ? ` <span style="color:${cor}">· ${dentro.length}</span>` : "");
       }
     }
 
