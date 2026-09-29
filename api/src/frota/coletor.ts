@@ -1,0 +1,172 @@
+// ═══════════════════════════════════════════════════════════════
+// Coletor da frota: a cada 2 min lê as posições do SAMU+, atualiza as
+// permanências nos hospitais e grava abertura/fechamento no banco.
+//
+// Estado em memória (um processo só, como o resto da API). O banco guarda
+// o que precisa sobreviver a um restart: as permanências (histórico da
+// retenção de maca) e o último vínculo equipe↔unidade.
+// Sem SAMUMAIS_TOKEN no ambiente: coletor desligado, GET /frota diz isso.
+// ═══════════════════════════════════════════════════════════════
+import { sql } from "drizzle-orm";
+import { db } from "../index.js";
+import { CATALOGO, DESATIVADAS_ATE_SEGUNDA_ORDEM } from "./catalogo.js";
+import { HOSPITAIS_FROTA } from "./hospitais.js";
+import { avancarPermanencias, type Permanencia } from "./regras.js";
+import { buscarDispositivos, buscarPosicoes, type DispositivoSamu, type PosicaoSamu } from "./samumais.js";
+import { leiturasParaPermanencia, montarPainel, resolverPosicoes, type PainelFrota } from "./painel.js";
+
+const TOKEN = process.env.SAMUMAIS_TOKEN || "";
+const COLETA_MS = 2 * 60_000;
+/** A página de status tem ~430 KB: vínculo a cada 10 min, ou antes se aparecer equipe nova. */
+const VINCULOS_MS = 10 * 60_000;
+const VINCULOS_MIN_MS = 2 * 60_000;
+
+let coletadoEm: Date | null = null;
+let vinculosEm: Date | null = null;
+let tentouVinculosEm = 0;
+let erro: string | null = null;
+let posicoes: PosicaoSamu[] = [];
+let dispositivos: DispositivoSamu[] = [];
+let abertas = new Map<string, Permanencia>();
+let rodando = false;
+
+type Linha = Record<string, unknown>;
+const consultar = async (q: ReturnType<typeof sql>) => (await db.execute(q)) as unknown as Linha[];
+
+async function criarTabelas(): Promise<void> {
+    await db.execute(sql`
+        CREATE TABLE IF NOT EXISTS frota_permanencias (
+            id          serial PRIMARY KEY,
+            chave       varchar(60)  NOT NULL,
+            hospital_id varchar(50)  NOT NULL,
+            entrada     timestamptz  NOT NULL,
+            ultima_vez  timestamptz  NOT NULL,
+            saida       timestamptz,
+            motivo_fim  varchar(20),
+            alerta_em   timestamptz
+        )`);
+    await db.execute(sql`
+        CREATE INDEX IF NOT EXISTS frota_permanencias_abertas_idx
+        ON frota_permanencias (chave) WHERE motivo_fim IS NULL`);
+    await db.execute(sql`
+        CREATE TABLE IF NOT EXISTS frota_estado (
+            chave         varchar(40) PRIMARY KEY,
+            valor         jsonb       NOT NULL,
+            atualizado_em timestamptz NOT NULL DEFAULT now()
+        )`);
+}
+
+async function carregar(): Promise<void> {
+    for (const r of await consultar(sql`
+        SELECT id, chave, hospital_id, entrada, ultima_vez, alerta_em
+        FROM frota_permanencias WHERE motivo_fim IS NULL`)) {
+        abertas.set(String(r.chave), {
+            id: Number(r.id),
+            chave: String(r.chave),
+            hospitalId: String(r.hospital_id),
+            entrada: new Date(r.entrada as string),
+            ultimaVez: new Date(r.ultima_vez as string),
+            alertaEm: r.alerta_em ? new Date(r.alerta_em as string) : null,
+        });
+    }
+    const [v] = await consultar(sql`SELECT valor, atualizado_em FROM frota_estado WHERE chave = 'dispositivos'`);
+    if (v) {
+        dispositivos = v.valor as DispositivoSamu[];
+        vinculosEm = new Date(v.atualizado_em as string);
+    }
+}
+
+async function atualizarVinculos(): Promise<void> {
+    tentouVinculosEm = Date.now();
+    const lidos = await buscarDispositivos();
+    if (!lidos.length) throw new Error("status-unidades: nenhuma unidade");
+    dispositivos = lidos;
+    vinculosEm = new Date();
+    await db.execute(sql`
+        INSERT INTO frota_estado (chave, valor, atualizado_em)
+        VALUES ('dispositivos', ${JSON.stringify(lidos)}::jsonb, now())
+        ON CONFLICT (chave) DO UPDATE SET valor = EXCLUDED.valor, atualizado_em = now()`);
+}
+
+async function ciclo(): Promise<void> {
+    if (rodando) return;
+    rodando = true;
+    try {
+        posicoes = await buscarPosicoes(TOKEN);
+
+        const conhecidas = new Set(dispositivos.map((d) => d.equipe));
+        const equipeNova = posicoes.some((p) => !conhecidas.has(p.idEquipe));
+        const velho = !vinculosEm || Date.now() - vinculosEm.getTime() > VINCULOS_MS;
+        if ((velho || equipeNova) && Date.now() - tentouVinculosEm > VINCULOS_MIN_MS) {
+            // Página fora do ar não para a coleta: segue com o último vínculo.
+            await atualizarVinculos().catch((e) => console.warn("[frota] vínculos:", (e as Error).message));
+        }
+
+        const agora = new Date();
+        const resolvidas = resolverPosicoes(posicoes, dispositivos, CATALOGO);
+        const r = avancarPermanencias(
+            abertas,
+            leiturasParaPermanencia(resolvidas, DESATIVADAS_ATE_SEGUNDA_ORDEM, CATALOGO),
+            HOSPITAIS_FROTA,
+            agora,
+        );
+        for (const p of r.novas) {
+            const [linha] = await consultar(sql`
+                INSERT INTO frota_permanencias (chave, hospital_id, entrada, ultima_vez)
+                VALUES (${p.chave}, ${p.hospitalId}, ${p.entrada.toISOString()}, ${p.ultimaVez.toISOString()})
+                RETURNING id`);
+            p.id = Number(linha.id);
+        }
+        for (const p of r.alteradas) {
+            if (p.id === undefined) continue;
+            await db.execute(sql`
+                UPDATE frota_permanencias
+                SET ultima_vez = ${p.ultimaVez.toISOString()}, alerta_em = ${p.alertaEm?.toISOString() ?? null}
+                WHERE id = ${p.id}`);
+        }
+        for (const f of r.fechadas) {
+            if (f.permanencia.id === undefined) continue;
+            await db.execute(sql`
+                UPDATE frota_permanencias
+                SET saida = ${f.saida?.toISOString() ?? null}, motivo_fim = ${f.motivo}
+                WHERE id = ${f.permanencia.id}`);
+        }
+        abertas = r.abertas;
+        coletadoEm = agora;
+        erro = null;
+    } catch (e) {
+        erro = (e as Error).message;
+        console.error("[frota] coleta:", erro);
+    } finally {
+        rodando = false;
+    }
+}
+
+export async function initFrota(): Promise<void> {
+    if (!TOKEN) {
+        console.log("[frota] SAMUMAIS_TOKEN vazio — coletor desligado");
+        return;
+    }
+    await criarTabelas();
+    await carregar();
+    void ciclo();
+    setInterval(() => void ciclo(), COLETA_MS);
+    console.log(`[frota] coletor ligado (${abertas.size} permanências abertas)`);
+}
+
+export function painelAtual(): PainelFrota {
+    const agora = new Date();
+    return montarPainel({
+        ativo: Boolean(TOKEN),
+        coletadoEm,
+        vinculosEm,
+        erro,
+        catalogo: CATALOGO,
+        desativadas: DESATIVADAS_ATE_SEGUNDA_ORDEM,
+        hospitais: HOSPITAIS_FROTA,
+        resolvidas: resolverPosicoes(posicoes, dispositivos, CATALOGO),
+        dispositivos,
+        abertas,
+        agora,
+    });
+}

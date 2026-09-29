@@ -24,6 +24,10 @@ import PinDialog from "./PinDialog";
 import Tutorial from "./Tutorial";
 import SummaryDrawer from "./SummaryDrawer";
 import EncaminharView from "./EncaminharView";
+import FrotaView from "./frota/FrotaView";
+import AlertasFrota from "./frota/AlertasFrota";
+import type { Foco } from "./frota/MapaFrota";
+import { useFrota, useAlertasFrota } from "../hooks/useFrota";
 
 function fmt(ts: string): string {
   const d = new Date(ts);
@@ -106,6 +110,7 @@ const TAB_LABELS = [
   ["destino", "Destino"],
   ["timeline", "Casos"],
   ["upas", "UPAs"],
+  ["frota", "Frota"],
 ] as const;
 const TABS = TAB_LABELS.map(([k]) => k);
 type Tab = (typeof TAB_LABELS)[number][0];
@@ -123,6 +128,12 @@ export default function Dashboard() {
   const createChefia = useCreateChefia();
   const removeChefia = useRemoveChefia();
   const updateChefia = useUpdateChefia();
+  // Frota: lida em todas as abas, porque o aviso de 40 min não espera ninguém
+  // abrir a aba.
+  const frota = useFrota();
+  const { alertas: alertasFrota, pendentes: avisosFrota, ciente: frotaCiente } =
+    useAlertasFrota(frota.data?.viaturas);
+  const [focoFrota, setFocoFrota] = useState<Foco | null>(null);
 
   // UI state
   const [selH, setSelH] = useState<string | null>(null);
@@ -732,6 +743,15 @@ export default function Dashboard() {
                 }}
               >
                 {l}
+                {k === "frota" && alertasFrota.length > 0 && (
+                  <span
+                    className="ml-[6px] inline-flex items-center justify-center min-w-[16px] h-[16px] px-[4px] rounded-full text-[10px] font-black text-white"
+                    style={{ backgroundColor: "#dc2626" }}
+                    title={`${alertasFrota.length} viatura(s) há 40 min ou mais em hospital`}
+                  >
+                    {alertasFrota.length}
+                  </span>
+                )}
               </button>
             ))}
           </div>
@@ -894,7 +914,15 @@ export default function Dashboard() {
               </div>
             )}
 
-            {tab === "upas" ? (
+            {tab === "frota" ? (
+              <FrotaView
+                painel={frota.data}
+                carregando={frota.isLoading}
+                erro={frota.error}
+                foco={focoFrota}
+                focar={(f) => setFocoFrota({ ...f, vez: Date.now() })}
+              />
+            ) : tab === "upas" ? (
               <UpasView operador={op} />
             ) : tab === "destino" ? (
               <EncaminharView hospitals={hospitals} timelineCases={timelineCases} />
@@ -1202,6 +1230,17 @@ export default function Dashboard() {
         />
       )}
 
+      {!tutActive && (
+        <AlertasFrota
+          pendentes={avisosFrota}
+          alertaMin={frota.data?.limites.alertaMin ?? 40}
+          onCiente={frotaCiente}
+          onVer={(v) => {
+            setTab("frota");
+            if (v.posicao) setFocoFrota({ lat: v.posicao.lat, lng: v.posicao.lng, zoom: 17, vez: Date.now() });
+          }}
+        />
+      )}
     </div>
   );
 }
