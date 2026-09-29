@@ -133,4 +133,9 @@ export const COORDENADAS_BASES: Readonly<Record<string, { lat: number; lng: numb
     "JORGE AMADO": { lat: -12.936804, lng: -38.410645 },
     "SÃO CRISTÓVÃO": { lat: -12.907002, lng: -38.36447 },
     "RODRIGO ARGOLO": { lat: -12.94532, lng: -38.446339 },
+    // Fora da ChecagemdeBases (lá são aproximadas, ~0,7 e ~1,2 km da UPA):
+    // ponto da UPA de mesmo nome em upas.ts. SUPOSIÇÃO pelo nome da base
+    // (29/09/2026) — sem ela a viatura parada na base alertaria aos 40 min.
+    VALÉRIA: { lat: -12.8646079, lng: -38.4372461 },
+    "BOCA DO RIO 12º CENTRO": { lat: -12.9735423, lng: -38.4320045 },
 };

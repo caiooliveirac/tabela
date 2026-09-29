@@ -10,7 +10,7 @@
 import { sql } from "drizzle-orm";
 import { db } from "../index.js";
 import { CATALOGO, DESATIVADAS_ATE_SEGUNDA_ORDEM } from "./catalogo.js";
-import { HOSPITAIS_FROTA } from "./hospitais.js";
+import { LOCAIS_FROTA } from "./hospitais.js";
 import { ALERTA_MIN, avancarPermanencias, duracaoMin, ehMoto, type Fechamento, type Permanencia } from "./regras.js";
 import { textoAviso, type DadosAviso } from "./aviso.js";
 import { editarReguladores, enviarReguladores } from "../lib/telegram.js";
@@ -117,7 +117,7 @@ async function ciclo(): Promise<void> {
         const r = avancarPermanencias(
             abertas,
             leiturasParaPermanencia(resolvidas, DESATIVADAS_ATE_SEGUNDA_ORDEM, CATALOGO),
-            HOSPITAIS_FROTA,
+            LOCAIS_FROTA,
             agora,
         );
         for (const p of r.novas) {
@@ -166,18 +166,20 @@ export function descreverChave(chave: string): { nome: string; tipo: string | nu
 
 function dadosAviso(p: Permanencia): DadosAviso {
     const q = descreverChave(p.chave);
-    const h = HOSPITAIS_FROTA.find((x) => x.id === p.hospitalId);
+    const h = LOCAIS_FROTA.find((x) => x.id === p.hospitalId);
     return { nome: q.nome, tipo: q.tipo, hospitalNome: h?.nome ?? p.hospitalId, entrada: p.entrada, ultimaVez: p.ultimaVez };
 }
 
 /**
- * Uma mensagem por parada no grupo dos reguladores: sai quando a parada
+ * Uma mensagem por parada em HOSPITAL no grupo dos reguladores: sai quando a parada
  * passa de 40 min, é editada a cada coleta e fecha com a saída (ou sem sinal).
  */
 async function avisar(fechadas: Fechamento[], agora: Date): Promise<void> {
     if (!AVISOS) return;
     for (const p of abertas.values()) {
         if (!p.alertaEm || p.id === undefined) continue;
+        // UPA: alerta só no painel por ora — o grupo não foi autorizado para ela.
+        if (LOCAIS_FROTA.find((h) => h.id === p.hospitalId)?.tipo === "upa") continue;
         const texto = textoAviso(dadosAviso(p), { tipo: "parada", minutos: duracaoMin(p, agora) });
         if (!p.avisoMsgId) {
             const id = await enviarReguladores(texto);
@@ -251,7 +253,7 @@ export async function linhaDoTempo(horas: number): Promise<{
     desde: string;
     ate: string;
     alertaMin: number;
-    hospitais: { id: string; nome: string }[];
+    hospitais: { id: string; nome: string; tipo: "hospital" | "upa" }[];
     paradas: ParadaHistorico[];
     acolhimentos: {
         ligado: boolean;
@@ -267,7 +269,7 @@ export async function linhaDoTempo(horas: number): Promise<{
         desde: desde.toISOString(),
         ate: agora.toISOString(),
         alertaMin: ALERTA_MIN,
-        hospitais: HOSPITAIS_FROTA.map((h) => ({ id: h.id, nome: h.nome })),
+        hospitais: LOCAIS_FROTA.map((h) => ({ id: h.id, nome: h.nome, tipo: h.tipo })),
     };
     const semCruzamento = { ligado: acolhimentosLigado(), erro: null, soltas: [] };
     if (!TOKEN) return { ...base, paradas: [], acolhimentos: semCruzamento };
@@ -307,10 +309,12 @@ export async function linhaDoTempo(horas: number): Promise<{
         // Quem chegou até 2 h antes da janela ainda pode estar dentro dela.
         const lidos = await buscarAcolhimentos(new Date(desde.getTime() - ABERTA_MAX_MS), agora);
         const { casadas, soltas } = cruzar(paradas, lidos, agora.getTime());
+        // O Acolhimentos só registra hospital: parada em UPA nunca é "sem notificação".
+        const upas = new Set(LOCAIS_FROTA.filter((h) => h.tipo === "upa").map((h) => h.id));
         for (const p of paradas) {
             const a = casadas.get(p.id);
             p.acolhimento = a ? resumo(a, agora.getTime()) : null;
-            p.semNotificacao = !a && !p.naBase && p.tipo === "USA" && p.minutos >= ALERTA_MIN;
+            p.semNotificacao = !a && !p.naBase && !upas.has(p.hospitalId) && p.tipo === "USA" && p.minutos >= ALERTA_MIN;
         }
         return {
             ...base,
@@ -350,7 +354,7 @@ export function painelAtual(): PainelFrota {
         erro,
         catalogo: CATALOGO,
         desativadas: DESATIVADAS_ATE_SEGUNDA_ORDEM,
-        hospitais: HOSPITAIS_FROTA,
+        hospitais: LOCAIS_FROTA,
         resolvidas: resolverPosicoes(posicoes, dispositivos, CATALOGO),
         dispositivos,
         abertas,

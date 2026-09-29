@@ -299,6 +299,8 @@ export interface EncaminhamentoConfig {
 export interface HospitalPonto {
   id: string;
   nome: string;
+  /** Só na frota: UPA tem raio como hospital, mas não cruza com o Acolhimentos. */
+  tipo?: "hospital" | "upa";
   lat: number;
   lng: number;
 }
@@ -406,7 +408,7 @@ export interface LinhaDoTempoFrota {
   desde: string;
   ate: string;
   alertaMin: number;
-  hospitais: { id: string; nome: string }[];
+  hospitais: { id: string; nome: string; tipo: "hospital" | "upa" }[];
   paradas: ParadaHistorico[];
   acolhimentos: {
     ligado: boolean;

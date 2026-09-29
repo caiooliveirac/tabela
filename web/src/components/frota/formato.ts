@@ -12,6 +12,11 @@ export const COR = {
   base: "#94a3b8",
 } as const;
 
+/** "na UPA", "na UE"; o resto (hospital, PA, Centro) é masculino: "no HGE". */
+export function artigo(nome: string): "a" | "o" {
+  return /^(UPA|UE)\b/.test(nome) ? "a" : "o";
+}
+
 export function corDaIdade(idadeMin: number, recenteMin: number): string {
   return idadeMin <= recenteMin ? COR.recente : COR.atrasada;
 }

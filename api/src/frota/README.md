@@ -22,8 +22,14 @@ vínculo sai da página de status; se ela sair do ar, vale o último salvo em
   fora do catálogo.
 - **No hospital:** a até 150 m do prédio. Só sai a mais de 200 m (o GPS
   oscila na borda). Moto e desativada não entram na conta.
-- **Base no hospital:** a base do Pau Miúdo fica entre o HGESF e o Mário Leal;
-  a de Cajazeiras, a 60 m do Municipal. Parada a até 150 m da **própria base**
+- **Na UPA:** mesma regra e mesmo alerta, nas 20 UPAs de `upas.ts`. No mapa o
+  nome da UPA só aparece com viatura dentro; na linha do tempo, só a UPA que
+  teve parada. UPA não cruza com o Acolhimentos (nunca "sem notificação") e
+  não manda aviso no Telegram — o alerta de 40 min fica só no painel.
+- **Base no hospital ou na UPA:** a base do Pau Miúdo fica entre o HGESF e o
+  Mário Leal; a de Cajazeiras, a 60 m do Municipal; San Martin, Periperi,
+  Santo Antônio, São Cristóvão e Rodrigo Argolo dentro da UPA. Valéria e
+  12º Centro: ponto da UPA de mesmo nome, por suposição (ver `catalogo.ts`). Parada a até 150 m da **própria base**
   é registrada com `na_base = true`: aparece em cinza na tabela e na linha do
   tempo, com hora de entrada, mas sem alerta nem Telegram. Base ↔ hospital
   troca de parada com a mesma histerese (150 m entra, 200 m sai).
@@ -60,6 +66,8 @@ sem registro. O Acolhimentos só cobre USA.
   `src/data/coordenadas.ts`.
 - `hospitais.ts` — os 11 hospitais do painel; 6 pontos do Destino, 5
   geocodificados em 29/09/2026.
+- `upas.ts` — as 20 UPAs: pinos da lista "UPAs" do Google Maps
+  (https://maps.app.goo.gl/ZQ2c7ZsepaxfryaE9), lida em 29/09/2026.
 
 ## Banco
 

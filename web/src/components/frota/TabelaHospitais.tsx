@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════
 // Tabela embaixo do mapa: toda viatura que está agora no raio de um
-// hospital, com a hora em que entrou e há quanto tempo está lá.
+// hospital ou UPA, com a hora em que entrou e há quanto tempo está lá.
 //
 // Primeiro as que contam para a retenção (mais antigas no topo), depois as
 // que estão na própria base — Pau Miúdo, junto do HGESF/Mário Leal, e
@@ -64,7 +64,7 @@ export default function TabelaHospitais({ painel, noMapa, onVer }: Props) {
     <div className="bg-white rounded-[10px] border border-slate-200 p-4">
       <div className="flex items-baseline gap-3 flex-wrap mb-2">
         <div className="text-[11px] font-extrabold text-slate-600 uppercase tracking-wide">
-          Ambulâncias nos hospitais agora
+          Ambulâncias em hospital ou UPA agora
         </div>
         <div className="text-[11px] text-slate-400">
           a até {L.raioM} m do prédio · clique na linha para ver no mapa
@@ -72,14 +72,14 @@ export default function TabelaHospitais({ painel, noMapa, onVer }: Props) {
       </div>
 
       {!linhas.length ? (
-        <div className="text-[13px] text-slate-400 py-2">Nenhuma viatura no raio de um hospital agora.</div>
+        <div className="text-[13px] text-slate-400 py-2">Nenhuma viatura no raio de um hospital ou UPA agora.</div>
       ) : (
         <div className="overflow-x-auto -mx-4 px-4">
           <table className="w-full text-[13px] border-collapse min-w-[760px]">
             <thead>
               <tr className="text-left text-[11px] text-slate-500 uppercase tracking-wide">
                 <th className="py-2 pr-3 font-extrabold">Viatura</th>
-                <th className="py-2 pr-3 font-extrabold">Hospital</th>
+                <th className="py-2 pr-3 font-extrabold">Hospital / UPA</th>
                 <th className="py-2 pr-3 font-extrabold">Entrou</th>
                 <th className="py-2 pr-3 font-extrabold">Tempo</th>
                 <th className="py-2 pr-3 font-extrabold">Situação</th>

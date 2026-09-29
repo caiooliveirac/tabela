@@ -12,10 +12,13 @@
 // ═══════════════════════════════════════════════════════════════
 import { HOSPITALS } from "../services/score.js";
 import { COORDENADAS_HOSPITAIS } from "../services/encaminhamento.js";
+import { UPAS_FROTA } from "./upas.js";
 
 export interface HospitalFrota {
     id: string;
     nome: string;
+    /** UPA não cruza com o Acolhimentos (que só registra hospital). */
+    tipo: "hospital" | "upa";
     lat: number;
     lng: number;
 }
@@ -36,5 +39,8 @@ const PONTOS_PROPRIOS: Record<string, { lat: number; lng: number }> = {
 export const HOSPITAIS_FROTA: readonly HospitalFrota[] = HOSPITALS.map((h) => {
     const p = PONTOS_PROPRIOS[h.id] ?? COORDENADAS_HOSPITAIS[h.id];
     if (!p) throw new Error(`hospital sem coordenada na frota: ${h.id}`);
-    return { id: h.id, nome: h.name, lat: p.lat, lng: p.lng };
+    return { id: h.id, nome: h.name, tipo: "hospital", lat: p.lat, lng: p.lng };
 });
+
+/** Todo ponto com raio: os hospitais e as UPAs (`upas.ts`). */
+export const LOCAIS_FROTA: readonly HospitalFrota[] = [...HOSPITAIS_FROTA, ...UPAS_FROTA];
