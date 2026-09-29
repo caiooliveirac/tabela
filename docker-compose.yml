@@ -46,6 +46,8 @@ services:
       GOOGLE_MAPS_MAP_ID: ${GOOGLE_MAPS_MAP_ID:-}
       # Aba Frota: token da API do SAMU+ (IMTECH). Vazio = coletor desligado.
       SAMUMAIS_TOKEN: ${SAMUMAIS_TOKEN:-}
+      # Aviso de viatura parada 40+ min no grupo REGULADORES - RECADOS. "0" desliga.
+      FROTA_AVISOS_TELEGRAM: ${FROTA_AVISOS_TELEGRAM:-1}
     networks:
       internal:
         aliases:

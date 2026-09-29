@@ -11,11 +11,14 @@ import { sql } from "drizzle-orm";
 import { db } from "../index.js";
 import { CATALOGO, DESATIVADAS_ATE_SEGUNDA_ORDEM } from "./catalogo.js";
 import { HOSPITAIS_FROTA } from "./hospitais.js";
-import { avancarPermanencias, type Permanencia } from "./regras.js";
+import { ALERTA_MIN, avancarPermanencias, duracaoMin, ehMoto, type Fechamento, type Permanencia } from "./regras.js";
+import { textoAviso, type DadosAviso } from "./aviso.js";
+import { editarReguladores, enviarReguladores } from "../lib/telegram.js";
 import { buscarDispositivos, buscarPosicoes, type DispositivoSamu, type PosicaoSamu } from "./samumais.js";
 import { leiturasParaPermanencia, montarPainel, resolverPosicoes, type PainelFrota } from "./painel.js";
 
 const TOKEN = process.env.SAMUMAIS_TOKEN || "";
+const AVISOS = (process.env.FROTA_AVISOS_TELEGRAM ?? "1") !== "0";
 const COLETA_MS = 2 * 60_000;
 /** A página de status tem ~430 KB: vínculo a cada 10 min, ou antes se aparecer equipe nova. */
 const VINCULOS_MS = 10 * 60_000;
@@ -29,6 +32,8 @@ let posicoes: PosicaoSamu[] = [];
 let dispositivos: DispositivoSamu[] = [];
 let abertas = new Map<string, Permanencia>();
 let rodando = false;
+/** Último texto publicado por parada — só edita a mensagem quando muda. */
+const textoPublicado = new Map<number, string>();
 
 type Linha = Record<string, unknown>;
 const consultar = async (q: ReturnType<typeof sql>) => (await db.execute(q)) as unknown as Linha[];
@@ -45,6 +50,7 @@ async function criarTabelas(): Promise<void> {
             motivo_fim  varchar(20),
             alerta_em   timestamptz
         )`);
+    await db.execute(sql`ALTER TABLE frota_permanencias ADD COLUMN IF NOT EXISTS aviso_msg_id bigint`);
     await db.execute(sql`
         CREATE INDEX IF NOT EXISTS frota_permanencias_abertas_idx
         ON frota_permanencias (chave) WHERE motivo_fim IS NULL`);
@@ -58,7 +64,7 @@ async function criarTabelas(): Promise<void> {
 
 async function carregar(): Promise<void> {
     for (const r of await consultar(sql`
-        SELECT id, chave, hospital_id, entrada, ultima_vez, alerta_em
+        SELECT id, chave, hospital_id, entrada, ultima_vez, alerta_em, aviso_msg_id
         FROM frota_permanencias WHERE motivo_fim IS NULL`)) {
         abertas.set(String(r.chave), {
             id: Number(r.id),
@@ -67,6 +73,7 @@ async function carregar(): Promise<void> {
             entrada: new Date(r.entrada as string),
             ultimaVez: new Date(r.ultima_vez as string),
             alertaEm: r.alerta_em ? new Date(r.alerta_em as string) : null,
+            avisoMsgId: r.aviso_msg_id != null ? Number(r.aviso_msg_id) : null,
         });
     }
     const [v] = await consultar(sql`SELECT valor, atualizado_em FROM frota_estado WHERE chave = 'dispositivos'`);
@@ -134,12 +141,123 @@ async function ciclo(): Promise<void> {
         abertas = r.abertas;
         coletadoEm = agora;
         erro = null;
+        // Telegram fora do ar não é falha de coleta.
+        await avisar(r.fechadas, agora).catch((e) => console.error("[frota] aviso:", (e as Error).message));
     } catch (e) {
         erro = (e as Error).message;
         console.error("[frota] coleta:", erro);
     } finally {
         rodando = false;
     }
+}
+
+/** Nome, tipo e base de uma chave do coletor (catálogo, ou o nome do SAMU+). */
+export function descreverChave(chave: string): { nome: string; tipo: string | null; base: string | null } {
+    const c = CATALOGO.find((v) => v.codigo === chave);
+    if (c) return { nome: c.codigo, tipo: c.tipo, base: c.base };
+    const unidade = Number(chave.replace(/^samu:/, ""));
+    const d = chave.startsWith("samu:") ? dispositivos.find((x) => x.unidadeSamu === unidade) : undefined;
+    const nome = d?.nome ?? chave.replace(/^equipe:/, "Equipe ");
+    return { nome, tipo: ehMoto(nome) ? "MOTO" : null, base: null };
+}
+
+function dadosAviso(p: Permanencia): DadosAviso {
+    const q = descreverChave(p.chave);
+    const h = HOSPITAIS_FROTA.find((x) => x.id === p.hospitalId);
+    return { nome: q.nome, tipo: q.tipo, hospitalNome: h?.nome ?? p.hospitalId, entrada: p.entrada, ultimaVez: p.ultimaVez };
+}
+
+/**
+ * Uma mensagem por parada no grupo dos reguladores: sai quando a parada
+ * passa de 40 min, é editada a cada coleta e fecha com a saída (ou sem sinal).
+ */
+async function avisar(fechadas: Fechamento[], agora: Date): Promise<void> {
+    if (!AVISOS) return;
+    for (const p of abertas.values()) {
+        if (!p.alertaEm || p.id === undefined) continue;
+        const texto = textoAviso(dadosAviso(p), { tipo: "parada", minutos: duracaoMin(p, agora) });
+        if (!p.avisoMsgId) {
+            const id = await enviarReguladores(texto);
+            if (!id) continue;
+            p.avisoMsgId = id;
+            await db.execute(sql`UPDATE frota_permanencias SET aviso_msg_id = ${id} WHERE id = ${p.id}`);
+        } else if (textoPublicado.get(p.id) !== texto) {
+            await editarReguladores(p.avisoMsgId, texto);
+        }
+        textoPublicado.set(p.id, texto);
+    }
+    for (const f of fechadas) {
+        const p = f.permanencia;
+        if (!p.avisoMsgId) continue;
+        const estado = f.saida ? { tipo: "saiu" as const, saida: f.saida } : { tipo: "sem-sinal" as const };
+        await editarReguladores(p.avisoMsgId, textoAviso(dadosAviso(p), estado));
+        if (p.id !== undefined) textoPublicado.delete(p.id);
+    }
+}
+
+export interface ParadaHistorico {
+    id: number;
+    chave: string;
+    nome: string;
+    tipo: string | null;
+    base: string | null;
+    hospitalId: string;
+    entrada: string;
+    /** Até onde a barra vai: saída, última posição vista, ou agora se ainda está lá. */
+    fim: string;
+    aberta: boolean;
+    motivoFim: "saiu" | "sem-sinal" | null;
+    minutos: number;
+    alertou: boolean;
+}
+
+/** Paradas em hospital que tocam as últimas `horas` (as abertas sempre entram). */
+export async function linhaDoTempo(horas: number): Promise<{
+    ativo: boolean;
+    desde: string;
+    ate: string;
+    alertaMin: number;
+    hospitais: { id: string; nome: string }[];
+    paradas: ParadaHistorico[];
+}> {
+    const agora = new Date();
+    const desde = new Date(agora.getTime() - horas * 3_600_000);
+    const base = {
+        ativo: Boolean(TOKEN),
+        desde: desde.toISOString(),
+        ate: agora.toISOString(),
+        alertaMin: ALERTA_MIN,
+        hospitais: HOSPITAIS_FROTA.map((h) => ({ id: h.id, nome: h.nome })),
+    };
+    if (!TOKEN) return { ...base, paradas: [] };
+    const linhas = await consultar(sql`
+        SELECT id, chave, hospital_id, entrada, ultima_vez, saida, motivo_fim, alerta_em
+        FROM frota_permanencias
+        WHERE motivo_fim IS NULL OR COALESCE(saida, ultima_vez) >= ${desde.toISOString()}
+        ORDER BY entrada`);
+    const paradas = linhas.map((r): ParadaHistorico => {
+        const entrada = new Date(r.entrada as string);
+        const ultimaVez = new Date(r.ultima_vez as string);
+        const aberta = r.motivo_fim == null;
+        const minutos = aberta
+            ? duracaoMin({ entrada, ultimaVez }, agora)
+            : Math.max(0, Math.floor(((r.saida ? new Date(r.saida as string) : ultimaVez).getTime() - entrada.getTime()) / 60_000));
+        const fim = new Date(entrada.getTime() + minutos * 60_000);
+        const q = descreverChave(String(r.chave));
+        return {
+            id: Number(r.id),
+            chave: String(r.chave),
+            ...q,
+            hospitalId: String(r.hospital_id),
+            entrada: entrada.toISOString(),
+            fim: fim.toISOString(),
+            aberta,
+            motivoFim: aberta ? null : (r.motivo_fim as "saiu" | "sem-sinal"),
+            minutos,
+            alertou: r.alerta_em != null,
+        };
+    });
+    return { ...base, paradas };
 }
 
 export async function initFrota(): Promise<void> {

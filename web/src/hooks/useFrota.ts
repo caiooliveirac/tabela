@@ -17,6 +17,15 @@ export function useFrota() {
   });
 }
 
+/** Paradas em hospital das últimas `horas`, para a linha do tempo. */
+export function useLinhaDoTempoFrota(horas: number) {
+  return useQuery({
+    queryKey: ["frota", "linha-do-tempo", horas],
+    queryFn: () => api.getLinhaDoTempoFrota(horas),
+    refetchInterval: 60_000,
+  });
+}
+
 const CHAVE_CIENTE = "tabela:frota-ciente";
 
 function lerCientes(): string[] {

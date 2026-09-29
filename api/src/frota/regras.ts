@@ -141,6 +141,8 @@ export interface Permanencia {
     entrada: Date;
     ultimaVez: Date;
     alertaEm: Date | null;
+    /** Mensagem do aviso no grupo dos reguladores (Telegram), para editar. */
+    avisoMsgId?: number | null;
 }
 
 export interface Fechamento {
