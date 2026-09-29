@@ -3,12 +3,19 @@
 // regras.test.ts). O coletor chama; a rota só serializa.
 // ═══════════════════════════════════════════════════════════════
 import type { ViaturaCatalogo } from "./catalogo.js";
-import type { HospitalFrota } from "./hospitais.js";
+import type { HospitalFrota, PontoAprendido } from "./hospitais.js";
 
 /** Entra no hospital a 150 m do prédio. */
 export const RAIO_M = 150;
 /** Só sai a 200 m: o GPS oscila na borda e abriria/fecharia a toda leitura. */
 export const RAIO_SAIDA_M = 200;
+/**
+ * Depois de chegar, a parada segue a viatura até 300 m do local — o
+ * estacionamento pode ser longe da porta (Valéria, HGESF, 16º Centro).
+ */
+export const RAIO_BUSCA_M = 300;
+/** GPS parado: posição a até 50 m da anterior. */
+export const PARADO_M = 50;
 /** Parada no hospital que vira alerta. */
 export const ALERTA_MIN = 40;
 /** Posição até 15 min: verde. Até 60 min: âmbar. Mais velha: fora do mapa. */
@@ -37,7 +44,14 @@ export function distanciaM(a: { lat: number; lng: number }, b: { lat: number; ln
     return 6_371_000 * 2 * Math.asin(Math.sqrt(h));
 }
 
-/** Hospital mais perto dentro do raio. Raios que se cruzam: vence o mais perto. */
+/** Distância ao ponto mais perto do local: o pino ou um estacionamento aprendido. */
+export function distanciaLocal(p: { lat: number; lng: number }, h: HospitalFrota): number {
+    let d = distanciaM(p, h);
+    for (const q of h.pontos ?? []) d = Math.min(d, distanciaM(p, q));
+    return d;
+}
+
+/** Local mais perto dentro do raio. Raios que se cruzam: vence o ponto mais perto. */
 export function hospitalNoRaio(
     p: { lat: number; lng: number },
     hospitais: readonly HospitalFrota[],
@@ -46,7 +60,7 @@ export function hospitalNoRaio(
     let melhor: HospitalFrota | null = null;
     let menor = Infinity;
     for (const h of hospitais) {
-        const d = distanciaM(p, h);
+        const d = distanciaLocal(p, h);
         if (d <= raio && d < menor) {
             melhor = h;
             menor = d;
@@ -149,6 +163,22 @@ export interface Permanencia {
     naBase: boolean;
     /** Mensagem do aviso no grupo dos reguladores (Telegram), para editar. */
     avisoMsgId?: number | null;
+    /** Última posição confirmada: a parada segue a viatura num raio de 150 m. */
+    lat?: number | null;
+    lng?: number | null;
+    /** Pulou para longe (ainda a até 300 m): a próxima posição decide. Só em memória. */
+    fora?: { lat: number; lng: number; em: Date } | null;
+    /** Posições paradas seguidas (a até 50 m uma da outra). Só em memória. */
+    corrida?: PontoParado | null;
+    /** Onde o GPS ficou parado mais tempo nesta parada: é daqui que se aprende. */
+    estavel?: PontoParado | null;
+}
+
+interface PontoParado {
+    lat: number;
+    lng: number;
+    /** Posições (uma a cada ~2 min). */
+    n: number;
 }
 
 export interface Fechamento {
@@ -167,6 +197,47 @@ export function duracaoMin(p: Pick<Permanencia, "entrada" | "ultimaVez">, agora:
     const fresca = agora.getTime() - p.ultimaVez.getTime() <= RECENTE_MIN * MIN;
     const fim = fresca ? agora.getTime() : p.ultimaVez.getTime();
     return Math.max(0, Math.floor((fim - p.entrada.getTime()) / MIN));
+}
+
+/**
+ * A parada aberta segue? Nunca troca de local: fica no mesmo, ou fecha.
+ * - "fica": a até 200 m de um ponto do local; ou a até 150 m de onde a
+ *   viatura parou (o GPS oscila); ou, sem passar de 300 m do local, a até
+ *   150 m da última posição (manobra até o estacionamento);
+ * - "fora": pulou para longe, ainda a até 300 m — a próxima posição decide:
+ *   parou ali (fica) ou seguiu (saiu, na hora do pulo);
+ * - "saiu": passou de 300 m, ou entrou na própria base.
+ */
+export function seguir(
+    p: Permanencia,
+    l: Pick<Leitura, "lat" | "lng">,
+    h: HospitalFrota | undefined,
+    dBase: number,
+): "fica" | "fora" | "saiu" {
+    if (!h) return "saiu";
+    const dLocal = distanciaLocal(l, h);
+    // Parada de base: mesma histerese da base (150 m entra, 200 m sai).
+    if (p.naBase) return dBase <= RAIO_SAIDA_M && dLocal <= RAIO_SAIDA_M ? "fica" : "saiu";
+    if (dBase <= RAIO_M) return "saiu";
+    if (dLocal <= RAIO_SAIDA_M) return "fica";
+    const perto = (q: { lat: number; lng: number } | null | undefined) => q != null && distanciaM(l, q) <= RAIO_M;
+    if ((p.corrida && p.corrida.n >= 2 && perto(p.corrida)) || perto(p.estavel)) return "fica";
+    if (dLocal > RAIO_BUSCA_M) return "saiu";
+    if (perto(p.fora)) return "fica";
+    if (p.lat != null && p.lng != null && perto({ lat: p.lat, lng: p.lng })) return "fica";
+    return p.fora ? "saiu" : "fora";
+}
+
+/** Sequência de posições paradas e a mais longa da parada (o `estavel`). */
+function acompanhar(p: Permanencia, l: { lat: number; lng: number }): Pick<Permanencia, "corrida" | "estavel"> {
+    // Voltando de um pulo, a posição anterior é a do pulo.
+    const c = p.fora ? { lat: p.fora.lat, lng: p.fora.lng, n: 1 } : p.corrida;
+    const corrida =
+        c && distanciaM(l, c) <= PARADO_M
+            ? { lat: c.lat + (l.lat - c.lat) / (c.n + 1), lng: c.lng + (l.lng - c.lng) / (c.n + 1), n: c.n + 1 }
+            : { lat: l.lat, lng: l.lng, n: 1 };
+    const estavel = corrida.n >= 2 && corrida.n > (p.estavel?.n ?? 0) ? corrida : (p.estavel ?? null);
+    return { corrida, estavel };
 }
 
 export function avancarPermanencias(
@@ -192,20 +263,29 @@ export function avancarPermanencias(
         const atual = proximas.get(l.chave);
         const dBase = l.base ? distanciaM(l, l.base) : Infinity;
         if (atual) {
-            if (l.em.getTime() <= atual.ultimaVez.getTime()) continue;
-            const h = porId.get(atual.hospitalId);
-            // Mesma histerese do hospital para a borda da base: entra a 150 m,
-            // sai a 200 m. Base ↔ hospital fecha uma parada e abre a outra.
-            const mesmoLugar = atual.naBase ? dBase <= RAIO_SAIDA_M : dBase > RAIO_M;
-            if (h && mesmoLugar && distanciaM(l, h) <= RAIO_SAIDA_M) {
-                const nova: Permanencia = { ...atual, ultimaVez: l.em };
+            if (l.em.getTime() <= (atual.fora?.em ?? atual.ultimaVez).getTime()) continue;
+            const s = seguir(atual, l, porId.get(atual.hospitalId), dBase);
+            if (s === "fica") {
+                const nova: Permanencia = {
+                    ...atual,
+                    ...acompanhar(atual, l),
+                    ultimaVez: l.em,
+                    lat: l.lat,
+                    lng: l.lng,
+                    fora: null,
+                };
                 if (!nova.naBase && !nova.alertaEm && duracaoMin(nova, agora) >= ALERTA_MIN) nova.alertaEm = agora;
                 proximas.set(l.chave, nova);
                 alteradas.push(nova);
                 continue;
             }
+            if (s === "fora") {
+                proximas.set(l.chave, { ...atual, fora: { lat: l.lat, lng: l.lng, em: l.em } });
+                continue;
+            }
+            // Base ↔ local também passa por aqui: fecha uma parada e abre a outra.
             proximas.delete(l.chave);
-            fechadas.push({ permanencia: atual, saida: l.em, motivo: "saiu" });
+            fechadas.push({ permanencia: atual, saida: atual.fora?.em ?? l.em, motivo: "saiu" });
         }
         const h = hospitalNoRaio(l, hospitais);
         if (h) {
@@ -216,6 +296,10 @@ export function avancarPermanencias(
                 ultimaVez: l.em,
                 alertaEm: null,
                 naBase: dBase <= RAIO_M,
+                lat: l.lat,
+                lng: l.lng,
+                corrida: { lat: l.lat, lng: l.lng, n: 1 },
+                estavel: null,
             };
             proximas.set(l.chave, p);
             novas.push(p);
@@ -229,6 +313,74 @@ export function avancarPermanencias(
         }
     }
     return { abertas: proximas, novas, alteradas, fechadas };
+}
+
+// ── Estacionamentos aprendidos ─────────────────────────────────
+//
+// Cada parada guarda onde o GPS ficou parado mais tempo (`estavel`). Quando
+// 3 viaturas diferentes, em 2 dias diferentes, param no mesmo lugar (40 m)
+// longe do pino (60 m ou mais, até 300 m), esse lugar vira ponto do local:
+// quem estaciona ali chega naquele local, mesmo mais perto do pino de outro.
+
+export const APRENDE_RAIO_M = 40;
+export const APRENDE_VIATURAS = 3;
+export const APRENDE_DIAS = 2;
+/** Mais perto que isso do pino não acrescenta nada. */
+const APRENDE_LONGE_M = 60;
+const APRENDE_MAX_POR_LOCAL = 3;
+
+export interface Evidencia {
+    hospitalId: string;
+    chave: string;
+    lat: number;
+    lng: number;
+    /** Dia (AAAA-MM-DD, Salvador) da parada. */
+    dia: string;
+}
+
+const media = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+
+export function aprenderPontos(
+    evidencias: readonly Evidencia[],
+    locais: readonly HospitalFrota[],
+): Map<string, PontoAprendido[]> {
+    const achados: (PontoAprendido & { hospitalId: string })[] = [];
+    for (const h of locais) {
+        let resto = evidencias.filter((e) => e.hospitalId === h.id && distanciaM(e, h) <= RAIO_BUSCA_M);
+        const meus: PontoAprendido[] = [];
+        while (resto.length && meus.length < APRENDE_MAX_POR_LOCAL) {
+            // O lugar com mais viaturas diferentes paradas a até 40 m.
+            let grupo: Evidencia[] = [];
+            let viaturas = 0;
+            for (const e of resto) {
+                const viz = resto.filter((o) => distanciaM(e, o) <= APRENDE_RAIO_M);
+                const n = new Set(viz.map((o) => o.chave)).size;
+                if (n > viaturas || (n === viaturas && viz.length > grupo.length)) {
+                    grupo = viz;
+                    viaturas = n;
+                }
+            }
+            if (viaturas < APRENDE_VIATURAS || new Set(grupo.map((o) => o.dia)).size < APRENDE_DIAS) break;
+            resto = resto.filter((o) => !grupo.includes(o));
+            const c = { lat: media(grupo.map((o) => o.lat)), lng: media(grupo.map((o) => o.lng)), viaturas };
+            if (distanciaM(c, h) < APRENDE_LONGE_M || meus.some((m) => distanciaM(c, m) < APRENDE_LONGE_M)) continue;
+            meus.push(c);
+        }
+        achados.push(...meus.map((m) => ({ ...m, hospitalId: h.id })));
+    }
+    // Dois locais aprenderam o mesmo lugar: fica com quem tem mais viaturas
+    // (empate: nenhum). E nunca em cima do pino de outro local.
+    const saida = new Map<string, PontoAprendido[]>();
+    for (const a of achados) {
+        const rival = achados.some(
+            (o) => o.hospitalId !== a.hospitalId && distanciaM(a, o) <= 2 * APRENDE_RAIO_M && o.viaturas >= a.viaturas,
+        );
+        const pinoAlheio = locais.some((h) => h.id !== a.hospitalId && distanciaM(a, h) <= APRENDE_RAIO_M);
+        if (rival || pinoAlheio) continue;
+        const { hospitalId, ...p } = a;
+        saida.set(hospitalId, [...(saida.get(hospitalId) ?? []), p]);
+    }
+    return saida;
 }
 
 // ── Situação de cada viatura no painel ─────────────────────────

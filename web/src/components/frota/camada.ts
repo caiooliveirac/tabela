@@ -2,6 +2,7 @@
 // Camada da frota num mapa do Google — usada pela aba Frota e pelo mapa do
 // Destino. Desenha o raio de cada hospital e UPA e uma etiqueta por viatura.
 // A UPA só mostra o nome quando tem viatura dentro — são 20, poluiriam o mapa.
+// Estacionamento aprendido do GPS ganha o próprio círculo, da cor do local.
 //
 // O raio é o desenho da regra: cinza = ninguém parado, azul = tem viatura
 // dentro, vermelho pulsando = alguém passou de 40 min. A etiqueta tem a cor
@@ -82,9 +83,12 @@ function balaoHospital(h: HospitalPonto, dentro: ViaturaFrota[], raio: number): 
         )
         .join("<br>")
     : "Nenhuma viatura parada agora.";
+  const pontos = (h.pontos ?? [])
+    .map((p) => `<br><span style="color:#64748b">Estacionamento aprendido do GPS (${p.viaturas} viaturas)</span>`)
+    .join("");
   return (
     `<div style="font:13px/1.45 'DM Sans',sans-serif;color:#0f172a">` +
-    `<b>${esc(h.nome)}</b> <span style="color:#64748b">· raio de ${raio} m</span><br>${lista}</div>`
+    `<b>${esc(h.nome)}</b> <span style="color:#64748b">· raio de ${raio} m</span><br>${lista}${pontos}</div>`
   );
 }
 
@@ -92,6 +96,10 @@ interface RegHospital {
   c: google.maps.Circle;
   m: google.maps.marker.AdvancedMarkerElement | null;
   el: HTMLDivElement | null;
+  /** Um círculo por estacionamento aprendido; refeitos quando o aprendizado muda. */
+  pontos: google.maps.Circle[];
+  chavePontos: string;
+  abrir: () => void;
 }
 
 export class CamadaFrota {
@@ -129,14 +137,22 @@ export class CamadaFrota {
         reg = this.criarHospital(h, painel.limites.raioM);
         this.hospitais.set(h.id, reg);
       }
-      reg.c.setOptions({
-        visible: visivel,
-        strokeColor: cor,
-        strokeOpacity: 0.9,
-        strokeWeight: alerta ? 3 : 2,
-        fillColor: cor,
-        fillOpacity: alerta ? 0.18 : dentro.length ? 0.1 : 0.05,
-      });
+      const chavePontos = JSON.stringify(h.pontos ?? []);
+      if (reg.chavePontos !== chavePontos) {
+        for (const c of reg.pontos) c.setMap(null);
+        reg.pontos = (h.pontos ?? []).map((p) => this.circulo(p, painel.limites.raioM, reg!.abrir));
+        reg.chavePontos = chavePontos;
+      }
+      for (const c of [reg.c, ...reg.pontos]) {
+        c.setOptions({
+          visible: visivel,
+          strokeColor: cor,
+          strokeOpacity: 0.9,
+          strokeWeight: alerta ? 3 : 2,
+          fillColor: cor,
+          fillOpacity: alerta ? 0.18 : dentro.length ? 0.1 : 0.05,
+        });
+      }
       if (reg.el) {
         reg.el.className = alerta ? "frota-pulso" : "";
         reg.el.style.cssText =
@@ -181,16 +197,21 @@ export class CamadaFrota {
     }
   }
 
-  private criarHospital(h: HospitalPonto, raio: number): RegHospital {
+  private circulo(centro: google.maps.LatLngLiteral, raio: number, abrir: () => void): google.maps.Circle {
     // No Destino todo clique no mapa é "a ocorrência é aqui": o raio não pode
     // engolir o clique. Lá ele é só desenho.
     const c = new google.maps.Circle({
       map: this.mapa,
-      center: h,
+      center: centro,
       radius: raio,
       clickable: this.opcoes.rotulosHospital,
       zIndex: 1,
     });
+    c.addListener("click", abrir);
+    return c;
+  }
+
+  private criarHospital(h: HospitalPonto, raio: number): RegHospital {
     let m: google.maps.marker.AdvancedMarkerElement | null = null;
     let el: HTMLDivElement | null = null;
     if (this.opcoes.rotulosHospital) {
@@ -200,14 +221,15 @@ export class CamadaFrota {
     const abrir = () => {
       const a = this.atual;
       if (!a) return;
+      const atual = a.painel.hospitais.find((x) => x.id === h.id) ?? h;
       const dentro = a.noMapa.filter((v) => v.noHospital?.hospitalId === h.id && !v.noHospital.naBase);
-      this.balao.setContent(balaoHospital(h, dentro, a.painel.limites.raioM));
+      this.balao.setContent(balaoHospital(atual, dentro, a.painel.limites.raioM));
       this.balao.setPosition(h);
       this.balao.open({ map: this.mapa });
     };
-    c.addListener("click", abrir);
+    const c = this.circulo(h, raio, abrir);
     m?.addListener("click", abrir);
-    return { c, m, el };
+    return { c, m, el, pontos: [], chavePontos: "[]", abrir };
   }
 
   limpar(): void {
@@ -215,6 +237,7 @@ export class CamadaFrota {
     for (const r of this.viaturas.values()) r.m.map = null;
     for (const r of this.hospitais.values()) {
       r.c.setMap(null);
+      for (const c of r.pontos) c.setMap(null);
       if (r.m) r.m.map = null;
     }
     this.viaturas.clear();

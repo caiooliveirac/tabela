@@ -1,6 +1,7 @@
 // ═══════════════════════════════════════════════════════════════
 // Coletor da frota: a cada 2 min lê as posições do SAMU+, atualiza as
-// permanências nos hospitais e grava abertura/fechamento no banco.
+// permanências nos hospitais e UPAs e grava abertura/fechamento no banco.
+// A cada 30 min reaprende os estacionamentos com as paradas dos últimos 30 dias.
 //
 // Estado em memória (um processo só, como o resto da API). O banco guarda
 // o que precisa sobreviver a um restart: as permanências (histórico da
@@ -10,8 +11,11 @@
 import { sql } from "drizzle-orm";
 import { db } from "../index.js";
 import { CATALOGO, DESATIVADAS_ATE_SEGUNDA_ORDEM } from "./catalogo.js";
-import { LOCAIS_FROTA } from "./hospitais.js";
-import { ALERTA_MIN, avancarPermanencias, duracaoMin, ehMoto, type Fechamento, type Permanencia } from "./regras.js";
+import { LOCAIS_FROTA, type HospitalFrota } from "./hospitais.js";
+import {
+    ALERTA_MIN, aprenderPontos, avancarPermanencias, duracaoMin, ehMoto,
+    type Evidencia, type Fechamento, type Permanencia,
+} from "./regras.js";
 import { textoAviso, type DadosAviso } from "./aviso.js";
 import { editarReguladores, enviarReguladores } from "../lib/telegram.js";
 import { ABERTA_MAX_MS, acolhimentosLigado, buscarAcolhimentos, cruzar, janela, type Acolhimento } from "./acolhimentos.js";
@@ -24,6 +28,7 @@ const COLETA_MS = 2 * 60_000;
 /** A página de status tem ~430 KB: vínculo a cada 10 min, ou antes se aparecer equipe nova. */
 const VINCULOS_MS = 10 * 60_000;
 const VINCULOS_MIN_MS = 2 * 60_000;
+const APRENDE_MS = 30 * 60_000;
 
 let coletadoEm: Date | null = null;
 let vinculosEm: Date | null = null;
@@ -32,6 +37,9 @@ let erro: string | null = null;
 let posicoes: PosicaoSamu[] = [];
 let dispositivos: DispositivoSamu[] = [];
 let abertas = new Map<string, Permanencia>();
+/** Hospitais e UPAs com os estacionamentos aprendidos. */
+let locais: readonly HospitalFrota[] = LOCAIS_FROTA;
+let aprendidoEm = 0;
 let rodando = false;
 /** Último texto publicado por parada — só edita a mensagem quando muda. */
 const textoPublicado = new Map<number, string>();
@@ -53,6 +61,14 @@ async function criarTabelas(): Promise<void> {
         )`);
     await db.execute(sql`ALTER TABLE frota_permanencias ADD COLUMN IF NOT EXISTS aviso_msg_id bigint`);
     await db.execute(sql`ALTER TABLE frota_permanencias ADD COLUMN IF NOT EXISTS na_base boolean NOT NULL DEFAULT false`);
+    // Última posição confirmada e onde o GPS ficou parado mais tempo (aprendizado).
+    await db.execute(sql`
+        ALTER TABLE frota_permanencias
+            ADD COLUMN IF NOT EXISTS lat double precision,
+            ADD COLUMN IF NOT EXISTS lng double precision,
+            ADD COLUMN IF NOT EXISTS estavel_lat double precision,
+            ADD COLUMN IF NOT EXISTS estavel_lng double precision,
+            ADD COLUMN IF NOT EXISTS estavel_n integer NOT NULL DEFAULT 0`);
     await db.execute(sql`
         CREATE INDEX IF NOT EXISTS frota_permanencias_abertas_idx
         ON frota_permanencias (chave) WHERE motivo_fim IS NULL`);
@@ -66,7 +82,8 @@ async function criarTabelas(): Promise<void> {
 
 async function carregar(): Promise<void> {
     for (const r of await consultar(sql`
-        SELECT id, chave, hospital_id, entrada, ultima_vez, alerta_em, aviso_msg_id, na_base
+        SELECT id, chave, hospital_id, entrada, ultima_vez, alerta_em, aviso_msg_id, na_base,
+               lat, lng, estavel_lat, estavel_lng, estavel_n
         FROM frota_permanencias WHERE motivo_fim IS NULL`)) {
         abertas.set(String(r.chave), {
             id: Number(r.id),
@@ -77,6 +94,12 @@ async function carregar(): Promise<void> {
             alertaEm: r.alerta_em ? new Date(r.alerta_em as string) : null,
             avisoMsgId: r.aviso_msg_id != null ? Number(r.aviso_msg_id) : null,
             naBase: r.na_base === true,
+            lat: r.lat != null ? Number(r.lat) : null,
+            lng: r.lng != null ? Number(r.lng) : null,
+            estavel:
+                r.estavel_lat != null && r.estavel_lng != null
+                    ? { lat: Number(r.estavel_lat), lng: Number(r.estavel_lng), n: Number(r.estavel_n) }
+                    : null,
         });
     }
     const [v] = await consultar(sql`SELECT valor, atualizado_em FROM frota_estado WHERE chave = 'dispositivos'`);
@@ -98,10 +121,36 @@ async function atualizarVinculos(): Promise<void> {
         ON CONFLICT (chave) DO UPDATE SET valor = EXCLUDED.valor, atualizado_em = now()`);
 }
 
+/** Evidência: onde o GPS parou em cada parada de 10 min ou mais (fora da base), 30 dias. */
+async function aprender(): Promise<void> {
+    aprendidoEm = Date.now();
+    const evidencias: Evidencia[] = (
+        await consultar(sql`
+            SELECT hospital_id, chave, estavel_lat, estavel_lng,
+                   to_char(entrada AT TIME ZONE 'America/Bahia', 'YYYY-MM-DD') AS dia
+            FROM frota_permanencias
+            WHERE NOT na_base AND estavel_n >= 2 AND estavel_lat IS NOT NULL
+              AND ultima_vez - entrada >= interval '10 minutes'
+              AND entrada > now() - interval '30 days'`)
+    ).map((r) => ({
+        hospitalId: String(r.hospital_id),
+        chave: String(r.chave),
+        lat: Number(r.estavel_lat),
+        lng: Number(r.estavel_lng),
+        dia: String(r.dia),
+    }));
+    const pontos = aprenderPontos(evidencias, LOCAIS_FROTA);
+    locais = LOCAIS_FROTA.map((h) => (pontos.has(h.id) ? { ...h, pontos: pontos.get(h.id) } : h));
+    if (pontos.size) console.log(`[frota] estacionamentos aprendidos: ${[...pontos].map(([id, p]) => `${id}×${p.length}`).join(", ")}`);
+}
+
 async function ciclo(): Promise<void> {
     if (rodando) return;
     rodando = true;
     try {
+        if (Date.now() - aprendidoEm > APRENDE_MS) {
+            await aprender().catch((e) => console.warn("[frota] aprender:", (e as Error).message));
+        }
         posicoes = await buscarPosicoes(TOKEN);
 
         const conhecidas = new Set(dispositivos.map((d) => d.equipe));
@@ -117,13 +166,14 @@ async function ciclo(): Promise<void> {
         const r = avancarPermanencias(
             abertas,
             leiturasParaPermanencia(resolvidas, DESATIVADAS_ATE_SEGUNDA_ORDEM, CATALOGO),
-            LOCAIS_FROTA,
+            locais,
             agora,
         );
         for (const p of r.novas) {
             const [linha] = await consultar(sql`
-                INSERT INTO frota_permanencias (chave, hospital_id, entrada, ultima_vez, na_base)
-                VALUES (${p.chave}, ${p.hospitalId}, ${p.entrada.toISOString()}, ${p.ultimaVez.toISOString()}, ${p.naBase})
+                INSERT INTO frota_permanencias (chave, hospital_id, entrada, ultima_vez, na_base, lat, lng)
+                VALUES (${p.chave}, ${p.hospitalId}, ${p.entrada.toISOString()}, ${p.ultimaVez.toISOString()}, ${p.naBase},
+                        ${p.lat ?? null}, ${p.lng ?? null})
                 RETURNING id`);
             p.id = Number(linha.id);
         }
@@ -131,7 +181,10 @@ async function ciclo(): Promise<void> {
             if (p.id === undefined) continue;
             await db.execute(sql`
                 UPDATE frota_permanencias
-                SET ultima_vez = ${p.ultimaVez.toISOString()}, alerta_em = ${p.alertaEm?.toISOString() ?? null}
+                SET ultima_vez = ${p.ultimaVez.toISOString()}, alerta_em = ${p.alertaEm?.toISOString() ?? null},
+                    lat = ${p.lat ?? null}, lng = ${p.lng ?? null},
+                    estavel_lat = ${p.estavel?.lat ?? null}, estavel_lng = ${p.estavel?.lng ?? null},
+                    estavel_n = ${p.estavel?.n ?? 0}
                 WHERE id = ${p.id}`);
         }
         for (const f of r.fechadas) {
@@ -171,15 +224,13 @@ function dadosAviso(p: Permanencia): DadosAviso {
 }
 
 /**
- * Uma mensagem por parada em HOSPITAL no grupo dos reguladores: sai quando a parada
+ * Uma mensagem por parada no grupo dos reguladores: sai quando a parada
  * passa de 40 min, é editada a cada coleta e fecha com a saída (ou sem sinal).
  */
 async function avisar(fechadas: Fechamento[], agora: Date): Promise<void> {
     if (!AVISOS) return;
     for (const p of abertas.values()) {
         if (!p.alertaEm || p.id === undefined) continue;
-        // UPA: alerta só no painel por ora — o grupo não foi autorizado para ela.
-        if (LOCAIS_FROTA.find((h) => h.id === p.hospitalId)?.tipo === "upa") continue;
         const texto = textoAviso(dadosAviso(p), { tipo: "parada", minutos: duracaoMin(p, agora) });
         if (!p.avisoMsgId) {
             const id = await enviarReguladores(texto);
@@ -354,7 +405,7 @@ export function painelAtual(): PainelFrota {
         erro,
         catalogo: CATALOGO,
         desativadas: DESATIVADAS_ATE_SEGUNDA_ORDEM,
-        hospitais: LOCAIS_FROTA,
+        hospitais: locais,
         resolvidas: resolverPosicoes(posicoes, dispositivos, CATALOGO),
         dispositivos,
         abertas,
