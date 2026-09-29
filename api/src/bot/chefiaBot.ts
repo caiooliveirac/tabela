@@ -6,6 +6,7 @@
 //   /resetpin     → cria PIN novo e apaga os antigos; mostra bloqueados
 //   /bloqueados   → lista IPs bloqueados com botões numerados p/ desbloquear
 //   /destinos     → para onde os pacientes foram regulados, por turno SD/SN
+//   /id           → chat_id do chat onde foi digitado (em qualquer grupo)
 //
 // Comando aberto, no grupo dos reguladores (TELEGRAM_REGULADORES_CHAT_ID):
 //   /upas         → UPAs restritas agora e até quando
@@ -164,6 +165,18 @@ async function handle(u: any): Promise<void> {
         if (Number(u.message.from?.id) !== admin()) return; // resto: só o admin
         const t = String(u.message.text || "").trim().toLowerCase();
         const args = argsOf(u.message.text || "");
+        if (cmd === "/id") {
+            // Descobre o chat_id de um grupo novo: o admin manda /id@ReguladorSAMU_bot
+            // lá (modo privacidade: sem o @ o Telegram não entrega o comando).
+            console.log(`[bot] /id chat_id=${chatId} tipo=${u.message.chat?.type}`);
+            await tg("sendMessage", {
+                chat_id: u.message.chat.id,
+                text: `chat_id: <code>${chatId}</code>`,
+                parse_mode: "HTML",
+                reply_to_message_id: u.message.message_id,
+            });
+            return;
+        }
         if (cmd === "/upas") {
             await replyUpas(admin());
         } else if (["/start", "/menu", "/pin", "/chefia"].includes(t)) {
@@ -179,6 +192,10 @@ async function handle(u: any): Promise<void> {
                 reply_markup: menuKeyboard,
             });
         }
+    } else if (u.my_chat_member) {
+        // Bot posto ou tirado de um grupo: fica no log o chat_id para configurar.
+        const m = u.my_chat_member;
+        console.log(`[bot] membro: chat_id=${m.chat?.id} tipo=${m.chat?.type} status=${m.new_chat_member?.status}`);
     } else if (u.callback_query) {
         const cq = u.callback_query;
         await tg("answerCallbackQuery", { callback_query_id: cq.id });
