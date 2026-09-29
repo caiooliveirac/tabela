@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { linhaDoTempo, painelAtual } from "./coletor.js";
+import { diagnostico, linhaDoTempo, painelAtual } from "./coletor.js";
 
 const router = Router();
 
@@ -7,6 +7,11 @@ const router = Router();
 // como o resto de /tabela/api — posição de viatura não sai sem sessão.
 router.get("/", (_req, res) => {
     res.json(painelAtual());
+});
+
+// Erros recentes e estacionamentos aprendidos — para o vigia (sobrevive ao deploy).
+router.get("/diagnostico", (_req, res) => {
+    res.json(diagnostico());
 });
 
 // Paradas em hospital das últimas N horas (1–72, padrão 12) — linha do tempo.

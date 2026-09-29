@@ -371,7 +371,7 @@ export interface PainelFrota {
   coletadoEm: string | null;
   vinculosEm: string | null;
   erro: string | null;
-  limites: { raioM: number; raioSaidaM: number; raioBuscaM: number; alertaMin: number; recenteMin: number; mapaMin: number };
+  limites: { raioM: number; raioSaidaM: number; raioBuscaM: number; janelaChegadaMin: number; alertaMin: number; recenteMin: number; mapaMin: number };
   hospitais: HospitalPonto[];
   viaturas: ViaturaFrota[];
   foraDoCatalogoSemSinal: number;

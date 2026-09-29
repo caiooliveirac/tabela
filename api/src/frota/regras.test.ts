@@ -239,6 +239,33 @@ test("pulo que não para: fecha na hora do pulo", () => {
     assert.equal(r.fechadas[0].saida?.toISOString(), t("10:10").toISOString());
 });
 
+test("depois da chegada (20 min) não segue mais: pulo para 260 m fecha na hora", () => {
+    const valeria = local("upa_valeria");
+    let abertas = new Map<string, Permanencia>();
+    const passo = (hhmm: string, p: { lat: number; lng: number }) => {
+        const r = avancarPermanencias(abertas, [{ chave: "CB27", em: t(hhmm), ...p }], LOCAIS_FROTA, t(hhmm));
+        abertas = r.abertas;
+        return r;
+    };
+    for (const hhmm of ["10:00", "10:02", "10:10", "10:30"]) passo(hhmm, valeria);
+    const r = passo("10:32", desloca(valeria, -260));
+    assert.equal(r.fechadas[0]?.saida?.toISOString(), t("10:32").toISOString(), "lanchonete a 260 m não é retenção");
+});
+
+test("aprende só de onde parou na chegada, não do que veio depois", () => {
+    const valeria = local("upa_valeria");
+    const perto = desloca(valeria, 0, 180); // dentro dos 200 m: a parada segue
+    let abertas = new Map<string, Permanencia>();
+    const passo = (hhmm: string, p: { lat: number; lng: number }) => {
+        abertas = avancarPermanencias(abertas, [{ chave: "CB27", em: t(hhmm), ...p }], LOCAIS_FROTA, t(hhmm)).abertas;
+    };
+    for (const hhmm of ["10:00", "10:02", "10:04"]) passo(hhmm, valeria);
+    for (const hhmm of ["10:30", "10:32", "10:34", "10:36", "10:38", "10:40"]) passo(hhmm, perto);
+    const p = abertas.get("CB27")!;
+    assert.equal(p.entrada.toISOString(), t("10:00").toISOString());
+    assert.ok(p.estavel && distanciaM(p.estavel, valeria) < 20, "o ponto da chegada, não o de 10:30");
+});
+
 test("aprende estacionamento: 3 viaturas em 2 dias no mesmo lugar", () => {
     const valeria = local("upa_valeria");
     const vaga = desloca(valeria, -260);
@@ -352,6 +379,14 @@ test("aviso aos reguladores: parada, saída e sem sinal, com hora de Salvador e 
     assert.match(textoAviso(upa, { tipo: "parada", minutos: 43 }), /parada há <b>43 min<\/b> na <b>UPA São Caetano<\/b>/);
     assert.match(textoAviso(upa, { tipo: "saiu", saida: t("14:40") }), /saiu da <b>UPA São Caetano<\/b>/);
     assert.match(textoAviso({ ...d, hospitalNome: "PA São Marcos" }, { tipo: "sem-sinal" }), /no <b>PA São Marcos<\/b>: sem sinal/);
+    // Balão do Telegram fica com a hora do envio: a edição diz de quando é.
+    const avisado = { ...d, avisoEm: t("14:18") };
+    assert.match(
+        textoAviso(avisado, { tipo: "saiu", saida: t("14:33") }, t("14:34")),
+        /saiu do <b>HGESF<\/b> às 14:33 .*\n<i>aviso das 14:18, atualizado às 14:34<\/i>$/s,
+    );
+    assert.doesNotMatch(textoAviso(avisado, { tipo: "parada", minutos: 40 }, t("14:18")), /atualizado/);
+    assert.match(textoAviso(avisado, { tipo: "parada", minutos: 47 }, t("14:25")), /atualizado às 14:25/);
 });
 
 test("acolhimentos: casa por viatura + hospital + sobreposição; sobra vira solta", async () => {
