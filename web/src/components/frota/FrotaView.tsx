@@ -72,6 +72,12 @@ export default function FrotaView({ painel, carregando, erro, foco, focar }: Pro
   const { data: cfg } = useEncaminhamentoConfig();
   const [googleFalhou, setGoogleFalhou] = useState(false);
   const mapsKey = googleFalhou ? null : (cfg?.mapsKey ?? null);
+  const [mapaAlto, setMapaAlto] = useState(() => localStorage.getItem("tabela:frotaMapaAlto") === "true");
+  const alternarAltura = () =>
+    setMapaAlto((a) => {
+      localStorage.setItem("tabela:frotaMapaAlto", String(!a));
+      return !a;
+    });
 
   const grupos = useMemo(() => {
     const vs = painel?.viaturas ?? [];
@@ -163,6 +169,16 @@ export default function FrotaView({ painel, carregando, erro, foco, focar }: Pro
       {/* ── Mapa + quem está em hospital ── */}
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div>
+          {mapsKey && (
+            <div className="flex justify-end mb-[6px]">
+              <button
+                onClick={alternarAltura}
+                className="py-[4px] px-3 text-xs font-bold rounded-lg border border-slate-300 bg-white text-slate-700 cursor-pointer hover:border-blue-600"
+              >
+                {mapaAlto ? "⤡ Reduzir mapa" : "⤢ Ampliar mapa"}
+              </button>
+            </div>
+          )}
           {mapsKey ? (
             <Suspense fallback={<div className="w-full h-[460px] rounded-[10px] border border-slate-200 bg-slate-50" />}>
               <MapaFrota
@@ -171,6 +187,7 @@ export default function FrotaView({ painel, carregando, erro, foco, focar }: Pro
                 painel={painel}
                 noMapa={grupos.noMapa}
                 foco={foco}
+                alto={mapaAlto}
                 onFalha={() => setGoogleFalhou(true)}
               />
             </Suspense>
