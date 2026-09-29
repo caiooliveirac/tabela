@@ -327,3 +327,45 @@ export interface EncaminhamentoResponse {
   excluidos: DestinoExcluido[];
   aviso: string | null;
 }
+
+// ── Frota do SAMU+ (espelho de api/src/frota/painel.ts) ──
+
+export type SituacaoFrota = "mapa" | "sem-sinal" | "fora-do-turno" | "desativada";
+
+export interface ViaturaFrota {
+  chave: string;
+  codigo: string | null;
+  nome: string;
+  nomeSamu: string | null;
+  nomeDifere: boolean;
+  tipo: "USA" | "USB" | "MOTO" | null;
+  base: string | null;
+  turno: string | null;
+  situacao: SituacaoFrota;
+  motivo: string | null;
+  foraDoCatalogo: boolean;
+  posicao: { lat: number; lng: number; em: string; idadeMin: number } | null;
+  naBase: boolean;
+  bateria: number | null;
+  sinal: number | null;
+  velocidade: number | null;
+  noHospital: {
+    hospitalId: string;
+    hospitalNome: string;
+    entrada: string;
+    ultimaVez: string;
+    minutos: number;
+    alerta: boolean;
+  } | null;
+}
+
+export interface PainelFrota {
+  ativo: boolean;
+  coletadoEm: string | null;
+  vinculosEm: string | null;
+  erro: string | null;
+  limites: { raioM: number; raioSaidaM: number; alertaMin: number; recenteMin: number; mapaMin: number };
+  hospitais: HospitalPonto[];
+  viaturas: ViaturaFrota[];
+  foraDoCatalogoSemSinal: number;
+}

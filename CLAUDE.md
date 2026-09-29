@@ -45,6 +45,12 @@ Procedimentos completos: `~/labctl/README.md` no servidor magalu.
 - Restrição de UPA (célula vermelha + PIN + avisos no grupo):
   [docs/upa-restricoes.md](docs/upa-restricoes.md).
 
+## Aba Frota (SAMU+)
+
+Posições das viaturas e retenção de maca (40 min em hospital):
+[api/src/frota/README.md](api/src/frota/README.md). Token `SAMUMAIS_TOKEN` no
+`.env` do servidor.
+
 ## Pegadinhas conhecidas
 
 - A API devolve **camelCase** (`hospitalId`, `criadoPor`) — o bug histórico do

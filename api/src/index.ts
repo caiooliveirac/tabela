@@ -13,6 +13,8 @@ import chefiaRouter from "./routes/chefia.js";
 import reportsRouter from "./routes/reports.js";
 import upasRouter from "./routes/upas.js";
 import encaminhamentoRouter from "./routes/encaminhamento.js";
+import frotaRouter from "./frota/rotas.js";
+import { initFrota } from "./frota/coletor.js";
 import { initChefiaSecurity } from "./lib/chefiaPin.js";
 import { startChefiaBot } from "./bot/chefiaBot.js";
 import { initUpaRestrictions } from "./services/upa-restrictions.js";
@@ -49,6 +51,8 @@ app.use("/tabela/api/reports", reportsRouter);
 // Restrições de UPA — GET público (painel + bot Plantões SAMU), escrita com PIN.
 app.use("/tabela/api/upas", upasRouter);
 app.use("/tabela/api/encaminhamento", encaminhamentoRouter);
+// Frota do SAMU+ e retenção de maca nos hospitais (api/src/frota/README.md).
+app.use("/tabela/api/frota", frotaRouter);
 
 // HTTP + WebSocket server
 const server = createServer(app);
@@ -68,6 +72,9 @@ initChefiaSecurity()
     startUpaRestrictionsBroadcast();
   })
   .catch((e) => console.error("bootstrap:", e));
+
+// Independente do resto: SAMU+ fora do ar não atrasa o painel.
+initFrota().catch((e) => console.error("[frota] init:", e));
 
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 API running on http://0.0.0.0:${PORT}`);

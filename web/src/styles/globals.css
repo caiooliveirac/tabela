@@ -155,3 +155,16 @@ body {
   animation: detailOut 0.3s cubic-bezier(0.4, 0, 1, 1) both;
   pointer-events: none;
 }
+
+/* Frota: raio/etiqueta de parada em hospital há 40 min ou mais */
+@keyframes frotaPulso {
+  0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.55); }
+  70% { box-shadow: 0 0 0 10px rgba(220, 38, 38, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+}
+.frota-pulso {
+  animation: frotaPulso 1.6s ease-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .frota-pulso { animation: none; }
+}
