@@ -8,6 +8,8 @@ export const COR = {
   alerta: "#dc2626",
   hospital: "#1d4ed8",
   vazio: "#64748b",
+  /** Parada na própria base, que fica no hospital: informação, não alerta. */
+  base: "#94a3b8",
 } as const;
 
 export function corDaIdade(idadeMin: number, recenteMin: number): string {

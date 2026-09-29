@@ -37,12 +37,12 @@ function estiloViatura(el: HTMLElement, v: ViaturaFrota, p: PainelFrota) {
     `font:800 ${moto ? 9 : 10}px/1 'DM Sans',sans-serif`,
     "padding:3px 5px",
     `border-radius:${moto ? 999 : 6}px`,
-    `border:2px solid ${h ? (h.alerta ? "#7f1d1d" : COR.hospital) : "#fff"}`,
+    `border:2px solid ${h ? (h.alerta ? "#7f1d1d" : h.naBase ? COR.base : COR.hospital) : "#fff"}`,
     "box-shadow:0 1px 4px rgba(15,23,42,.35)",
     "white-space:nowrap",
     "cursor:pointer",
   ].join(";");
-  el.textContent = h ? `${v.nome} · ${h.minutos}′` : v.nome;
+  el.textContent = h ? (h.naBase ? `${v.nome} · base` : `${v.nome} · ${h.minutos}′`) : v.nome;
 }
 
 function balaoViatura(v: ViaturaFrota): string {
@@ -53,7 +53,10 @@ function balaoViatura(v: ViaturaFrota): string {
       (v.velocidade != null ? ` · ${v.velocidade} km/h` : "") +
       (v.bateria != null ? ` · bateria ${v.bateria}%` : ""),
   ];
-  if (v.noHospital) {
+  if (v.noHospital?.naBase) {
+    const h = v.noHospital;
+    linhas.push(`Na própria base, junto do ${esc(h.hospitalNome)} desde ${hora(h.entrada)} (${duracao(h.minutos)}) — não conta para o alerta`);
+  } else if (v.noHospital) {
     const h = v.noHospital;
     linhas.push(
       `<span style="color:${h.alerta ? COR.alerta : COR.hospital};font-weight:800">` +
@@ -108,7 +111,8 @@ export class CamadaFrota {
     this.atual = { painel, noMapa };
     const dentroDe = new Map<string, ViaturaFrota[]>();
     for (const v of noMapa) {
-      if (!v.noHospital) continue;
+      // Viatura na própria base não pinta o raio: o hospital não está retendo ninguém.
+      if (!v.noHospital || v.noHospital.naBase) continue;
       const arr = dentroDe.get(v.noHospital.hospitalId) ?? [];
       arr.push(v);
       dentroDe.set(v.noHospital.hospitalId, arr);
@@ -193,7 +197,7 @@ export class CamadaFrota {
     const abrir = () => {
       const a = this.atual;
       if (!a) return;
-      const dentro = a.noMapa.filter((v) => v.noHospital?.hospitalId === h.id);
+      const dentro = a.noMapa.filter((v) => v.noHospital?.hospitalId === h.id && !v.noHospital.naBase);
       this.balao.setContent(balaoHospital(h, dentro, a.painel.limites.raioM));
       this.balao.setPosition(h);
       this.balao.open({ map: this.mapa });

@@ -83,7 +83,7 @@ export default function MapaFrota({ mapsKey, mapId, painel, noMapa, foco, alto, 
   return (
     <div
       ref={div}
-      className={`w-full ${alto ? "h-[78vh]" : "h-[460px]"} rounded-[10px] border border-slate-200 overflow-hidden bg-slate-50`}
+      className={`w-full ${alto ? "h-[88vh]" : "h-[68vh]"} min-h-[420px] rounded-[10px] border border-slate-200 overflow-hidden bg-slate-50`}
       style={{ position: "relative", zIndex: 0 }}
     />
   );

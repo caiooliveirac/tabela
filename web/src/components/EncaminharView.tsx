@@ -151,7 +151,7 @@ export default function EncaminharView({ hospitals, timelineCases }: Props) {
         : null,
     [verFrota, painelFrota],
   );
-  const paradas = frotaMapa?.noMapa.filter((v) => v.noHospital) ?? [];
+  const paradas = frotaMapa?.noMapa.filter((v) => v.noHospital && !v.noHospital.naBase) ?? [];
   const { data, isFetching, error } = useEncaminhamento(local, perfil, ponto);
   const mapsKey = googleFalhou ? null : (cfg?.mapsKey ?? null);
 
@@ -278,7 +278,7 @@ export default function EncaminharView({ hospitals, timelineCases }: Props) {
             </div>
             <Suspense
               fallback={
-                <div className="w-full h-[320px] rounded-[10px] border border-slate-200 bg-slate-50 flex items-center justify-center text-xs text-slate-400">
+                <div className="w-full h-[55vh] min-h-[360px] rounded-[10px] border border-slate-200 bg-slate-50 flex items-center justify-center text-xs text-slate-400">
                   carregando o mapa…
                 </div>
               }
@@ -286,7 +286,7 @@ export default function EncaminharView({ hospitals, timelineCases }: Props) {
               {cfg === undefined && !googleFalhou ? (
                 // Config ainda no ar: esperar evita baixar o Leaflet à toa
                 // para logo depois trocá-lo pelo Google.
-                <div className="w-full h-[320px] rounded-[10px] border border-slate-200 bg-slate-50" />
+                <div className="w-full h-[55vh] min-h-[360px] rounded-[10px] border border-slate-200 bg-slate-50" />
               ) : mapsKey ? (
                 <MapaGoogle
                   mapsKey={mapsKey}

@@ -97,26 +97,51 @@ test("sem sinal: relógio congela aos 15 min e fecha após 1 h", () => {
     const p = { entrada: t("10:00"), ultimaVez: t("10:30") };
     assert.equal(duracaoMin(p, t("10:40")), 40, "posição fresca: conta até agora");
     assert.equal(duracaoMin(p, t("11:00")), 30, "sem confirmar há 30 min: para na última vista");
-    const abertas = new Map([["CN10", { chave: "CN10", hospitalId: "hge", ...p, alertaEm: null }]]);
+    const abertas = new Map([["CN10", { chave: "CN10", hospitalId: "hge", ...p, alertaEm: null, naBase: false }]]);
     const r = avancarPermanencias(abertas, [], HOSPITAIS_FROTA, t("11:31"));
     assert.equal(r.fechadas[0].motivo, "sem-sinal");
     assert.equal(r.fechadas[0].saida, null);
 });
 
-test("na própria base não conta como hospital; viatura de outra base conta", () => {
+test("base no hospital: abre parada marcada naBase, sem alerta; viatura de outra base conta", () => {
     const mario = HOSPITAIS_FROTA.find((h) => h.id === "mario_leal")!;
     const basePM = { lat: -12.959059, lng: -38.487838 };
     const ponto = { lat: (mario.lat + basePM.lat) / 2, lng: (mario.lng + basePM.lng) / 2 };
-    const r = avancarPermanencias(
-        new Map(),
-        [
-            { chave: "PM45", em: t("10:00"), ...ponto, base: basePM },
-            { chave: "CB26", em: t("10:00"), ...ponto, base: { lat: -12.935104, lng: -38.506528 } },
-        ],
-        HOSPITAIS_FROTA,
-        t("10:00"),
-    );
-    assert.deepEqual(r.novas.map((p) => p.chave), ["CB26"]);
+    const outraBase = { lat: -12.935104, lng: -38.506528 };
+    let abertas = new Map<string, Permanencia>();
+    for (const hhmm of ["10:00", "10:30", "11:00"]) {
+        const r = avancarPermanencias(
+            abertas,
+            [
+                { chave: "PM45", em: t(hhmm), ...ponto, base: basePM },
+                { chave: "CB26", em: t(hhmm), ...ponto, base: outraBase },
+            ],
+            HOSPITAIS_FROTA,
+            t(hhmm),
+        );
+        abertas = r.abertas;
+    }
+    assert.equal(abertas.get("PM45")?.naBase, true);
+    assert.equal(abertas.get("PM45")?.alertaEm, null, "base não alerta, nem com 60 min");
+    assert.equal(abertas.get("CB26")?.naBase, false);
+    assert.equal(abertas.get("CB26")?.alertaEm?.toISOString(), t("11:00").toISOString());
+});
+
+test("base ↔ hospital: sair da área da base (>200 m) dentro do raio troca a parada", () => {
+    const hgesf = HOSPITAIS_FROTA.find((h) => h.id === "hgesf")!;
+    const base = { lat: hgesf.lat + 250 / 111_195, lng: hgesf.lng }; // base a 250 m do HGESF
+    const naBaseMasPerto = { lat: hgesf.lat + 140 / 111_195, lng: hgesf.lng }; // 110 m da base, 140 m do HGESF
+    const naPorta = { lat: hgesf.lat, lng: hgesf.lng }; // 250 m da base
+    let abertas = new Map<string, Permanencia>();
+    const passo = (hhmm: string, p: { lat: number; lng: number }) => {
+        const r = avancarPermanencias(abertas, [{ chave: "PM45", em: t(hhmm), ...p, base }], HOSPITAIS_FROTA, t(hhmm));
+        abertas = r.abertas;
+        return r;
+    };
+    assert.equal(passo("10:00", naBaseMasPerto).novas[0].naBase, true);
+    const troca = passo("10:10", naPorta);
+    assert.equal(troca.fechadas[0].permanencia.naBase, true);
+    assert.equal(troca.novas[0].naBase, false, "na porta do hospital, longe da base: conta");
 });
 
 test("posição velha não abre permanência", () => {
