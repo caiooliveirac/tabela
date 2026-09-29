@@ -46,7 +46,10 @@ services:
       GOOGLE_MAPS_MAP_ID: ${GOOGLE_MAPS_MAP_ID:-}
       # Aba Frota: token da API do SAMU+ (IMTECH). Vazio = coletor desligado.
       SAMUMAIS_TOKEN: ${SAMUMAIS_TOKEN:-}
-      # Aviso de viatura parada 40+ min no grupo REGULADORES - RECADOS. "0" desliga.
+      # Avisos da frota (parada 40+ min, sinal, bateria, resumo) e /frota vão a
+      # este grupo. Vazio = nada sai (só o registro em frota_alertas). "0" em
+      # FROTA_AVISOS_TELEGRAM desliga tudo.
+      TELEGRAM_FROTA_CHAT_ID: ${TELEGRAM_FROTA_CHAT_ID:-}
       FROTA_AVISOS_TELEGRAM: ${FROTA_AVISOS_TELEGRAM:-1}
       # Linha do tempo × Acolhimentos (repo help-mnrs): token do endpoint de
       # serviço /api/servico/acolhimentos. Vazio = linha do tempo só com GPS.

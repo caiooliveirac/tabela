@@ -49,7 +49,9 @@ Procedimentos completos: `~/labctl/README.md` no servidor magalu.
 
 Posições das viaturas e retenção de maca (40 min em hospital):
 [api/src/frota/README.md](api/src/frota/README.md). Token `SAMUMAIS_TOKEN` no
-`.env` do servidor.
+`.env` do servidor. Avisos (parada, sinal, bateria, resumo, `/frota`) vão ao
+grupo `TELEGRAM_FROTA_CHAT_ID`, não ao dos reguladores. Numeral acima de 74
+(RMS) é dado lixo e não aparece (`catalogo.ts`).
 
 ## Pegadinhas conhecidas
 

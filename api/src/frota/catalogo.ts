@@ -26,7 +26,22 @@ export const DESATIVADAS_ATE_SEGUNDA_ORDEM: ReadonlySet<string> = new Set([
     "PR36", "JA39", "PM48", "BR64", "BR66", "PB67", "PB68",
 ]);
 
-export const CATALOGO: readonly ViaturaCatalogo[] = [
+/**
+ * Numeral acima de 74 (RMS: Candeias, Lauro, Madre de Deus, Santo Amaro,
+ * Saubara, São Francisco do Conde, Simões Filho, Vera Cruz) nunca teve
+ * conexão com o SAMU+: dado lixo, fora de toda conta e tela (decisão de
+ * 29/09/2026). Vale para o catálogo e para o nome no SAMU+ ("MT 76 (SF)").
+ * LFEX fica: no SAMU+ é "LFEX 01 (A)" — fora do catálogo, pelo número 1
+ * tomaria o lugar da SM01 no vínculo.
+ */
+export const NUMERO_MAX = 74;
+
+export function numeroNoLimite(nome: string): boolean {
+    const m = /\d+/.exec(nome);
+    return m === null || Number(m[0]) <= NUMERO_MAX;
+}
+
+const PLANILHA: readonly ViaturaCatalogo[] = [
     { codigo: "CN10", tipo: "USA", turno: "24h", status: "ATIVA", base: "5º CENTRO" },
     { codigo: "CN11", tipo: "USB", turno: "24h", status: "ATIVA", base: "5º CENTRO" },
     { codigo: "CN12", tipo: "USB", turno: "10h", status: "ATIVA", base: "5º CENTRO" },
@@ -110,6 +125,8 @@ export const CATALOGO: readonly ViaturaCatalogo[] = [
     { codigo: "VC81", tipo: "USB", turno: "24h", status: "ATIVA", base: "VERA CRUZ" },
     { codigo: "VC82", tipo: "USB", turno: "24h", status: "ATIVA", base: "VERA CRUZ" },
 ];
+
+export const CATALOGO: readonly ViaturaCatalogo[] = PLANILHA.filter((c) => numeroNoLimite(c.codigo));
 
 /**
  * Ponto das bases com coordenada EXATA — cópia de ChecagemdeBases

@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { diagnostico, linhaDoTempo, painelAtual } from "./coletor.js";
+import { alertasRecentes, diagnostico, linhaDoTempo, painelAtual } from "./coletor.js";
 
 const router = Router();
 
@@ -12,6 +12,18 @@ router.get("/", (_req, res) => {
 // Erros recentes e estacionamentos aprendidos — para o vigia (sobrevive ao deploy).
 router.get("/diagnostico", (_req, res) => {
     res.json(diagnostico());
+});
+
+// Avisos de sinal, bateria e resumo das últimas N horas (1–72, padrão 24):
+// o que foi ao grupo e o que foi silenciado — para calibrar os limites.
+router.get("/alertas", async (req, res) => {
+    const horas = Math.min(72, Math.max(1, Number(req.query.horas) || 24));
+    try {
+        res.json(await alertasRecentes(horas));
+    } catch (e) {
+        console.error("[frota] alertas:", e);
+        res.status(500).json({ error: "registro de alertas indisponível" });
+    }
 });
 
 // Paradas em hospital das últimas N horas (1–72, padrão 12) — linha do tempo.

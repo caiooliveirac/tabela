@@ -2,6 +2,10 @@
 // Coletor da frota: a cada 2 min lê as posições do SAMU+, atualiza as
 // permanências nos hospitais e UPAs e grava abertura/fechamento no banco.
 // A cada 30 min reaprende os estacionamentos com as paradas dos últimos 30 dias.
+// Avisos no grupo da frota (TELEGRAM_FROTA_CHAT_ID): parada de 40 min,
+// queda de sinal, bateria, sinal instável e o resumo da troca de plantão
+// (regras em sinal.ts). Todo aviso — enviado ou silenciado — fica em
+// frota_alertas (GET /frota/alertas).
 //
 // Estado em memória (um processo só, como o resto da API). O banco guarda
 // o que precisa sobreviver a um restart: as permanências (histórico da
@@ -10,14 +14,19 @@
 // ═══════════════════════════════════════════════════════════════
 import { sql } from "drizzle-orm";
 import { db } from "../index.js";
-import { CATALOGO, DESATIVADAS_ATE_SEGUNDA_ORDEM } from "./catalogo.js";
+import { CATALOGO, DESATIVADAS_ATE_SEGUNDA_ORDEM, numeroNoLimite } from "./catalogo.js";
 import { LOCAIS_FROTA, type HospitalFrota, type PontoAprendido } from "./hospitais.js";
 import {
     ALERTA_MIN, APRENDE_RAIO_M, aprenderPontos, avancarPermanencias, distanciaM, duracaoMin, ehMoto,
     type Evidencia, type Fechamento, type Permanencia,
 } from "./regras.js";
 import { textoAviso, type DadosAviso } from "./aviso.js";
-import { editarReguladores, enviarReguladores } from "../lib/telegram.js";
+import { editarChat, enviarChat, frotaChatId, reguladoresChatId } from "../lib/telegram.js";
+import {
+    avancarQuedas, bateriaBaixa, instaveisAgora, plantaoDe, ranking, resumoDevido,
+    textoBateria, textoFimQueda, textoFrota, textoInstavel, textoQueda, textoResumo, textoSurto,
+    INSTAVEL_JANELA_MIN, type Queda, type QuedaRecente,
+} from "./sinal.js";
 import { ABERTA_MAX_MS, acolhimentosLigado, buscarAcolhimentos, cruzar, janela, type Acolhimento } from "./acolhimentos.js";
 import { buscarDispositivos, buscarPosicoes, type DispositivoSamu, type PosicaoSamu } from "./samumais.js";
 import { leiturasParaPermanencia, montarPainel, resolverPosicoes, type PainelFrota } from "./painel.js";
@@ -63,6 +72,16 @@ const comPontos = (pontos: Record<string, PontoAprendido[]>) =>
 /** Último texto publicado por parada — só edita a mensagem quando muda. */
 const textoPublicado = new Map<number, string>();
 
+// ── Quedas de sinal, bateria, resumo (sinal.ts) ─────────────────
+// Abertas e recentes voltam do banco no boot: o deploy não repete aviso.
+let quedas = new Map<string, Queda>();
+let quedasRecentes: QuedaRecente[] = [];
+const textoQuedaPublicado = new Map<number, string>();
+const instavelEm = new Map<string, Date>();
+/** `${chave}|${plantão}`: um aviso de bateria por viatura por plantão. */
+const bateriaAvisada = new Set<string>();
+const resumosFeitos = new Set<string>();
+
 type Linha = Record<string, unknown>;
 const consultar = async (q: ReturnType<typeof sql>) => (await db.execute(q)) as unknown as Linha[];
 
@@ -80,6 +99,7 @@ async function criarTabelas(): Promise<void> {
         )`);
     await db.execute(sql`ALTER TABLE frota_permanencias ADD COLUMN IF NOT EXISTS aviso_msg_id bigint`);
     await db.execute(sql`ALTER TABLE frota_permanencias ADD COLUMN IF NOT EXISTS na_base boolean NOT NULL DEFAULT false`);
+    await db.execute(sql`ALTER TABLE frota_permanencias ADD COLUMN IF NOT EXISTS aviso_chat varchar(40)`);
     // Última posição confirmada e onde o GPS ficou parado mais tempo (aprendizado).
     await db.execute(sql`
         ALTER TABLE frota_permanencias
@@ -91,6 +111,25 @@ async function criarTabelas(): Promise<void> {
     await db.execute(sql`
         CREATE INDEX IF NOT EXISTS frota_permanencias_abertas_idx
         ON frota_permanencias (chave) WHERE motivo_fim IS NULL`);
+    // Registro de todo aviso de sinal/bateria/resumo — o que foi ao grupo e o
+    // que foi silenciado (reincidência, surto), para calibrar os limites.
+    await db.execute(sql`
+        CREATE TABLE IF NOT EXISTS frota_alertas (
+            id          serial PRIMARY KEY,
+            tipo        varchar(20)  NOT NULL,
+            chave       varchar(60)  NOT NULL,
+            inicio      timestamptz  NOT NULL,
+            volta       timestamptz,
+            fechado_em  timestamptz,
+            motivo_fim  varchar(20),
+            avisado     boolean      NOT NULL DEFAULT false,
+            silenciado  varchar(20),
+            chat_id     varchar(40),
+            msg_id      bigint,
+            detalhe     jsonb,
+            criado_em   timestamptz  NOT NULL DEFAULT now()
+        )`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS frota_alertas_criado_idx ON frota_alertas (criado_em)`);
     await db.execute(sql`
         CREATE TABLE IF NOT EXISTS frota_estado (
             chave         varchar(40) PRIMARY KEY,
@@ -122,7 +161,7 @@ async function registrarErro(onde: string, e: unknown): Promise<void> {
 
 async function carregar(): Promise<void> {
     for (const r of await consultar(sql`
-        SELECT id, chave, hospital_id, entrada, ultima_vez, alerta_em, aviso_msg_id, na_base,
+        SELECT id, chave, hospital_id, entrada, ultima_vez, alerta_em, aviso_msg_id, aviso_chat, na_base,
                lat, lng, estavel_lat, estavel_lng, estavel_n
         FROM frota_permanencias WHERE motivo_fim IS NULL`)) {
         abertas.set(String(r.chave), {
@@ -133,6 +172,7 @@ async function carregar(): Promise<void> {
             ultimaVez: new Date(r.ultima_vez as string),
             alertaEm: r.alerta_em ? new Date(r.alerta_em as string) : null,
             avisoMsgId: r.aviso_msg_id != null ? Number(r.aviso_msg_id) : null,
+            avisoChat: r.aviso_chat != null ? String(r.aviso_chat) : null,
             naBase: r.na_base === true,
             lat: r.lat != null ? Number(r.lat) : null,
             lng: r.lng != null ? Number(r.lng) : null,
@@ -147,10 +187,46 @@ async function carregar(): Promise<void> {
         else aprendizado = { ...aprendizado, ...(r.valor as Partial<typeof aprendizado>) };
     }
     locais = comPontos(aprendizado.pontos);
+    await carregarAlertas();
     const [v] = await consultar(sql`SELECT valor, atualizado_em FROM frota_estado WHERE chave = 'dispositivos'`);
     if (v) {
         dispositivos = v.valor as DispositivoSamu[];
         vinculosEm = new Date(v.atualizado_em as string);
+    }
+}
+
+async function carregarAlertas(): Promise<void> {
+    for (const r of await consultar(sql`
+        SELECT id, chave, inicio, criado_em, avisado, silenciado, chat_id, msg_id
+        FROM frota_alertas WHERE tipo = 'queda' AND fechado_em IS NULL`)) {
+        quedas.set(String(r.chave), {
+            id: Number(r.id),
+            chave: String(r.chave),
+            desde: new Date(r.inicio as string),
+            abertaEm: new Date(r.criado_em as string),
+            // Não foi por falta do chat: vai agora.
+            avisar: r.avisado === true || r.silenciado == null,
+            silenciada: (r.silenciado as Queda["silenciada"]) ?? null,
+            msgId: r.msg_id != null ? Number(r.msg_id) : null,
+            chat: r.chat_id != null ? String(r.chat_id) : null,
+        });
+    }
+    quedasRecentes = (
+        await consultar(sql`
+            SELECT chave, inicio, volta, fechado_em FROM frota_alertas
+            WHERE tipo = 'queda' AND fechado_em > now() - interval '3 hours'`)
+    ).map((r) => ({
+        chave: String(r.chave),
+        desde: new Date(r.inicio as string),
+        volta: r.volta ? new Date(r.volta as string) : null,
+        fechadaEm: new Date(r.fechado_em as string),
+    }));
+    for (const r of await consultar(sql`
+        SELECT tipo, chave, criado_em, detalhe->>'plantao' AS plantao FROM frota_alertas
+        WHERE tipo IN ('instavel', 'bateria', 'resumo') AND criado_em > now() - interval '13 hours'`)) {
+        if (r.tipo === "instavel") instavelEm.set(String(r.chave), new Date(r.criado_em as string));
+        else if (r.tipo === "bateria") bateriaAvisada.add(`${r.chave}|${r.plantao}`);
+        else resumosFeitos.add(String(r.chave));
     }
 }
 
@@ -258,6 +334,7 @@ async function ciclo(): Promise<void> {
         erro = null;
         // Telegram fora do ar não é falha de coleta.
         await avisar(r.fechadas, agora).catch((e) => registrarErro("aviso", e));
+        await avisarSinal(agora).catch((e) => registrarErro("aviso de sinal", e));
     } catch (e) {
         erro = (e as Error).message;
         await registrarErro("coleta", e);
@@ -286,8 +363,23 @@ function dadosAviso(p: Permanencia): DadosAviso {
 }
 
 /**
- * Uma mensagem por parada no grupo dos reguladores: sai quando a parada
- * passa de 40 min, é editada a cada coleta e fecha com a saída (ou sem sinal).
+ * Manda ao grupo da frota. Sem chat configurado ou com os avisos desligados,
+ * não manda (o registro em frota_alertas fica com avisado = false).
+ */
+async function mandar(html: string, respondeA?: number | null, chat = frotaChatId()): Promise<{ chat: string; id: number } | null> {
+    if (!AVISOS || !chat) return null;
+    const id = await enviarChat(chat, html, respondeA);
+    if (!id) {
+        await registrarErro("aviso Telegram", "envio falhou — detalhe em [telegram] no log");
+        return null;
+    }
+    return { chat, id };
+}
+
+/**
+ * Uma mensagem por parada no grupo da frota: sai quando a parada passa de
+ * 40 min e é editada a cada coleta. Na saída, a mensagem é editada e
+ * RESPONDIDA ("saiu às…") — edição não notifica ninguém, resposta sim.
  */
 async function avisar(fechadas: Fechamento[], agora: Date): Promise<void> {
     if (!AVISOS) return;
@@ -295,16 +387,14 @@ async function avisar(fechadas: Fechamento[], agora: Date): Promise<void> {
         if (!p.alertaEm || p.id === undefined) continue;
         const texto = textoAviso(dadosAviso(p), { tipo: "parada", minutos: duracaoMin(p, agora) }, agora);
         if (!p.avisoMsgId) {
-            const id = await enviarReguladores(texto);
-            if (!id) {
-                await registrarErro("aviso Telegram", "envio falhou — detalhe em [telegram] no log");
-                continue;
-            }
-            p.avisoMsgId = id;
-            await db.execute(sql`UPDATE frota_permanencias SET aviso_msg_id = ${id} WHERE id = ${p.id}`);
+            const m = await mandar(texto);
+            if (!m) continue;
+            p.avisoMsgId = m.id;
+            p.avisoChat = m.chat;
+            await db.execute(sql`UPDATE frota_permanencias SET aviso_msg_id = ${m.id}, aviso_chat = ${m.chat} WHERE id = ${p.id}`);
         } else if (textoPublicado.get(p.id) !== texto) {
             // Falhou: não marca como publicado, a próxima coleta tenta de novo.
-            if (!(await editarReguladores(p.avisoMsgId, texto))) {
+            if (!(await editarChat(p.avisoChat ?? reguladoresChatId(), p.avisoMsgId, texto))) {
                 await registrarErro("aviso Telegram", "edição falhou");
                 continue;
             }
@@ -314,12 +404,156 @@ async function avisar(fechadas: Fechamento[], agora: Date): Promise<void> {
     for (const f of fechadas) {
         const p = f.permanencia;
         if (!p.avisoMsgId) continue;
+        const chat = p.avisoChat ?? reguladoresChatId();
         const estado = f.saida ? { tipo: "saiu" as const, saida: f.saida } : { tipo: "sem-sinal" as const };
-        if (!(await editarReguladores(p.avisoMsgId, textoAviso(dadosAviso(p), estado, agora)))) {
+        if (!(await editarChat(chat, p.avisoMsgId, textoAviso(dadosAviso(p), estado, agora)))) {
             await registrarErro("aviso Telegram", "edição da saída falhou");
+        }
+        // A saída responde o aviso dos 40 min (sem sinal fica só na edição: a queda avisa).
+        if (f.saida && !(await enviarChat(chat, textoAviso(dadosAviso(p), estado), p.avisoMsgId))) {
+            await registrarErro("aviso Telegram", "resposta da saída falhou");
         }
         if (p.id !== undefined) textoPublicado.delete(p.id);
     }
+}
+
+async function registrarAlerta(a: {
+    tipo: "queda" | "instavel" | "surto" | "bateria" | "resumo";
+    chave: string;
+    inicio: Date;
+    silenciado?: string | null;
+    detalhe?: Record<string, unknown>;
+}): Promise<number> {
+    const [l] = await consultar(sql`
+        INSERT INTO frota_alertas (tipo, chave, inicio, silenciado, detalhe)
+        VALUES (${a.tipo}, ${a.chave}, ${a.inicio.toISOString()}, ${a.silenciado ?? null},
+                ${a.detalhe ? JSON.stringify(a.detalhe) : null}::jsonb)
+        RETURNING id`);
+    console.log(`[frota-alerta] ${a.tipo} ${a.chave}${a.silenciado ? ` (silenciado: ${a.silenciado})` : ""}${a.detalhe ? ` ${JSON.stringify(a.detalhe)}` : ""}`);
+    return Number(l.id);
+}
+
+async function marcarAvisado(id: number, m: { chat: string; id: number } | null): Promise<void> {
+    if (m) await db.execute(sql`UPDATE frota_alertas SET avisado = true, chat_id = ${m.chat}, msg_id = ${m.id} WHERE id = ${id}`);
+}
+
+/**
+ * Quedas de sinal (10 min sem posição), sinal instável, bateria abaixo de
+ * 20% e o resumo da troca de plantão — regras em sinal.ts. Queda: uma
+ * mensagem, editada a cada coleta, e respondida quando a viatura volta.
+ */
+async function avisarSinal(agora: Date): Promise<void> {
+    let viaturas = painelAtual(agora).viaturas.filter((v) => !v.foraDoCatalogo);
+    const r = avancarQuedas(quedas, quedasRecentes, viaturas, instavelEm, agora);
+    if (r.novas.length && Date.now() - tentouVinculosEm > VINCULOS_MIN_MS) {
+        // A causa (sem internet, bateria) vem da página de status: lê de novo.
+        await atualizarVinculos().catch((e) => registrarErro("vínculos", e));
+        viaturas = painelAtual(agora).viaturas.filter((v) => !v.foraDoCatalogo);
+    }
+    const porChave = new Map(viaturas.map((v) => [v.chave, v]));
+
+    if (r.surto) {
+        const id = await registrarAlerta({ tipo: "surto", chave: "*", inicio: agora, detalhe: { quedas: r.surto } });
+        await marcarAvisado(id, await mandar(textoSurto(r.surto, agora)));
+    }
+    for (const q of r.novas) {
+        q.id = await registrarAlerta({
+            tipo: "queda", chave: q.chave, inicio: q.desde, silenciado: q.silenciada,
+            detalhe: { conexao: porChave.get(q.chave)?.conexao ?? null, evento: porChave.get(q.chave)?.evento ?? null, bateria: porChave.get(q.chave)?.bateria ?? null },
+        });
+    }
+    for (const q of r.promovidas) {
+        console.log(`[frota-alerta] queda ${q.chave} reincidente passou de 30 min — vai ao grupo`);
+    }
+    for (const f of r.fechadas) {
+        const q = f.queda;
+        const minutos = Math.round(((f.volta ?? agora).getTime() - q.desde.getTime()) / 60_000);
+        console.log(`[frota-alerta] queda ${q.chave} fechou: ${f.motivo} (${minutos} min)`);
+        if (q.id !== undefined) {
+            await db.execute(sql`
+                UPDATE frota_alertas SET fechado_em = ${agora.toISOString()}, volta = ${f.volta?.toISOString() ?? null},
+                    motivo_fim = ${f.motivo}
+                WHERE id = ${q.id}`);
+            textoQuedaPublicado.delete(q.id);
+        }
+        quedasRecentes.push({ chave: q.chave, desde: q.desde, volta: f.volta, fechadaEm: agora });
+        const v = porChave.get(q.chave);
+        if (!q.msgId || !q.chat || !v) continue;
+        const t = textoFimQueda(v, f, agora);
+        if (!(await editarChat(q.chat, q.msgId, t.edicao))) await registrarErro("aviso Telegram", "edição da queda falhou");
+        if (t.resposta && !(await enviarChat(q.chat, t.resposta, q.msgId))) await registrarErro("aviso Telegram", "resposta da volta falhou");
+    }
+    quedas = r.abertas;
+    quedasRecentes = quedasRecentes.filter((q) => agora.getTime() - q.fechadaEm.getTime() <= INSTAVEL_JANELA_MIN * 60_000);
+
+    // Abertas: manda a que ainda não foi (nova, promovida, ou sem chat antes); edita as outras.
+    for (const q of quedas.values()) {
+        const v = porChave.get(q.chave);
+        if (!q.avisar || q.id === undefined || !v) continue;
+        const texto = textoQueda(v, q, agora);
+        if (!q.msgId) {
+            const m = await mandar(texto);
+            if (!m) continue;
+            q.msgId = m.id;
+            q.chat = m.chat;
+            await marcarAvisado(q.id, m);
+        } else if (textoQuedaPublicado.get(q.id) !== texto && !(await editarChat(q.chat!, q.msgId, texto))) {
+            await registrarErro("aviso Telegram", "edição da queda falhou");
+            continue;
+        }
+        textoQuedaPublicado.set(q.id, texto);
+    }
+
+    for (const i of r.instaveis) {
+        const v = porChave.get(i.chave);
+        if (!v) continue;
+        instavelEm.set(i.chave, agora);
+        const id = await registrarAlerta({ tipo: "instavel", chave: i.chave, inicio: agora, detalhe: { quedas: i.quedas, minutos: i.minutos } });
+        await marcarAvisado(id, await mandar(textoInstavel(v, i)));
+    }
+
+    const plantao = plantaoDe(agora);
+    for (const v of viaturas) {
+        if (!bateriaBaixa(v, agora) || bateriaAvisada.has(`${v.chave}|${plantao}`)) continue;
+        bateriaAvisada.add(`${v.chave}|${plantao}`);
+        const id = await registrarAlerta({
+            tipo: "bateria", chave: v.chave, inicio: new Date(v.bateriaEm!),
+            detalhe: { bateria: v.bateria, antes: v.bateriaAntes, plantao },
+        });
+        await marcarAvisado(id, await mandar(textoBateria(v, agora)));
+    }
+
+    const slot = resumoDevido(agora);
+    if (slot && !resumosFeitos.has(slot)) {
+        resumosFeitos.add(slot);
+        const id = await registrarAlerta({ tipo: "resumo", chave: slot, inicio: agora });
+        await marcarAvisado(id, await mandar(textoResumo(viaturas, instaveisAgora(quedasRecentes, quedas, agora), agora)));
+    }
+}
+
+/** Resposta do /frota: problemas agudos por gravidade (sinal.ts, `ranking`). */
+export function textoFrotaAgora(): string {
+    const agora = new Date();
+    const viaturas = painelAtual(agora).viaturas.filter((v) => !v.foraDoCatalogo);
+    return textoFrota(ranking(viaturas, instaveisAgora(quedasRecentes, quedas, agora), agora), agora);
+}
+
+/** Registro dos avisos de sinal/bateria/resumo das últimas `horas` (para calibrar). */
+export async function alertasRecentes(horas: number) {
+    const linhas = await consultar(sql`
+        SELECT id, tipo, chave, inicio, volta, fechado_em, motivo_fim, avisado, silenciado, detalhe, criado_em
+        FROM frota_alertas
+        WHERE criado_em > now() - ${horas} * interval '1 hour'
+        ORDER BY id DESC
+        LIMIT 1000`);
+    const contagem: Record<string, { total: number; avisados: number; silenciados: Record<string, number> }> = {};
+    for (const l of linhas) {
+        const c = (contagem[String(l.tipo)] ??= { total: 0, avisados: 0, silenciados: {} });
+        c.total++;
+        if (l.avisado === true) c.avisados++;
+        if (l.silenciado) c.silenciados[String(l.silenciado)] = (c.silenciados[String(l.silenciado)] ?? 0) + 1;
+    }
+    return { horas, chat: Boolean(frotaChatId()), contagem, quedasAbertas: quedas.size, alertas: linhas };
 }
 
 export interface ParadaHistorico {
@@ -400,7 +634,9 @@ export async function linhaDoTempo(horas: number): Promise<{
         FROM frota_permanencias
         WHERE motivo_fim IS NULL OR COALESCE(saida, ultima_vez) >= ${desde.toISOString()}
         ORDER BY entrada`);
-    const paradas = linhas.map((r): ParadaHistorico => {
+    // Numeral acima de 74: dado lixo (catalogo.ts, NUMERO_MAX). "Equipe N" não é numeral de viatura.
+    const lixo = (r: Linha) => !String(r.chave).startsWith("equipe:") && !numeroNoLimite(descreverChave(String(r.chave)).nome);
+    const paradas = linhas.filter((r) => !lixo(r)).map((r): ParadaHistorico => {
         const entrada = new Date(r.entrada as string);
         const ultimaVez = new Date(r.ultima_vez as string);
         const aberta = r.motivo_fim == null;
@@ -481,12 +717,12 @@ export function diagnostico() {
         erros,
         abertas: abertas.size,
         esperandoPulo: [...abertas.values()].filter((p) => p.fora).length,
+        quedasAbertas: quedas.size,
         aprendizado,
     };
 }
 
-export function painelAtual(): PainelFrota {
-    const agora = new Date();
+export function painelAtual(agora = new Date()): PainelFrota {
     return montarPainel({
         ativo: Boolean(TOKEN),
         coletadoEm,

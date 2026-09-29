@@ -2,7 +2,7 @@
 // Monta a resposta de GET /tabela/api/frota a partir do que o coletor tem
 // em memória. Pura: mesma entrada, mesma saída.
 // ═══════════════════════════════════════════════════════════════
-import { COORDENADAS_BASES, type ViaturaCatalogo } from "./catalogo.js";
+import { COORDENADAS_BASES, numeroNoLimite, type ViaturaCatalogo } from "./catalogo.js";
 import type { HospitalFrota } from "./hospitais.js";
 import type { DispositivoSamu, PosicaoSamu } from "./samumais.js";
 import {
@@ -28,7 +28,15 @@ export interface ViaturaFrota {
     /** Parada a 150 m da própria base (só bases com ponto exato). */
     naBase: boolean;
     bateria: number | null;
+    /** Quando a bateria foi lida (o SAMU+ só lê quando o app cai ou volta). */
+    bateriaEm: string | null;
+    /** Tendência: leitura anterior diferente (maior = descarregando). */
+    bateriaAntes: number | null;
     sinal: number | null;
+    /** `Dados Móveis`, `Wi-Fi`, `none` (sem internet). */
+    conexao: string | null;
+    /** Último ONLINE/OFFLINE do app no SAMU+. */
+    evento: { tipo: string; em: string } | null;
     velocidade: number | null;
     noHospital: {
         /** Id da parada (frota_permanencias) — casa com a linha do tempo. */
@@ -82,6 +90,8 @@ export function resolverPosicoes(
         const em = instanteSamu(p.dataEvento);
         if (!em) continue;
         const d = porEquipe.get(p.idEquipe) ?? null;
+        // Numeral acima de 74 no SAMU+: dado lixo (catalogo.ts, NUMERO_MAX).
+        if (d && !numeroNoLimite(d.nome)) continue;
         const v = d ? vinculo.get(d.unidadeSamu) : undefined;
         const chave = v?.codigo ?? (d ? `samu:${d.unidadeSamu}` : `equipe:${p.idEquipe}`);
         const atual = porChave.get(chave);
@@ -166,7 +176,11 @@ export function montarPainel(entrada: {
                     ? naBase({ lat: r.posicao.lat, lng: r.posicao.lng, base: pontoBase })
                     : false,
             bateria: d?.bateria ?? null,
+            bateriaEm: d?.bateriaEm ?? null,
+            bateriaAntes: d?.bateriaAntes ?? null,
             sinal: d?.sinal ?? null,
+            conexao: d?.conexao ?? null,
+            evento: d?.evento ?? null,
             velocidade: d?.velocidade ?? null,
             noHospital:
                 p && s.situacao === "mapa"
