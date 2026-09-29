@@ -383,6 +383,18 @@ export interface ParadaHistorico {
   motivoFim: "saiu" | "sem-sinal" | null;
   minutos: number;
   alertou: boolean;
+  acolhimento: NotificacaoAcolhimento | null;
+  semNotificacao: boolean;
+}
+
+export interface NotificacaoAcolhimento {
+  chegada: string | null;
+  passagem: string | null;
+  liberada: string | null;
+  fim: string;
+  minutos: number | null;
+  maca: { inicio: string; fim: string | null } | null;
+  motivos: string[];
 }
 
 export interface LinhaDoTempoFrota {
@@ -392,4 +404,9 @@ export interface LinhaDoTempoFrota {
   alertaMin: number;
   hospitais: { id: string; nome: string }[];
   paradas: ParadaHistorico[];
+  acolhimentos: {
+    ligado: boolean;
+    erro: string | null;
+    soltas: (NotificacaoAcolhimento & { unidade: string; hospitalId: string })[];
+  };
 }
