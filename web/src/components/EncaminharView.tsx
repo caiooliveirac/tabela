@@ -15,7 +15,7 @@
 // Quem ficou de fora aparece com o motivo. Some calado seria indistinguível
 // de bug, e o regulador ficaria sem saber se confia na lista.
 // ═══════════════════════════════════════════════════════════════
-import { Suspense, lazy, useEffect, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import type { HospitalData, CaseRow, DestinoRanqueado, TipoLocal } from "../lib/types";
 import { SM } from "../lib/constants";
 import {
@@ -30,6 +30,8 @@ import {
 const MapaSalvador = lazy(() => import("./MapaSalvador"));
 const MapaGoogle = lazy(() => import("./MapaGoogle"));
 import BuscaEndereco from "./BuscaEndereco";
+import { useFrota } from "../hooks/useFrota";
+import { COR } from "./frota/formato";
 import IntelChip from "./IntelChip";
 
 function tempo(segundos: number | null): string {
@@ -135,6 +137,21 @@ export default function EncaminharView({ hospitals, timelineCases }: Props) {
   const { data: perfis } = usePerfisEncaminhamento();
   const { data: hospitaisMapa = [] } = useHospitaisMapa();
   const { data: cfg } = useEncaminhamentoConfig();
+  // Viaturas do SAMU+ por cima do mapa: quem está onde e quem está parado em
+  // hospital. Mesma consulta da aba Frota (o React Query compartilha).
+  const { data: painelFrota } = useFrota();
+  const [verFrota, setVerFrota] = useState(() => localStorage.getItem("tabela:destinoFrota") !== "false");
+  const [mapaAlto, setMapaAlto] = useState(() => localStorage.getItem("tabela:destinoMapaAlto") === "true");
+  useEffect(() => { localStorage.setItem("tabela:destinoFrota", String(verFrota)); }, [verFrota]);
+  useEffect(() => { localStorage.setItem("tabela:destinoMapaAlto", String(mapaAlto)); }, [mapaAlto]);
+  const frotaMapa = useMemo(
+    () =>
+      verFrota && painelFrota?.ativo
+        ? { painel: painelFrota, noMapa: painelFrota.viaturas.filter((v) => v.situacao === "mapa" && v.posicao) }
+        : null,
+    [verFrota, painelFrota],
+  );
+  const paradas = frotaMapa?.noMapa.filter((v) => v.noHospital) ?? [];
   const { data, isFetching, error } = useEncaminhamento(local, perfil, ponto);
   const mapsKey = googleFalhou ? null : (cfg?.mapsKey ?? null);
 
@@ -231,10 +248,33 @@ export default function EncaminharView({ hospitals, timelineCases }: Props) {
 
         {verMapa && (
           <div className="mt-3">
-            <div className="text-[11px] text-slate-500 mb-[6px]">
-              Clique onde está a ocorrência. O ranking sai do lugar conhecido mais
-              próximo — a linha tracejada mostra o quanto foi aproximado
-              {mapsKey ? "; as linhas coloridas são as rotas dos primeiros destinos" : ""}.
+            <div className="flex items-start gap-3 mb-[6px]">
+              <div className="flex-1 text-[11px] text-slate-500">
+                Clique onde está a ocorrência. O ranking sai do lugar conhecido mais
+                próximo — a linha tracejada mostra o quanto foi aproximado
+                {mapsKey ? "; as linhas coloridas são as rotas dos primeiros destinos" : ""}.
+              </div>
+              {mapsKey && painelFrota?.ativo && (
+                <button
+                  onClick={() => setVerFrota((v) => !v)}
+                  className="py-[4px] px-3 text-xs font-bold rounded-lg border cursor-pointer whitespace-nowrap"
+                  style={{
+                    borderColor: verFrota ? "#1d4ed8" : "#cbd5e1",
+                    backgroundColor: verFrota ? "#eff6ff" : "#fff",
+                    color: verFrota ? "#1d4ed8" : "#64748b",
+                  }}
+                >
+                  🚑 Viaturas
+                </button>
+              )}
+              {mapsKey && (
+                <button
+                  onClick={() => setMapaAlto((a) => !a)}
+                  className="py-[4px] px-3 text-xs font-bold rounded-lg border border-slate-300 bg-white text-slate-700 cursor-pointer whitespace-nowrap hover:border-blue-600"
+                >
+                  {mapaAlto ? "⤡ Reduzir" : "⤢ Ampliar"}
+                </button>
+              )}
             </div>
             <Suspense
               fallback={
@@ -258,6 +298,8 @@ export default function EncaminharView({ hospitals, timelineCases }: Props) {
                   rotas={rotasMapa}
                   onEscolher={clicarNoMapa}
                   onFalha={() => setGoogleFalhou(true)}
+                  frota={frotaMapa}
+                  alto={mapaAlto}
                 />
               ) : (
                 <MapaSalvador
@@ -268,6 +310,27 @@ export default function EncaminharView({ hospitals, timelineCases }: Props) {
                 />
               )}
             </Suspense>
+            {mapsKey && frotaMapa && (
+              <div className="flex items-center gap-x-4 gap-y-1 flex-wrap mt-[6px] text-[11px] text-slate-500">
+                <span className="flex items-center gap-1">
+                  <span className="inline-block w-[10px] h-[10px] rounded-[3px]" style={{ background: COR.recente }} /> viatura, posição até 15 min
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="inline-block w-[10px] h-[10px] rounded-[3px]" style={{ background: COR.atrasada }} /> até 1 h
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="inline-block w-[12px] h-[12px] rounded-full border-2" style={{ borderColor: COR.hospital, background: "#1d4ed81a" }} /> viatura parada no hospital
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="inline-block w-[12px] h-[12px] rounded-full border-2" style={{ borderColor: COR.alerta, background: "#dc26262e" }} /> há 40 min ou mais
+                </span>
+                {paradas.length > 0 && (
+                  <span className="ml-auto font-semibold text-slate-600">
+                    Paradas agora: {paradas.map((v) => `${v.nome} no ${v.noHospital!.hospitalNome} (${v.noHospital!.minutos} min)`).join(" · ")}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>

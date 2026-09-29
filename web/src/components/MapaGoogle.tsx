@@ -15,8 +15,9 @@
 // não muda — o Google segue fora do caminho crítico da decisão.
 // ═══════════════════════════════════════════════════════════════
 import { useEffect, useRef, useState } from "react";
-import type { Encaixe, HospitalPonto } from "../lib/types";
+import type { Encaixe, HospitalPonto, PainelFrota, ViaturaFrota } from "../lib/types";
 import { garantirGoogleMaps } from "../lib/googleMaps";
+import { CamadaFrota } from "./frota/camada";
 
 // Mesmos limites do MapaSalvador: Salvador com folga para o Metropolitano.
 const LIMITES = { south: -13.02, west: -38.58, north: -12.73, east: -38.28 };
@@ -41,6 +42,10 @@ interface Props {
   onEscolher: (lat: number, lng: number) => void;
   /** Script do Google não subiu: o pai troca para o Leaflet. */
   onFalha: () => void;
+  /** Viaturas do SAMU+ por cima (aba Frota). null = camada desligada. */
+  frota?: { painel: PainelFrota; noMapa: ViaturaFrota[] } | null;
+  /** Mapa ampliado na tela. */
+  alto?: boolean;
 }
 
 export default function MapaGoogle({
@@ -53,10 +58,13 @@ export default function MapaGoogle({
   rotas,
   onEscolher,
   onFalha,
+  frota = null,
+  alto = false,
 }: Props) {
   const div = useRef<HTMLDivElement>(null);
   const mapa = useRef<google.maps.Map | null>(null);
   const [pronto, setPronto] = useState(false);
+  const camada = useRef<CamadaFrota | null>(null);
 
   const aoEscolher = useRef(onEscolher);
   aoEscolher.current = onEscolher;
@@ -104,6 +112,8 @@ export default function MapaGoogle({
     })();
     return () => {
       vivo = false;
+      camada.current?.limpar();
+      camada.current = null;
       mapa.current = null;
     };
     // Chave e mapId não mudam sem recarregar a página.
@@ -280,10 +290,24 @@ export default function MapaGoogle({
     };
   }, [pronto, origemKey, rotasKey, hospitais]);
 
+  // Viaturas por cima: raio só onde há viatura parada — os pinos do ranking
+  // continuam sendo o assunto do mapa.
+  useEffect(() => {
+    const m = mapa.current;
+    if (!pronto || !m) return;
+    if (!frota) {
+      camada.current?.limpar();
+      camada.current = null;
+      return;
+    }
+    camada.current ??= new CamadaFrota(m, { raios: "ocupados", rotulosHospital: false, zViatura: 2 });
+    camada.current.atualizar(frota.painel, frota.noMapa);
+  }, [pronto, frota]);
+
   return (
     <div
       ref={div}
-      className="w-full h-[320px] rounded-[10px] border border-slate-200 overflow-hidden bg-slate-50"
+      className={`w-full ${alto ? "h-[75vh]" : "h-[320px]"} rounded-[10px] border border-slate-200 overflow-hidden bg-slate-50`}
       // Header sticky do painel em z-100; mesmo cuidado do MapaSalvador.
       style={{ position: "relative", zIndex: 0 }}
     />
