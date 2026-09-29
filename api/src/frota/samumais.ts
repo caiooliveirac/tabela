@@ -5,7 +5,7 @@
 //   • página pública `status-unidades.php` — traz o vínculo unidade↔equipe
 //     (mais bateria, sinal e velocidade) num objeto `devices` embutido no
 //     HTML. Não é contrato: se a IMTECH fechar a página, fica valendo o
-//     último vínculo salvo. Pedido feito a eles: `id_unidade` na API.
+//     último vínculo salvo. A pedir a eles: `id_unidade` na API.
 // ═══════════════════════════════════════════════════════════════
 
 const API_URL = (process.env.SAMUMAIS_API_URL || "https://apiconecta.samumais.com.br/api/web").replace(/\/$/, "");

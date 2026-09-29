@@ -12,7 +12,7 @@ em hospital", que aparece em qualquer aba.
 
 A API não diz qual viatura é cada equipe (`id_equipe` ≠ id da unidade). O
 vínculo sai da página de status; se ela sair do ar, vale o último salvo em
-`frota_estado`. Pedido feito à IMTECH: incluir `id_unidade` na API.
+`frota_estado`. A pedir à IMTECH: incluir `id_unidade` na API.
 
 ## Regras (`regras.ts`, testadas em `regras.test.ts`)
 
