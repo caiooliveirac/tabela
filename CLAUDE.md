@@ -23,8 +23,10 @@ Procedimentos completos: `~/labctl/README.md` no servidor magalu.
 - **Banco LAB**: `ssh magalu labctl db-refresh tabela` copia o banco LIVE
   (somente leitura) para o container LAB.
 - **STATUS**: `ssh magalu labctl status tabela`.
-- **PROMOTE**: commit+push na main → `ssh magalu labctl promote tabela`
-  (compose build web/api + up + health em `/tabela/`; rollback automático se falhar).
+- **DEPLOY = LIVE direto** (desde 29/09/2026): merge/push na `main` já deploya
+  no LIVE (`deploy.yml`). Sem passar pelo LAB nem pedir segunda confirmação —
+  LAB/CANARY só quando o usuário pedir. `ssh magalu labctl promote tabela`
+  (compose build + health em `/tabela/`, rollback automático) só se o CI falhar.
 - **ROLLBACK**: `ssh magalu labctl rollback tabela` (rebuild do commit anterior).
 - **CANARY**: PIN da chefia / papéis internos no LIVE já promovido (cron semanal
   `scripts/chefia-pin.sh rotate` roda no LIVE, segunda 07:00).
