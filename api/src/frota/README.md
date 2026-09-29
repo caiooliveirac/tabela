@@ -20,16 +20,31 @@ vínculo sai da página de status; se ela sair do ar, vale o último salvo em
   (`CB 02 (A)` → CB02); depois, para quem sobrou, o número (`PB 60 [A]` →
   BR60, viatura remanejada). Motos (`MT`) e unidades de evento (`FV 02`) ficam
   fora do catálogo.
-- **No hospital:** a até 150 m do prédio. Só sai a mais de 200 m (o GPS
-  oscila na borda). Moto e desativada não entram na conta.
-- **Na UPA:** mesma regra e mesmo alerta, nas 20 UPAs de `upas.ts`. No mapa o
-  nome da UPA só aparece com viatura dentro; na linha do tempo, só a UPA que
-  teve parada. UPA não cruza com o Acolhimentos (nunca "sem notificação") e
-  não manda aviso no Telegram — o alerta de 40 min fica só no painel.
+- **Chegada:** a até 150 m de um ponto do local — o pino do prédio ou um
+  estacionamento aprendido. Pontos que se cruzam: vence o mais perto. Moto e
+  desativada não entram na conta.
+- **Trava:** a parada fica presa ao local onde chegou; nunca passa para o
+  vizinho (HGESF, 16º Centro e Mário Leal estão a 90–180 m um do outro). Segue
+  enquanto a viatura estiver a até 200 m de um ponto do local; ou a até 150 m
+  de onde parou (2+ posições a até 50 m) — o GPS oscila; ou, sem passar de
+  300 m do local, a até 150 m da última posição. Pulo para longe (ainda até
+  300 m) espera a próxima posição: parou ali, segue; continuou, fecha na hora
+  do pulo (`seguir`).
+- **Estacionamento aprendido** (`aprenderPontos`, a cada 30 min, paradas de
+  10+ min dos últimos 30 dias fora da base): cada parada grava onde o GPS
+  ficou parado mais tempo (`estavel_lat/lng/n`). 3 viaturas diferentes em 2
+  dias no mesmo lugar (40 m), a 60–300 m do pino, viram ponto do local. O
+  mesmo lugar aprendido por dois locais fica com quem tem mais viaturas;
+  em cima do pino de outro local, nunca. Aparece como círculo no mapa.
+- **Na UPA:** mesma regra e mesmo alerta (painel e Telegram aos 40 min), nas
+  20 UPAs de `upas.ts`. No mapa o nome da UPA só aparece com viatura dentro;
+  na linha do tempo, só a UPA que teve parada. UPA não cruza com o
+  Acolhimentos (nunca "sem notificação").
 - **Base no hospital ou na UPA:** a base do Pau Miúdo fica entre o HGESF e o
   Mário Leal; a de Cajazeiras, a 60 m do Municipal; San Martin, Periperi,
   Santo Antônio, São Cristóvão e Rodrigo Argolo dentro da UPA. Valéria e
-  12º Centro: ponto da UPA de mesmo nome, por suposição (ver `catalogo.ts`). Parada a até 150 m da **própria base**
+  12º Centro: ponto da UPA de mesmo nome, por suposição (ver `catalogo.ts`).
+  Parada a até 150 m da **própria base**
   é registrada com `na_base = true`: aparece em cinza na tabela e na linha do
   tempo, com hora de entrada, mas sem alerta nem Telegram. Base ↔ hospital
   troca de parada com a mesma histerese (150 m entra, 200 m sai).
@@ -71,8 +86,8 @@ sem registro. O Acolhimentos só cobre USA.
 
 ## Banco
 
-`frota_permanencias` (uma linha por parada em hospital: entrada, última
-confirmação, saída, motivo, quando alertou) e `frota_estado` (último vínculo).
+`frota_permanencias` (uma linha por parada em hospital ou UPA: entrada,
+última confirmação e posição, saída, motivo, quando alertou, onde o GPS parou) e `frota_estado` (último vínculo).
 Criadas no boot com `IF NOT EXISTS`.
 
 ## Ligar e desligar

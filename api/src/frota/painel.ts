@@ -6,8 +6,8 @@ import { COORDENADAS_BASES, type ViaturaCatalogo } from "./catalogo.js";
 import type { HospitalFrota } from "./hospitais.js";
 import type { DispositivoSamu, PosicaoSamu } from "./samumais.js";
 import {
-    ALERTA_MIN, MAPA_MIN, RAIO_M, RAIO_SAIDA_M, RECENTE_MIN,
-    distanciaM, duracaoMin, ehMoto, instanteSamu, naBase, situacao, vincular,
+    ALERTA_MIN, MAPA_MIN, RAIO_BUSCA_M, RAIO_M, RAIO_SAIDA_M, RECENTE_MIN,
+    distanciaLocal, duracaoMin, ehMoto, instanteSamu, naBase, situacao, vincular,
     type Leitura, type Permanencia, type Situacao,
 } from "./regras.js";
 
@@ -51,7 +51,7 @@ export interface PainelFrota {
     coletadoEm: string | null;
     vinculosEm: string | null;
     erro: string | null;
-    limites: { raioM: number; raioSaidaM: number; alertaMin: number; recenteMin: number; mapaMin: number };
+    limites: { raioM: number; raioSaidaM: number; raioBuscaM: number; alertaMin: number; recenteMin: number; mapaMin: number };
     hospitais: HospitalFrota[];
     viaturas: ViaturaFrota[];
     /** Unidades fora do catálogo (evento, reserva) sem posição recente — só contadas. */
@@ -181,7 +181,7 @@ export function montarPainel(entrada: {
                           naBase: p.naBase,
                           distanciaM:
                               r && r.posicao.lat !== null && r.posicao.lng !== null && porHospital.has(p.hospitalId)
-                                  ? Math.round(distanciaM({ lat: r.posicao.lat, lng: r.posicao.lng }, porHospital.get(p.hospitalId)!))
+                                  ? Math.round(distanciaLocal({ lat: r.posicao.lat, lng: r.posicao.lng }, porHospital.get(p.hospitalId)!))
                                   : null,
                       }
                     : null,
@@ -214,7 +214,7 @@ export function montarPainel(entrada: {
         coletadoEm: entrada.coletadoEm?.toISOString() ?? null,
         vinculosEm: entrada.vinculosEm?.toISOString() ?? null,
         erro: entrada.erro,
-        limites: { raioM: RAIO_M, raioSaidaM: RAIO_SAIDA_M, alertaMin: ALERTA_MIN, recenteMin: RECENTE_MIN, mapaMin: MAPA_MIN },
+        limites: { raioM: RAIO_M, raioSaidaM: RAIO_SAIDA_M, raioBuscaM: RAIO_BUSCA_M, alertaMin: ALERTA_MIN, recenteMin: RECENTE_MIN, mapaMin: MAPA_MIN },
         hospitais: [...hospitais],
         viaturas,
         foraDoCatalogoSemSinal,

@@ -14,6 +14,13 @@ import { HOSPITALS } from "../services/score.js";
 import { COORDENADAS_HOSPITAIS } from "../services/encaminhamento.js";
 import { UPAS_FROTA } from "./upas.js";
 
+export interface PontoAprendido {
+    lat: number;
+    lng: number;
+    /** Quantas viaturas diferentes pararam ali (a evidência). */
+    viaturas: number;
+}
+
 export interface HospitalFrota {
     id: string;
     nome: string;
@@ -21,6 +28,8 @@ export interface HospitalFrota {
     tipo: "hospital" | "upa";
     lat: number;
     lng: number;
+    /** Estacionamentos aprendidos do GPS (`aprenderPontos`): contam como o pino. */
+    pontos?: readonly PontoAprendido[];
 }
 
 const PONTOS_PROPRIOS: Record<string, { lat: number; lng: number }> = {

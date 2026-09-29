@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import { CATALOGO, COORDENADAS_BASES, DESATIVADAS_ATE_SEGUNDA_ORDEM } from "./catalogo.js";
 import { HOSPITAIS_FROTA, LOCAIS_FROTA } from "./hospitais.js";
 import {
-    avancarPermanencias, distanciaM, duracaoMin, hospitalNoRaio, instanteSamu,
-    situacao, vincular, type Permanencia,
+    aprenderPontos, avancarPermanencias, distanciaM, duracaoMin, hospitalNoRaio, instanteSamu,
+    situacao, vincular, type Evidencia, type Permanencia,
 } from "./regras.js";
 import { lerDispositivos, lerPosicoes } from "./samumais.js";
 import { leiturasParaPermanencia, montarPainel, resolverPosicoes } from "./painel.js";
@@ -13,6 +13,12 @@ const HGE = HOSPITAIS_FROTA.find((h) => h.id === "hge")!;
 /** Ponto a `m` metros ao norte do HGE. */
 const aoNorte = (m: number) => ({ lat: HGE.lat + m / 111_195, lng: HGE.lng });
 const t = (hhmm: string) => new Date(`2026-09-29T${hhmm}:00-03:00`);
+/** Ponto deslocado `norte` e `leste` metros de `p`. */
+const desloca = (p: { lat: number; lng: number }, norte: number, leste = 0) => ({
+    lat: p.lat + norte / 111_195,
+    lng: p.lng + leste / (111_195 * Math.cos((p.lat * Math.PI) / 180)),
+});
+const local = (id: string) => LOCAIS_FROTA.find((h) => h.id === id)!;
 
 test("catálogo: 82 viaturas, código e número únicos, desativadas existem", () => {
     assert.equal(CATALOGO.length, 82);
@@ -177,6 +183,103 @@ test("base ↔ hospital: sair da área da base (>200 m) dentro do raio troca a p
     assert.equal(troca.novas[0].naBase, false, "na porta do hospital, longe da base: conta");
 });
 
+test("trava: chegou no HGESF, fica no HGESF mesmo mais perto do 16º Centro", () => {
+    const hgesf = local("hgesf");
+    const cs = local("cs_imbassahy");
+    let abertas = new Map<string, Permanencia>();
+    const passo = (hhmm: string, p: { lat: number; lng: number }) => {
+        const r = avancarPermanencias(abertas, [{ chave: "CB26", em: t(hhmm), ...p }], LOCAIS_FROTA, t(hhmm));
+        abertas = r.abertas;
+        return r;
+    };
+    assert.equal(passo("10:00", hgesf).novas[0].hospitalId, "hgesf");
+    for (const hhmm of ["10:02", "10:04", "10:30"]) {
+        const r = passo(hhmm, desloca(cs, 10, -10));
+        assert.equal(r.fechadas.length + r.novas.length, 0, "não troca de local");
+    }
+    assert.equal(abertas.get("CB26")?.hospitalId, "hgesf");
+    assert.equal(abertas.get("CB26")?.entrada.toISOString(), t("10:00").toISOString());
+});
+
+test("estacionamento longe da porta: pula 260 m, para lá, a contagem segue", () => {
+    const valeria = local("upa_valeria");
+    const vaga = desloca(valeria, -260);
+    let abertas = new Map<string, Permanencia>();
+    const passo = (hhmm: string, p: { lat: number; lng: number }) => {
+        const r = avancarPermanencias(abertas, [{ chave: "CB27", em: t(hhmm), ...p }], LOCAIS_FROTA, t(hhmm));
+        abertas = r.abertas;
+        return r;
+    };
+    passo("10:00", valeria);
+    assert.equal(passo("10:04", vaga).fechadas.length, 0, "pulo: espera a próxima posição");
+    for (const [hhmm, norte] of [["10:06", 30], ["10:10", -70], ["10:20", 40], ["10:44", 0]] as const) {
+        const r = passo(hhmm, desloca(vaga, norte, 20));
+        assert.equal(r.fechadas.length, 0, `GPS oscilando na vaga (${hhmm})`);
+    }
+    const p = abertas.get("CB27")!;
+    assert.equal(p.entrada.toISOString(), t("10:00").toISOString());
+    assert.ok(p.alertaEm, "40 min contados desde a porta");
+    assert.ok(p.estavel && distanciaM(p.estavel, vaga) < 50, "aprende onde o GPS parou");
+    const saiu = passo("10:50", desloca(valeria, -900));
+    assert.equal(saiu.fechadas[0].saida?.toISOString(), t("10:50").toISOString());
+});
+
+test("pulo que não para: fecha na hora do pulo", () => {
+    const valeria = local("upa_valeria");
+    let abertas = new Map<string, Permanencia>();
+    const passo = (hhmm: string, p: { lat: number; lng: number }) => {
+        const r = avancarPermanencias(abertas, [{ chave: "CB27", em: t(hhmm), ...p }], LOCAIS_FROTA, t(hhmm));
+        abertas = r.abertas;
+        return r;
+    };
+    passo("10:00", valeria);
+    passo("10:10", desloca(valeria, -260));
+    const r = passo("10:12", desloca(valeria, 0, 270));
+    assert.equal(r.fechadas[0].motivo, "saiu");
+    assert.equal(r.fechadas[0].saida?.toISOString(), t("10:10").toISOString());
+});
+
+test("aprende estacionamento: 3 viaturas em 2 dias no mesmo lugar", () => {
+    const valeria = local("upa_valeria");
+    const vaga = desloca(valeria, -260);
+    const ev = (chave: string, dia: string, norte = 0): Evidencia => ({ hospitalId: "upa_valeria", chave, dia, ...desloca(vaga, norte, 5) });
+    assert.equal(aprenderPontos([ev("CB26", "2026-09-29"), ev("CB27", "2026-09-29", 20)], LOCAIS_FROTA).size, 0);
+    assert.equal(
+        aprenderPontos([ev("CB26", "2026-09-29"), ev("CB27", "2026-09-29"), ev("CB28", "2026-09-29")], LOCAIS_FROTA).size,
+        0,
+        "um dia só não basta",
+    );
+    const aprendido = aprenderPontos(
+        [ev("CB26", "2026-09-29"), ev("CB27", "2026-09-30", 20), ev("CB28", "2026-10-01", -15), ev("CB28", "2026-10-02")],
+        LOCAIS_FROTA,
+    );
+    const [ponto] = aprendido.get("upa_valeria")!;
+    assert.equal(ponto.viaturas, 3);
+    assert.ok(distanciaM(ponto, vaga) < 20);
+    const comPontos = LOCAIS_FROTA.map((h) => (aprendido.has(h.id) ? { ...h, pontos: aprendido.get(h.id) } : h));
+    assert.equal(hospitalNoRaio(vaga, LOCAIS_FROTA), null, "sem aprender: longe demais do pino");
+    assert.equal(hospitalNoRaio(vaga, comPontos)?.id, "upa_valeria");
+});
+
+test("aprende: vaga do HGESF perto do 16º Centro vence; pino de outro local, nunca", () => {
+    const hgesf = local("hgesf");
+    const cs = local("cs_imbassahy");
+    const vaga = desloca(cs, 0, -70); // 70 m do pino do 16º Centro, mais longe do HGESF
+    const ev = (hospitalId: string, chave: string, dia: string, p = vaga): Evidencia => ({ hospitalId, chave, dia, ...p });
+    const dias = ["2026-09-29", "2026-09-30", "2026-10-01"];
+    const doHgesf = ["CB26", "CB27", "CB28", "SM17"].map((c, i) => ev("hgesf", c, dias[i % 3]));
+    const doCs = ["PM45", "PM46", "PM47"].map((c, i) => ev("cs_imbassahy", c, dias[i]));
+    const r = aprenderPontos([...doHgesf, ...doCs], LOCAIS_FROTA);
+    assert.equal(r.get("hgesf")?.length, 1, "4 viaturas contra 3: é do HGESF");
+    assert.equal(r.get("cs_imbassahy"), undefined);
+    const comPontos = LOCAIS_FROTA.map((h) => (r.has(h.id) ? { ...h, pontos: r.get(h.id) } : h));
+    assert.ok(distanciaM(vaga, hgesf) > distanciaM(vaga, cs));
+    assert.equal(hospitalNoRaio(vaga, comPontos)?.id, "hgesf");
+
+    const noPinoDoMario = ["CB26", "CB27", "CB28"].map((c, i) => ev("hgesf", c, dias[i], local("mario_leal")));
+    assert.equal(aprenderPontos(noPinoDoMario, LOCAIS_FROTA).size, 0);
+});
+
 test("posição velha não abre permanência", () => {
     const r = avancarPermanencias(new Map(), [{ chave: "CN10", em: t("08:00"), ...aoNorte(10) }], HOSPITAIS_FROTA, t("10:00"));
     assert.equal(r.novas.length, 0);
@@ -245,6 +348,10 @@ test("aviso aos reguladores: parada, saída e sem sinal, com hora de Salvador e 
     assert.match(textoAviso(d, { tipo: "saiu", saida: t("14:40") }), /saiu do <b>HGESF<\/b> às 14:40 — <b>62 min<\/b>/);
     assert.match(textoAviso(d, { tipo: "sem-sinal" }), /sem sinal desde 14:20 — pelo menos <b>42 min<\/b>/);
     assert.match(textoAviso({ ...d, nome: "A<B" }, { tipo: "parada", minutos: 40 }), /A&lt;B/);
+    const upa = { ...d, hospitalNome: "UPA São Caetano" };
+    assert.match(textoAviso(upa, { tipo: "parada", minutos: 43 }), /parada há <b>43 min<\/b> na <b>UPA São Caetano<\/b>/);
+    assert.match(textoAviso(upa, { tipo: "saiu", saida: t("14:40") }), /saiu da <b>UPA São Caetano<\/b>/);
+    assert.match(textoAviso({ ...d, hospitalNome: "PA São Marcos" }, { tipo: "sem-sinal" }), /no <b>PA São Marcos<\/b>: sem sinal/);
 });
 
 test("acolhimentos: casa por viatura + hospital + sobreposição; sobra vira solta", async () => {

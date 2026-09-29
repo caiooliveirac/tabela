@@ -301,6 +301,8 @@ export interface HospitalPonto {
   nome: string;
   /** Só na frota: UPA tem raio como hospital, mas não cruza com o Acolhimentos. */
   tipo?: "hospital" | "upa";
+  /** Só na frota: estacionamentos aprendidos do GPS, com o mesmo raio do pino. */
+  pontos?: { lat: number; lng: number; viaturas: number }[];
   lat: number;
   lng: number;
 }
@@ -369,7 +371,7 @@ export interface PainelFrota {
   coletadoEm: string | null;
   vinculosEm: string | null;
   erro: string | null;
-  limites: { raioM: number; raioSaidaM: number; alertaMin: number; recenteMin: number; mapaMin: number };
+  limites: { raioM: number; raioSaidaM: number; raioBuscaM: number; alertaMin: number; recenteMin: number; mapaMin: number };
   hospitais: HospitalPonto[];
   viaturas: ViaturaFrota[];
   foraDoCatalogoSemSinal: number;
