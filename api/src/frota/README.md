@@ -21,9 +21,12 @@ vínculo sai da página de status; se ela sair do ar, vale o último salvo em
   BR60, viatura remanejada). Motos (`MT`) e unidades de evento (`FV 02`) ficam
   fora do catálogo.
 - **No hospital:** a até 150 m do prédio. Só sai a mais de 200 m (o GPS
-  oscila na borda). Parada a até 150 m da **própria base** não conta (a base do
-  Pau Miúdo fica entre o HGESF e o Mário Leal; a de Cajazeiras, a 60 m do
-  Municipal). Moto e desativada não entram na conta.
+  oscila na borda). Moto e desativada não entram na conta.
+- **Base no hospital:** a base do Pau Miúdo fica entre o HGESF e o Mário Leal;
+  a de Cajazeiras, a 60 m do Municipal. Parada a até 150 m da **própria base**
+  é registrada com `na_base = true`: aparece em cinza na tabela e na linha do
+  tempo, com hora de entrada, mas sem alerta nem Telegram. Base ↔ hospital
+  troca de parada com a mesma histerese (150 m entra, 200 m sai).
 - **Alerta:** 40 min. Sem posição nova há 15 min o relógio congela; sem
   posição há 1 h a parada fecha como `sem-sinal`.
 - **Situação de cada viatura:** `mapa` (posição da última hora) ·
