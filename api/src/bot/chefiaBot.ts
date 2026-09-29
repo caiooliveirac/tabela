@@ -11,6 +11,9 @@
 // Comando aberto, no grupo dos reguladores (TELEGRAM_REGULADORES_CHAT_ID):
 //   /upas         → UPAs restritas agora e até quando
 //
+// Comando aberto, no grupo da frota (TELEGRAM_FROTA_CHAT_ID) e no privado do admin:
+//   /frota        → problemas agudos da frota agora, por gravidade
+//
 // ⚠️ /destinos mostra dado de paciente (quadro clínico) e nome de regulador.
 // A checagem `from.id !== admin()` em handle() — depois do desvio do /upas, que
 // é o único comando aberto — é o que garante que isso só sai no privado do
@@ -29,10 +32,12 @@ import { parsePeriodo } from "../lib/periodo.js";
 import { loadDestinosData } from "../services/metrics.js";
 import { listActiveRestrictions } from "../services/upa-restrictions.js";
 import { buildUpasCommandReply } from "../lib/upaRestrictionsBot.js";
+import { textoFrotaAgora } from "../frota/coletor.js";
 
 const token = () => process.env.TELEGRAM_BOT_TOKEN || "";
 const admin = () => Number(process.env.TELEGRAM_ADMIN_CHAT_ID || 0);
 const reguladores = () => (process.env.TELEGRAM_REGULADORES_CHAT_ID || "").trim();
+const frota = () => (process.env.TELEGRAM_FROTA_CHAT_ID || "").trim();
 
 // A rede do contêiner até a api.telegram.org falha em rajadas (ETIMEDOUT).
 // getUpdates é long-poll (timeout: 30s) — teto maior e sem retry aqui, o loop
@@ -162,6 +167,18 @@ async function handle(u: any): Promise<void> {
             return;
         }
 
+        // /frota: aberto no grupo da frota; o admin, no privado. Não tem dado de paciente.
+        if (cmd === "/frota" && ((frota() && chatId === frota()) || chatId === String(admin()))) {
+            await tg("sendMessage", {
+                chat_id: u.message.chat.id,
+                text: textoFrotaAgora(),
+                parse_mode: "HTML",
+                disable_web_page_preview: true,
+                reply_to_message_id: u.message.message_id,
+            });
+            return;
+        }
+
         if (Number(u.message.from?.id) !== admin()) return; // resto: só o admin
         const t = String(u.message.text || "").trim().toLowerCase();
         const args = argsOf(u.message.text || "");
@@ -188,7 +205,7 @@ async function handle(u: any): Promise<void> {
         } else if (["/destinos", "/destino"].includes(cmd)) {
             await showDestinos(args[0], u.message.from?.id);
         } else {
-            await sendAdmin("Comandos: /resetpin · /bloqueados · /upas · /destinos · /menu", {
+            await sendAdmin("Comandos: /resetpin · /bloqueados · /upas · /destinos · /frota · /id · /menu", {
                 reply_markup: menuKeyboard,
             });
         }

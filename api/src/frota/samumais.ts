@@ -22,9 +22,21 @@ export interface DispositivoSamu {
     unidadeSamu: number;
     equipe: number | null;
     nome: string;
+    /** Bateria e conexão do último evento ONLINE/OFFLINE — pode ter horas. */
     bateria: number | null;
     sinal: number | null;
     velocidade: number | null;
+    // Opcionais: o vínculo salvo antes de 30/09/2026 em frota_estado não tem.
+    /** `online`, `unstable`, `offline`, `disabled` (situação do app no SAMU+). */
+    status?: string | null;
+    /** `Dados Móveis`, `Wi-Fi`, `none` (caiu sem internet). */
+    conexao?: string | null;
+    /** Quando a bateria foi lida (ISO). */
+    bateriaEm?: string | null;
+    /** Leitura anterior com valor diferente: maior = descarregando; menor = carregando. */
+    bateriaAntes?: number | null;
+    /** Último evento do app: ONLINE ou OFFLINE, e quando (ISO). */
+    evento?: { tipo: string; em: string } | null;
 }
 
 function numero(v: unknown): number | null {
@@ -77,13 +89,26 @@ export function lerDispositivos(html: string): DispositivoSamu[] {
         const unidadeSamu = numero(d.unitId);
         const nome = typeof d.unitName === "string" ? d.unitName.trim() : "";
         if (unidadeSamu === null || !nome) continue;
+        // Eventos ONLINE/OFFLINE ("Auditoria"), do mais novo ao mais velho.
+        const eventos = (Array.isArray(d.history) ? (d.history as Record<string, unknown>[]) : [])
+            .filter((e) => e.source === "Auditoria" && numero(e.timestamp) !== null)
+            .sort((a, b) => numero(b.timestamp)! - numero(a.timestamp)!);
+        const leituras = eventos.filter((e) => numero(e.battery) !== null);
+        const bateria = numero(d.battery);
+        const anterior = leituras.find((e) => numero(e.battery) !== bateria);
+        const iso = (e: Record<string, unknown> | undefined) => (e ? new Date(numero(e.timestamp)! * 1000).toISOString() : null);
         saida.push({
             unidadeSamu,
             equipe: numero(d.teamId),
             nome,
-            bateria: numero(d.battery),
+            bateria,
             sinal: numero(d.signal),
             velocidade: numero(d.speed),
+            status: typeof d.status === "string" ? d.status : null,
+            conexao: typeof d.connection === "string" && d.connection ? d.connection : null,
+            bateriaEm: bateria !== null ? iso(leituras[0]) : null,
+            bateriaAntes: anterior ? numero(anterior.battery) : null,
+            evento: eventos[0] ? { tipo: String(eventos[0].event), em: iso(eventos[0])! } : null,
         });
     }
     return saida;

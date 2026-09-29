@@ -20,9 +20,11 @@ const desloca = (p: { lat: number; lng: number }, norte: number, leste = 0) => (
 });
 const local = (id: string) => LOCAIS_FROTA.find((h) => h.id === id)!;
 
-test("catálogo: 82 viaturas, código e número únicos, desativadas existem", () => {
-    assert.equal(CATALOGO.length, 82);
-    assert.equal(new Set(CATALOGO.map((c) => c.codigo)).size, 82);
+test("catálogo: 63 viaturas até o numeral 74, código e número únicos, desativadas existem", () => {
+    assert.equal(CATALOGO.length, 63);
+    assert.equal(new Set(CATALOGO.map((c) => c.codigo)).size, 63);
+    // Acima de 74 (RMS): dado lixo, fora (decisão de 29/09/2026). LFEX (sem numeral) fica.
+    for (const c of CATALOGO) assert.ok(Number(c.codigo.replace(/\D/g, "")) <= 74, c.codigo);
     const numeros = CATALOGO.map((c) => c.codigo.replace(/\D/g, "")).filter(Boolean);
     assert.equal(new Set(numeros).size, numeros.length);
     for (const c of DESATIVADAS_ATE_SEGUNDA_ORDEM) assert.ok(CATALOGO.some((v) => v.codigo === c), c);
@@ -328,7 +330,10 @@ test("página de status: acha o objeto devices mesmo com chave e texto no meio",
     const html = `<script>const devices = {"unidade:1":{"unitId":"1","teamId":"9","unitName":"CB 02 (A)","battery":73,"signal":100,"speed":11,"x":"a}b"}};
 const config = {"a":1};</script>`;
     assert.deepEqual(lerDispositivos(html), [
-        { unidadeSamu: 1, equipe: 9, nome: "CB 02 (A)", bateria: 73, sinal: 100, velocidade: 11 },
+        {
+            unidadeSamu: 1, equipe: 9, nome: "CB 02 (A)", bateria: 73, sinal: 100, velocidade: 11,
+            status: null, conexao: null, bateriaEm: null, bateriaAntes: null, evento: null,
+        },
     ]);
     assert.throws(() => lerDispositivos("<html></html>"));
 });

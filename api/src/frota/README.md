@@ -16,6 +16,10 @@ vínculo sai da página de status; se ela sair do ar, vale o último salvo em
 
 ## Regras (`regras.ts`, testadas em `regras.test.ts`)
 
+- **Numeral acima de 74 = dado lixo** (RMS, nunca teve conexão com o SAMU+):
+  fora do catálogo, do painel, da linha do tempo e dos avisos; vale também
+  para o nome no SAMU+ ("MT 76 (SF)"). LFEX fica — sem ele, "LFEX 01" tomaria
+  a SM01 pelo número (`catalogo.ts`, `NUMERO_MAX`).
 - **Nome no SAMU+ → código do catálogo:** primeiro o código exato
   (`CB 02 (A)` → CB02); depois, para quem sobrou, o número (`PB 60 [A]` →
   BR60, viatura remanejada). Motos (`MT`) e unidades de evento (`FV 02`) ficam
@@ -68,16 +72,56 @@ espera de pulo, e o aprendizado (pontos ativos e histórico de
 aprendeu/esqueceu). Fica em `frota_estado` (`erros`, `aprendizado`): o log
 do container some a cada deploy, isto não.
 
-## Linha do tempo e aviso aos reguladores
+## Linha do tempo e avisos no grupo da frota
 
 - `GET /tabela/api/frota/linha-do-tempo?horas=N` (1–72): paradas que tocam a
   janela; as abertas sempre entram.
-- Aos 40 min, mensagem no grupo **REGULADORES - RECADOS** (Telegram,
-  `TELEGRAM_REGULADORES_CHAT_ID`). Uma por parada: editada a cada coleta,
-  fechada com a saída ou "sem sinal" (`aviso.ts`; `aviso_msg_id` na tabela).
-  O Telegram mostra no balão a hora do envio e não marca edição de bot: por
-  isso a mensagem editada termina com "aviso das 14:18, atualizado às 14:34".
-  `FROTA_AVISOS_TELEGRAM=0` desliga.
+- Todos os avisos vão ao **grupo da frota** (`TELEGRAM_FROTA_CHAT_ID`; vazio
+  = nada sai, só o registro). Desde 29/09/2026 as paradas saíram do
+  REGULADORES - RECADOS; aviso aberto de antes fecha lá (`aviso_chat` nulo).
+  `FROTA_AVISOS_TELEGRAM=0` desliga tudo. chat_id de grupo novo: o admin
+  manda `/id@ReguladorSAMU_bot` lá.
+- **Parada de 40 min:** uma mensagem por parada, editada a cada coleta
+  (`aviso.ts`; `aviso_msg_id`/`aviso_chat`). Na saída, a mensagem é editada e
+  **respondida** ("saiu às…") — edição não notifica ninguém, resposta sim.
+  A edição termina com "aviso das 14:18, atualizado às 14:34": o Telegram
+  mostra no balão a hora do envio e não marca edição de bot.
+
+## Sinal, bateria e resumo (`sinal.ts`, testado em `sinal.test.ts`)
+
+Só entra viatura do catálogo, escalada agora e não desativada. Só caso
+**agudo** vai ao grupo na hora; muda há 3 h+ é crônica e fica só numa linha
+do resumo e do `/frota` (com 12 h, as mudas desde a troca das 07h ocupavam o
+topo do ranking).
+
+- **Queda de sinal:** 10 min sem posição (chegam a cada 2 min). Só abre se
+  vista antes de 30 min de silêncio — deploy ou viatura muda desde cedo não
+  dispara. Uma mensagem, editada a cada coleta com o que o SAMU+ registrou
+  do app (**sem internet** = caiu com conexão `none`; bateria abaixo de 20%);
+  na volta, editada e respondida ("voltou às…"). Fecha sem resposta ao sair
+  do turno ou aos 3 h.
+- **Reincidência:** queda até 60 min depois da volta da anterior não avisa,
+  a não ser que dure 30 min.
+- **Sinal instável:** 3 quedas em 3 h (a atual conta) — uma mensagem, no
+  máximo a cada 6 h por viatura.
+- **Surto:** 8 quedas no mesmo ciclo = o SAMU+ parou, não as viaturas. Uma
+  mensagem só; as quedas ficam silenciadas.
+- **Bateria:** abaixo de 20%, lida há até 30 min, transmitindo e sem subir
+  (leitura anterior maior ou igual) — "colocar o tablet para carregar", uma
+  vez por viatura por plantão. O SAMU+ só lê a bateria quando o app cai ou
+  volta: leitura pode ter horas (`bateriaEm` no painel).
+- **Resumo da troca de plantão:** 07:30 e 19:30 (manda até 1 h depois, uma
+  vez): sem sinal, paradas de 40+ min, bateria baixa, instáveis e, numa
+  linha, as crônicas.
+- **`/frota`** (no grupo da frota ou no privado do admin): problemas agudos
+  por gravidade. Pesa o tempo fora de ação, seja qual for o motivo — sem
+  sinal (+10) ou parada 40+ min, vale o maior; somam bateria (2 por % abaixo
+  de 20) e instabilidade (metade dos minutos caídos em 3 h); USA 1,5×.
+  Crônicas fora do ranking, só contadas.
+- **Registro:** todo aviso — enviado ou silenciado (reincidente, surto) —
+  fica em `frota_alertas` e em `[frota-alerta]` no log.
+  `GET /tabela/api/frota/alertas?horas=24` devolve a contagem e as linhas,
+  para calibrar os limites.
 
 ## Cruzamento com o Acolhimentos
 
@@ -101,7 +145,9 @@ sem registro. O Acolhimentos só cobre USA.
 ## Banco
 
 `frota_permanencias` (uma linha por parada em hospital ou UPA: entrada,
-última confirmação e posição, saída, motivo, quando alertou, onde o GPS parou) e `frota_estado` (último vínculo).
+última confirmação e posição, saída, motivo, quando alertou, onde o GPS parou),
+`frota_alertas` (quedas de sinal, instabilidade, surto, bateria e resumos) e
+`frota_estado` (último vínculo).
 Criadas no boot com `IF NOT EXISTS`.
 
 ## Ligar e desligar

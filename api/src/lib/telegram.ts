@@ -7,6 +7,8 @@
 //   • notifyReguladores→ grupo dos reguladores (TELEGRAM_REGULADORES_CHAT_ID):
 //                        restrições de UPA. É o mesmo grupo onde o
 //                        tabela-notifier despeja os casos aceitos/vaga zero.
+//   • enviarChat/editarChat → avisos da frota, no grupo TELEGRAM_FROTA_CHAT_ID
+//                        (api/src/frota/README.md).
 //
 // Cuidado: este é o bot REGULADOR. O bot Plantões SAMU é outro token, outro
 // grupo e outro app (~/plantoes) — ver docs/upa-restricoes.md.
@@ -61,47 +63,59 @@ export function escapeHtml(value: string | null | undefined): string {
         .replace(/>/g, "&gt;");
 }
 
+/** Grupo dos avisos da frota (parada 40 min, sem sinal, bateria, resumo do plantão). */
+export function frotaChatId(): string {
+    return (process.env.TELEGRAM_FROTA_CHAT_ID || "").trim();
+}
+
 /**
- * Mensagem ao grupo dos reguladores que depois é EDITADA (aviso de viatura
- * parada no hospital: uma mensagem por parada, atualizada até a liberação).
- * Retorna o message_id, ou null se não enviou.
+ * Mensagem que depois pode ser EDITADA ou respondida (avisos da frota: uma
+ * mensagem por parada ou queda de sinal). Com `respondeA`, sai como resposta
+ * — a edição não notifica ninguém, a resposta sim. Retorna o message_id, ou
+ * null se não enviou.
  */
-export async function enviarReguladores(html: string): Promise<number | null> {
+export async function enviarChat(chat: string, html: string, respondeA?: number | null): Promise<number | null> {
     const token = process.env.TELEGRAM_BOT_TOKEN;
-    const chat = reguladoresChatId();
     if (!token || !chat) return null;
     try {
         const r = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ chat_id: chat, text: html, parse_mode: "HTML", disable_web_page_preview: true }),
+            body: JSON.stringify({
+                chat_id: chat,
+                text: html,
+                parse_mode: "HTML",
+                disable_web_page_preview: true,
+                ...(respondeA ? { reply_parameters: { message_id: respondeA, allow_sending_without_reply: true } } : {}),
+            }),
+            signal: AbortSignal.timeout(15_000),
         });
         const d = (await r.json().catch(() => ({}))) as { ok?: boolean; result?: { message_id?: number }; description?: string };
         if (!d.ok || !d.result?.message_id) {
-            console.error("[telegram] envio aos reguladores falhou:", d.description);
+            console.error(`[telegram] envio ao chat ${chat} falhou:`, d.description);
             return null;
         }
         return d.result.message_id;
     } catch (e) {
-        console.error("[telegram] erro ao enviar aos reguladores:", e);
+        console.error(`[telegram] erro ao enviar ao chat ${chat}:`, e);
         return null;
     }
 }
 
-export async function editarReguladores(messageId: number, html: string): Promise<boolean> {
+export async function editarChat(chat: string, messageId: number, html: string): Promise<boolean> {
     const token = process.env.TELEGRAM_BOT_TOKEN;
-    const chat = reguladoresChatId();
     if (!token || !chat) return false;
     try {
         const r = await fetch(`https://api.telegram.org/bot${token}/editMessageText`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ chat_id: chat, message_id: messageId, text: html, parse_mode: "HTML", disable_web_page_preview: true }),
+            signal: AbortSignal.timeout(15_000),
         });
         const d = (await r.json().catch(() => ({}))) as { ok?: boolean; description?: string };
         // "message is not modified" não é erro: o texto já estava assim.
         if (!d.ok && !/not modified/i.test(d.description ?? "")) {
-            console.error("[telegram] edição aos reguladores falhou:", d.description);
+            console.error(`[telegram] edição no chat ${chat} falhou:`, d.description);
             return false;
         }
         return true;

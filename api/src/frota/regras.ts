@@ -167,8 +167,10 @@ export interface Permanencia {
      * do tempo com a hora de entrada, mas não conta para o alerta de 40 min.
      */
     naBase: boolean;
-    /** Mensagem do aviso no grupo dos reguladores (Telegram), para editar. */
+    /** Mensagem do aviso no Telegram, para editar e responder na saída. */
     avisoMsgId?: number | null;
+    /** Chat da mensagem. null = grupo dos reguladores (avisos de antes do grupo da frota). */
+    avisoChat?: string | null;
     /** Última posição confirmada: a parada segue a viatura num raio de 150 m. */
     lat?: number | null;
     lng?: number | null;
