@@ -921,6 +921,7 @@ export default function Dashboard() {
                 erro={frota.error}
                 foco={focoFrota}
                 focar={(f) => setFocoFrota({ ...f, vez: Date.now() })}
+                operador={op}
               />
             ) : tab === "upas" ? (
               <UpasView operador={op} />

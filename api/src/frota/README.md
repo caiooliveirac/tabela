@@ -123,6 +123,27 @@ topo do ranking).
   `GET /tabela/api/frota/alertas?horas=24` devolve a contagem e as linhas,
   para calibrar os limites.
 
+## Viatura fora de operação informada no painel (`desativacoes.ts`)
+
+O rádio-operador, a chefia ou a enfermagem informa em "Fora de operação
+agora" (aba Frota) que a viatura parou: motivo (os MESMOS códigos do
+`motivo_baixa` do Huddle — falta de condutor, técnico, enfermeiro, médico;
+mecânica, oxigênio, maca, monitor, rádio; outro com observação), o nome do
+cabeçalho do painel e o posto. O portão do login único só diz "logado", não
+quem (docs/login-unico.md, fase 2) — por isso nome + posto.
+
+- Até alguém **reativar**, conta como desativada: some de todos os avisos
+  (parada de 40 min fecha na hora, queda de sinal fecha, bateria e ranking
+  ignoram), mesmo transmitindo. Uma ativa por viatura (índice único).
+- O grupo da frota recebe "⛔ desativada por…" e "✅ reativada por…"; o
+  resumo do plantão lista as desativadas no painel, para ninguém esquecer.
+- `GET /tabela/api/frota/desativacoes?horas=24`: ativas e as que começaram ou
+  terminaram na janela. É o que o **Huddle do SAMU** (repo hge-huddle) lê pela
+  rede Docker (`http://tabela-api-1:3000/...`, sem o portão) para chegar com
+  "fora de operação" preenchido. `POST /desativacoes` e
+  `POST /desativacoes/:id/reativar` (atrás do login único).
+- Tabela `frota_desativacoes`, criada no boot.
+
 ## Cruzamento com o Acolhimentos
 
 `acolhimentos.ts` lê `GET https://acolhimentos.mnrs.com.br/api/servico/acolhimentos`
@@ -146,8 +167,9 @@ sem registro. O Acolhimentos só cobre USA.
 
 `frota_permanencias` (uma linha por parada em hospital ou UPA: entrada,
 última confirmação e posição, saída, motivo, quando alertou, onde o GPS parou),
-`frota_alertas` (quedas de sinal, instabilidade, surto, bateria e resumos) e
-`frota_estado` (último vínculo).
+`frota_alertas` (quedas de sinal, instabilidade, surto, bateria e resumos),
+`frota_desativacoes` (fora de operação informada no painel) e `frota_estado`
+(último vínculo).
 Criadas no boot com `IF NOT EXISTS`.
 
 ## Ligar e desligar

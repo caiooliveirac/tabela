@@ -199,9 +199,10 @@ const naChegada = (p: Pick<Permanencia, "entrada">, em: Date) =>
 
 export interface Fechamento {
     permanencia: Permanencia;
-    /** null = perdeu o sinal lá dentro; não se sabe quando saiu. */
+    /** null = perdeu o sinal lá dentro (ou foi desativada); não se sabe quando saiu. */
     saida: Date | null;
-    motivo: "saiu" | "sem-sinal";
+    /** "desativada": informada no painel com a parada aberta (coletor.ts). */
+    motivo: "saiu" | "sem-sinal" | "desativada";
 }
 
 /**

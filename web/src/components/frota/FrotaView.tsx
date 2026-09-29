@@ -12,6 +12,7 @@ import { useEncaminhamentoConfig } from "../../hooks/useEncaminhamento";
 import { COR, duracao, ha } from "./formato";
 import type { Foco } from "./MapaFrota";
 import LinhaDoTempo from "./LinhaDoTempo";
+import DesativacoesFrota from "./DesativacoesFrota";
 import TabelaHospitais from "./TabelaHospitais";
 
 const MapaFrota = lazy(() => import("./MapaFrota"));
@@ -22,6 +23,8 @@ interface Props {
   erro: Error | null;
   foco: Foco | null;
   focar: (f: Omit<Foco, "vez">) => void;
+  /** Nome do cabeçalho do painel: quem informa a desativação. */
+  operador: string;
 }
 
 function Numero({ valor, rotulo, cor, detalhe }: { valor: number; rotulo: string; cor: string; detalhe: string }) {
@@ -70,7 +73,7 @@ function Grupo({ titulo, nota, itens, extra }: {
   );
 }
 
-export default function FrotaView({ painel, carregando, erro, foco, focar }: Props) {
+export default function FrotaView({ painel, carregando, erro, foco, focar, operador }: Props) {
   const { data: cfg } = useEncaminhamentoConfig();
   const [googleFalhou, setGoogleFalhou] = useState(false);
   const mapsKey = googleFalhou ? null : (cfg?.mapsKey ?? null);
@@ -127,7 +130,7 @@ export default function FrotaView({ painel, carregando, erro, foco, focar }: Pro
         <Numero valor={naBaseHospital} rotulo="na base (no hospital)" cor={COR.base} detalhe="Base colada no hospital ou dentro da UPA: sem alerta" />
         <Numero valor={grupos.semSinal.length} rotulo="sem sinal" cor={COR.atrasada} detalhe="Deviam estar na rua e não transmitem há mais de 1 h" />
         <Numero valor={grupos.foraDoTurno.length} rotulo="fora do turno" cor="#cbd5e1" detalhe="SD e 10h, de noite" />
-        <Numero valor={grupos.desativadas.length} rotulo="desativadas" cor="#94a3b8" detalhe="Até segunda ordem ou no cadastro oficial" />
+        <Numero valor={grupos.desativadas.length} rotulo="desativadas" cor="#94a3b8" detalhe="Até segunda ordem, no cadastro oficial ou informadas no painel" />
       </div>
 
       <div className="flex items-center gap-x-4 gap-y-1 flex-wrap text-[11px] text-slate-500">
@@ -154,6 +157,9 @@ export default function FrotaView({ painel, carregando, erro, foco, focar }: Pro
           ⚠️ A última leitura do SAMU+ falhou ({painel.erro}). Mostrando a anterior, de {ha(painel.coletadoEm)}.
         </div>
       )}
+
+      {/* ── Viatura fora de operação informada pelo rádio, chefia ou enfermagem ── */}
+      <DesativacoesFrota painel={painel} operador={operador} />
 
       {/* ── Mapa em tela cheia de largura, com a situação por cima ── */}
       <div id="frota-mapa">
@@ -257,7 +263,7 @@ export default function FrotaView({ painel, carregando, erro, foco, focar }: Pro
             />
             <Grupo
               titulo="Desativadas"
-              nota="Não contam como sem sinal nem entram na conta dos 40 min."
+              nota="Não contam como sem sinal nem entram na conta dos 40 min. Sem avisos no grupo."
               itens={grupos.desativadas}
               extra={(v) => v.motivo ?? ""}
             />
@@ -307,8 +313,12 @@ export default function FrotaView({ painel, carregando, erro, foco, focar }: Pro
             h, a parada é encerrada como "sem sinal".
           </li>
           <li>
-            Aos {L.alertaMin} min sai uma mensagem no grupo REGULADORES - RECADOS (Telegram). A mesma mensagem é
-            atualizada com o tempo corrente e fecha quando a viatura sai.
+            Aos {L.alertaMin} min sai uma mensagem no grupo da frota (Telegram). A mesma mensagem é atualizada com o
+            tempo corrente e, quando a viatura sai, é respondida com a hora da saída.
+          </li>
+          <li>
+            Viatura fora de operação (mecânica, falta de condutor…) informada em "Fora de operação agora" sai de todos
+            os avisos até alguém reativar; o grupo da frota é avisado e o Huddle do SAMU já chega com ela marcada.
           </li>
           <li>Desativadas até segunda ordem (29/09): 36, 39, 48, 64, 66, 67 e 68.</li>
         </ul>

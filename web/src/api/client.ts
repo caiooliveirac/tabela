@@ -23,6 +23,8 @@ import type {
   EncaminhamentoConfig,
   PainelFrota,
   LinhaDoTempoFrota,
+  DesativacaoFrota,
+  DesativarViaturaPayload,
   WsEvent,
 } from "../lib/types";
 
@@ -222,6 +224,15 @@ export const api = {
   getFrota: () => request<PainelFrota>("/frota"),
   getLinhaDoTempoFrota: (horas: number) =>
     request<LinhaDoTempoFrota>(`/frota/linha-do-tempo?horas=${horas}`),
+
+  desativarViatura: (data: DesativarViaturaPayload) =>
+    request<DesativacaoFrota>("/frota/desativacoes", { method: "POST", body: JSON.stringify(data) }),
+
+  reativarViatura: (id: number, reativadaPor: string) =>
+    request<DesativacaoFrota>(`/frota/desativacoes/${id}/reativar`, {
+      method: "POST",
+      body: JSON.stringify({ reativadaPor }),
+    }),
 };
 
 // ── WebSocket ──

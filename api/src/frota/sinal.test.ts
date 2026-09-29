@@ -20,7 +20,7 @@ function vt(chave: string, silencio: number | null = 1, extra: Partial<ViaturaFr
         situacao: silencio !== null && silencio <= 60 ? "mapa" : "sem-sinal", motivo: null, foraDoCatalogo: false,
         posicao: silencio === null ? null : { lat: -12.9, lng: -38.4, em: antes(silencio).toISOString(), idadeMin: silencio },
         naBase: false, bateria: null, bateriaEm: null, bateriaAntes: null, sinal: null, conexao: null, evento: null,
-        velocidade: null, noHospital: null,
+        velocidade: null, noHospital: null, desativacao: null,
         ...extra,
     };
 }
@@ -214,4 +214,70 @@ test("cortar: respeita o limite do Telegram inteiro por linha", () => {
     const s = cortar(linhas);
     assert.ok(s.length <= 4000);
     assert.ok(s.endsWith("…"));
+});
+
+// ── Desativação informada no painel ─────────────────────────────
+
+const DES = {
+    id: 7, codigo: "CB27", motivos: ["mecanica" as const], observacao: null, informadoPor: "Ana", posto: "radio" as const,
+    desde: antes(90).toISOString(), reativadaEm: null, reativadaPor: null,
+};
+
+test("desativação: esquema exige motivo, nome e posto; \"Outro\" pede observação", async () => {
+    const { esquemaDesativar } = await import("./desativacoes.js");
+    const ok = { codigo: "CB27", motivos: ["mecanica"], informadoPor: "Ana", posto: "radio" };
+    assert.ok(esquemaDesativar.safeParse(ok).success);
+    assert.ok(!esquemaDesativar.safeParse({ ...ok, motivos: [] }).success);
+    assert.ok(!esquemaDesativar.safeParse({ ...ok, motivos: ["pneu_furado"] }).success, "só os códigos do motivo_baixa do Huddle");
+    assert.ok(!esquemaDesativar.safeParse({ ...ok, informadoPor: " " }).success);
+    assert.ok(!esquemaDesativar.safeParse({ ...ok, posto: "regulador" }).success);
+    assert.ok(!esquemaDesativar.safeParse({ ...ok, motivos: ["outro"] }).success);
+    assert.ok(esquemaDesativar.safeParse({ ...ok, motivos: ["outro"], observacao: "batida leve" }).success);
+});
+
+test("desativação: textos do grupo ao desativar e ao reativar", async () => {
+    const { textoDesativacao, motivoPainel } = await import("./desativacoes.js");
+    assert.match(textoDesativacao(DES, "USB"), /⛔ <b>CB27<\/b> \(USB\) <b>desativada<\/b> por Ana \(Rádio-operador\(a\)\): Mecânica ou pneu/);
+    const volta = { ...DES, reativadaEm: AGORA.toISOString(), reativadaPor: "Bruno" };
+    assert.match(textoDesativacao(volta, "USB"), /✅ <b>CB27<\/b> \(USB\) <b>reativada<\/b> por Bruno às 16:00 — ficou 1h30 desativada/);
+    assert.equal(motivoPainel({ ...DES, motivos: ["outro"], observacao: "batida" }), "batida · Ana (Rádio-operador(a)) às 14:30");
+});
+
+test("desativação: some dos avisos — queda fecha como desativada, fora do ranking, lembrada no resumo", () => {
+    const v = vt("CB27", 20, { situacao: "desativada", motivo: "Mecânica ou pneu · Ana", desativacao: DES });
+    const abertas = new Map<string, Queda>([["CB27", { chave: "CB27", desde: antes(20), abertaEm: antes(10), avisar: true, silenciada: null }]]);
+    const r = passo(abertas, [v]);
+    assert.equal(r.fechadas[0].motivo, "desativada");
+    assert.match(textoFimQueda(v, r.fechadas[0], AGORA).edicao, /<b>desativada<\/b> no painel/);
+    assert.equal(passo(new Map(), [v]).novas.length, 0);
+
+    const rk = ranking([v, vt("CB25", 20)], new Map(), AGORA);
+    assert.deepEqual(rk.itens.map((i) => i.chave), ["CB25"]);
+    assert.deepEqual(rk.desativadas, ["CB27"]);
+    assert.match(textoFrota(rk, AGORA), /⛔ 1 desativadas no painel: CB27/);
+    assert.match(textoResumo([v], new Map(), AGORA), /⛔ <b>Desativadas no painel<\/b> \(1\)[^\n]*\n• <b>CB27<\/b> \(USB\) desde 14:30 — Mecânica ou pneu \(Ana\)/);
+});
+
+test("desativação: no painel vale mesmo transmitindo, com quem e por quê no motivo", async () => {
+    const { montarPainel } = await import("./painel.js");
+    const { HOSPITAIS_FROTA } = await import("./hospitais.js");
+    const posicoes = lerPosicoes([{ id_equipe: 9, data_evento: "2026-09-29 15:59:00", latitude: "-12.9", longitude: "-38.4" }]);
+    const dispositivos = [{ unidadeSamu: 1, equipe: 9, nome: "CB 27", bateria: null, sinal: null, velocidade: null }];
+    const painel = montarPainel({
+        ativo: true, coletadoEm: AGORA, vinculosEm: AGORA, erro: null,
+        catalogo: CATALOGO, desativadas: new Set(["CB27"]), desativacoes: new Map([["CB27", DES]]),
+        hospitais: HOSPITAIS_FROTA, resolvidas: resolverPosicoes(posicoes, dispositivos, CATALOGO), dispositivos,
+        abertas: new Map(), agora: AGORA,
+    });
+    const v = painel.viaturas.find((x) => x.chave === "CB27")!;
+    assert.equal(v.situacao, "desativada");
+    assert.equal(v.motivo, "Mecânica ou pneu · Ana (Rádio-operador(a)) às 14:30");
+    assert.equal(v.desativacao?.id, 7);
+    assert.equal(painel.viaturas.find((x) => x.chave === "CB25")!.desativacao, null);
+});
+
+test("aviso de parada: desativada no painel encerra a mensagem", async () => {
+    const { textoAviso } = await import("./aviso.js");
+    const d = { nome: "CB27", tipo: "USB", hospitalNome: "HGE", entrada: antes(50), ultimaVez: antes(2) };
+    assert.match(textoAviso(d, { tipo: "desativada", em: AGORA }), /no <b>HGE<\/b>: <b>desativada<\/b> no painel às 16:00 — aviso encerrado \(entrou 15:10, 48 min/);
 });

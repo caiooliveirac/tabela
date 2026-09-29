@@ -3,6 +3,7 @@
 // em memória. Pura: mesma entrada, mesma saída.
 // ═══════════════════════════════════════════════════════════════
 import { COORDENADAS_BASES, numeroNoLimite, type ViaturaCatalogo } from "./catalogo.js";
+import { motivoPainel, type Desativacao } from "./desativacoes.js";
 import type { HospitalFrota } from "./hospitais.js";
 import type { DispositivoSamu, PosicaoSamu } from "./samumais.js";
 import {
@@ -38,6 +39,8 @@ export interface ViaturaFrota {
     /** Último ONLINE/OFFLINE do app no SAMU+. */
     evento: { tipo: string; em: string } | null;
     velocidade: number | null;
+    /** Desativada no painel (rádio, chefe, enfermagem): quem, por quê, desde quando. */
+    desativacao: Desativacao | null;
     noHospital: {
         /** Id da parada (frota_permanencias) — casa com a linha do tempo. */
         id: number | null;
@@ -136,6 +139,8 @@ export function montarPainel(entrada: {
     resolvidas: ReadonlyMap<string, Resolvida>;
     dispositivos: readonly DispositivoSamu[];
     abertas: ReadonlyMap<string, Permanencia>;
+    /** Desativações informadas no painel, por código (já somadas em `desativadas`). */
+    desativacoes?: ReadonlyMap<string, Desativacao>;
     agora: Date;
 }): PainelFrota {
     const { catalogo, desativadas, hospitais, resolvidas, abertas, agora } = entrada;
@@ -160,13 +165,15 @@ export function montarPainel(entrada: {
         const s = situacao({ codigo: base.codigo, turno: base.turno, status }, idadeMin, desativadas, agora);
         const p = abertas.get(chave);
         const minutos = p ? duracaoMin(p, agora) : 0;
+        const des = base.codigo ? entrada.desativacoes?.get(base.codigo) ?? null : null;
         return {
             chave,
             ...base,
             nomeSamu: d?.nome ?? null,
             nomeDifere: r?.nomeDifere ?? false,
             situacao: s.situacao,
-            motivo: s.motivo,
+            motivo: des ? motivoPainel(des) : s.motivo,
+            desativacao: des,
             posicao:
                 r && r.posicao.lat !== null && r.posicao.lng !== null && idadeMin !== null
                     ? { lat: r.posicao.lat, lng: r.posicao.lng, em: r.em.toISOString(), idadeMin }

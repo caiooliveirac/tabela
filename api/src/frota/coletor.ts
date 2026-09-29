@@ -30,6 +30,11 @@ import {
 import { ABERTA_MAX_MS, acolhimentosLigado, buscarAcolhimentos, cruzar, janela, type Acolhimento } from "./acolhimentos.js";
 import { buscarDispositivos, buscarPosicoes, type DispositivoSamu, type PosicaoSamu } from "./samumais.js";
 import { leiturasParaPermanencia, montarPainel, resolverPosicoes, type PainelFrota } from "./painel.js";
+import {
+    ErroDesativacao, MOTIVOS, POSTOS, textoDesativacao,
+    type Desativacao, type Motivo, type Posto, esquemaDesativar,
+} from "./desativacoes.js";
+import type { z } from "zod";
 
 const TOKEN = process.env.SAMUMAIS_TOKEN || "";
 const AVISOS = (process.env.FROTA_AVISOS_TELEGRAM ?? "1") !== "0";
@@ -82,6 +87,11 @@ const instavelEm = new Map<string, Date>();
 const bateriaAvisada = new Set<string>();
 const resumosFeitos = new Set<string>();
 
+/** Desativações informadas no painel, ativas, por código (desativacoes.ts). */
+let desativacoes = new Map<string, Desativacao>();
+/** Até segunda ordem (catálogo) + informadas no painel. */
+const desativadasAgora = (): ReadonlySet<string> => new Set([...DESATIVADAS_ATE_SEGUNDA_ORDEM, ...desativacoes.keys()]);
+
 type Linha = Record<string, unknown>;
 const consultar = async (q: ReturnType<typeof sql>) => (await db.execute(q)) as unknown as Linha[];
 
@@ -130,6 +140,22 @@ async function criarTabelas(): Promise<void> {
             criado_em   timestamptz  NOT NULL DEFAULT now()
         )`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS frota_alertas_criado_idx ON frota_alertas (criado_em)`);
+    // Desativação informada no painel (rádio, chefe, enfermagem) — uma ativa por viatura.
+    await db.execute(sql`
+        CREATE TABLE IF NOT EXISTS frota_desativacoes (
+            id             serial PRIMARY KEY,
+            codigo         varchar(10)  NOT NULL,
+            motivos        jsonb        NOT NULL,
+            observacao     text,
+            informado_por  varchar(80)  NOT NULL,
+            posto          varchar(20)  NOT NULL,
+            desde          timestamptz  NOT NULL DEFAULT now(),
+            reativada_em   timestamptz,
+            reativada_por  varchar(80)
+        )`);
+    await db.execute(sql`
+        CREATE UNIQUE INDEX IF NOT EXISTS frota_desativacoes_ativa_idx
+        ON frota_desativacoes (codigo) WHERE reativada_em IS NULL`);
     await db.execute(sql`
         CREATE TABLE IF NOT EXISTS frota_estado (
             chave         varchar(40) PRIMARY KEY,
@@ -188,6 +214,9 @@ async function carregar(): Promise<void> {
     }
     locais = comPontos(aprendizado.pontos);
     await carregarAlertas();
+    desativacoes = new Map(
+        (await consultar(sql`SELECT * FROM frota_desativacoes WHERE reativada_em IS NULL`)).map((r) => [String(r.codigo), desativacaoDe(r)]),
+    );
     const [v] = await consultar(sql`SELECT valor, atualizado_em FROM frota_estado WHERE chave = 'dispositivos'`);
     if (v) {
         dispositivos = v.valor as DispositivoSamu[];
@@ -298,12 +327,17 @@ async function ciclo(): Promise<void> {
 
         const agora = new Date();
         const resolvidas = resolverPosicoes(posicoes, dispositivos, CATALOGO);
+        // Desativada no painel com parada aberta: a parada fecha agora (e o aviso dela).
+        const desativadas = desativadasAgora();
         const r = avancarPermanencias(
-            abertas,
-            leiturasParaPermanencia(resolvidas, DESATIVADAS_ATE_SEGUNDA_ORDEM, CATALOGO),
+            new Map([...abertas].filter(([chave]) => !desativadas.has(chave))),
+            leiturasParaPermanencia(resolvidas, desativadas, CATALOGO),
             locais,
             agora,
         );
+        for (const p of abertas.values()) {
+            if (desativadas.has(p.chave)) r.fechadas.push({ permanencia: p, saida: null, motivo: "desativada" });
+        }
         for (const p of r.novas) {
             const [linha] = await consultar(sql`
                 INSERT INTO frota_permanencias (chave, hospital_id, entrada, ultima_vez, na_base, lat, lng)
@@ -405,7 +439,12 @@ async function avisar(fechadas: Fechamento[], agora: Date): Promise<void> {
         const p = f.permanencia;
         if (!p.avisoMsgId) continue;
         const chat = p.avisoChat ?? reguladoresChatId();
-        const estado = f.saida ? { tipo: "saiu" as const, saida: f.saida } : { tipo: "sem-sinal" as const };
+        const estado =
+            f.motivo === "desativada"
+                ? { tipo: "desativada" as const, em: agora }
+                : f.saida
+                  ? { tipo: "saiu" as const, saida: f.saida }
+                  : { tipo: "sem-sinal" as const };
         if (!(await editarChat(chat, p.avisoMsgId, textoAviso(dadosAviso(p), estado, agora)))) {
             await registrarErro("aviso Telegram", "edição da saída falhou");
         }
@@ -567,7 +606,7 @@ export interface ParadaHistorico {
     /** Até onde a barra vai: saída, última posição vista, ou agora se ainda está lá. */
     fim: string;
     aberta: boolean;
-    motivoFim: "saiu" | "sem-sinal" | null;
+    motivoFim: "saiu" | "sem-sinal" | "desativada" | null;
     minutos: number;
     alertou: boolean;
     /** Parada na própria base, que fica no hospital (sem alerta). */
@@ -653,7 +692,7 @@ export async function linhaDoTempo(horas: number): Promise<{
             entrada: entrada.toISOString(),
             fim: fim.toISOString(),
             aberta,
-            motivoFim: aberta ? null : (r.motivo_fim as "saiu" | "sem-sinal"),
+            motivoFim: aberta ? null : (r.motivo_fim as ParadaHistorico["motivoFim"]),
             minutos,
             alertou: r.alerta_em != null,
             naBase: r.na_base === true,
@@ -689,6 +728,93 @@ export async function linhaDoTempo(horas: number): Promise<{
         // Acolhimentos fora do ar não derruba a linha do tempo do GPS.
         return { ...base, paradas, acolhimentos: { ...semCruzamento, erro: (e as Error).message } };
     }
+}
+
+// ── Desativação informada no painel (desativacoes.ts) ───────────
+
+function desativacaoDe(r: Linha): Desativacao {
+    const iso = (v: unknown) => (v ? new Date(v as string).toISOString() : null);
+    return {
+        id: Number(r.id),
+        codigo: String(r.codigo),
+        motivos: (r.motivos as Motivo[]) ?? [],
+        observacao: r.observacao != null ? String(r.observacao) : null,
+        informadoPor: String(r.informado_por),
+        posto: String(r.posto) as Posto,
+        desde: iso(r.desde)!,
+        reativadaEm: iso(r.reativada_em),
+        reativadaPor: r.reativada_por != null ? String(r.reativada_por) : null,
+    };
+}
+
+/** Avisa o grupo da frota: é por ele que todos sabem por que os avisos da viatura pararam (ou voltaram). */
+async function avisarDesativacao(d: Desativacao): Promise<void> {
+    const tipo = CATALOGO.find((c) => c.codigo === d.codigo)?.tipo ?? null;
+    await mandar(textoDesativacao(d, tipo)).catch((e) => registrarErro("aviso Telegram", e));
+}
+
+export async function desativarViatura(dados: z.infer<typeof esquemaDesativar>): Promise<Desativacao> {
+    if (!TOKEN) throw new ErroDesativacao(503, "Frota desligada neste servidor");
+    const c = CATALOGO.find((v) => v.codigo === dados.codigo);
+    if (!c) throw new ErroDesativacao(400, `${dados.codigo} não está no catálogo da frota`);
+    if (DESATIVADAS_ATE_SEGUNDA_ORDEM.has(c.codigo)) throw new ErroDesativacao(409, `${c.codigo} já está desativada até segunda ordem`);
+    if (desativacoes.has(c.codigo)) throw new ErroDesativacao(409, `${c.codigo} já está desativada — reative antes de informar de novo`);
+    let linha: Linha | undefined;
+    try {
+        [linha] = await consultar(sql`
+            INSERT INTO frota_desativacoes (codigo, motivos, observacao, informado_por, posto)
+            VALUES (${c.codigo}, ${JSON.stringify(dados.motivos)}::jsonb, ${dados.observacao || null}, ${dados.informadoPor}, ${dados.posto})
+            RETURNING *`);
+    } catch (e) {
+        // Índice único parcial: dois cliques ao mesmo tempo.
+        if (/frota_desativacoes_ativa_idx|duplicate key/.test(String((e as Error).message))) {
+            throw new ErroDesativacao(409, `${c.codigo} já está desativada`);
+        }
+        throw e;
+    }
+    const d = desativacaoDe(linha!);
+    desativacoes.set(d.codigo, d);
+    console.log(`[frota] ${d.codigo} desativada por ${d.informadoPor} (${d.posto}): ${d.motivos.join(",")}`);
+    await avisarDesativacao(d);
+    return d;
+}
+
+export async function reativarViatura(id: number, reativadaPor: string): Promise<Desativacao> {
+    if (!TOKEN) throw new ErroDesativacao(503, "Frota desligada neste servidor");
+    const [linha] = await consultar(sql`
+        UPDATE frota_desativacoes SET reativada_em = now(), reativada_por = ${reativadaPor}
+        WHERE id = ${id} AND reativada_em IS NULL
+        RETURNING *`);
+    if (!linha) throw new ErroDesativacao(404, "Desativação não encontrada ou já reativada");
+    const d = desativacaoDe(linha);
+    desativacoes.delete(d.codigo);
+    console.log(`[frota] ${d.codigo} reativada por ${reativadaPor}`);
+    await avisarDesativacao(d);
+    return d;
+}
+
+/**
+ * Ativas e as que começaram ou terminaram nas últimas `horas`. É o que o
+ * Huddle do SAMU lê (rede Docker, sem o portão) para "fora de operação".
+ */
+export async function listarDesativacoes(horas: number) {
+    if (!TOKEN) return { ativo: false, motivos: MOTIVOS, postos: POSTOS, desativacoes: [] };
+    const linhas = await consultar(sql`
+        SELECT * FROM frota_desativacoes
+        WHERE reativada_em IS NULL
+           OR desde > now() - ${horas} * interval '1 hour'
+           OR reativada_em > now() - ${horas} * interval '1 hour'
+        ORDER BY desde DESC
+        LIMIT 500`);
+    return {
+        ativo: true,
+        motivos: MOTIVOS,
+        postos: POSTOS,
+        desativacoes: linhas.map((r) => {
+            const d = desativacaoDe(r);
+            return { ...d, ativa: d.reativadaEm === null };
+        }),
+    };
 }
 
 export async function initFrota(): Promise<void> {
@@ -729,7 +855,8 @@ export function painelAtual(agora = new Date()): PainelFrota {
         vinculosEm,
         erro,
         catalogo: CATALOGO,
-        desativadas: DESATIVADAS_ATE_SEGUNDA_ORDEM,
+        desativadas: desativadasAgora(),
+        desativacoes,
         hospitais: locais,
         resolvidas: resolverPosicoes(posicoes, dispositivos, CATALOGO),
         dispositivos,

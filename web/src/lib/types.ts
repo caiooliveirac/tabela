@@ -336,6 +336,52 @@ export interface EncaminhamentoResponse {
 
 export type SituacaoFrota = "mapa" | "sem-sinal" | "fora-do-turno" | "desativada";
 
+/**
+ * Motivos de viatura fora de operação — os MESMOS códigos do `motivo_baixa`
+ * do Huddle (api/src/frota/desativacoes.ts), que lê as desativações daqui.
+ */
+export const MOTIVOS_BAIXA = {
+  condutor: "Condutor(a)",
+  tecnico: "Técnico(a) de Enfermagem",
+  enfermeiro: "Enfermeiro(a)",
+  medico: "Médico(a)",
+  mecanica: "Mecânica ou pneu",
+  sem_oxigenio: "Sem oxigênio",
+  sem_maca: "Sem maca, prancha ou colar",
+  sem_monitor: "Sem monitor ou DEA",
+  sem_radio: "Sem rádio ou telefone",
+  outro: "Outro",
+} as const;
+export type MotivoBaixa = keyof typeof MOTIVOS_BAIXA;
+
+export const POSTOS_FROTA = {
+  radio: "Rádio-operador(a)",
+  chefe: "Chefe",
+  enfermeiro: "Enfermeiro(a)",
+} as const;
+export type PostoFrota = keyof typeof POSTOS_FROTA;
+
+/** Desativação informada no painel: fora dos avisos até alguém reativar. */
+export interface DesativacaoFrota {
+  id: number;
+  codigo: string;
+  motivos: MotivoBaixa[];
+  observacao: string | null;
+  informadoPor: string;
+  posto: PostoFrota;
+  desde: string;
+  reativadaEm: string | null;
+  reativadaPor: string | null;
+}
+
+export interface DesativarViaturaPayload {
+  codigo: string;
+  motivos: MotivoBaixa[];
+  observacao?: string | null;
+  informadoPor: string;
+  posto: PostoFrota;
+}
+
 export interface ViaturaFrota {
   chave: string;
   codigo: string | null;
@@ -353,6 +399,8 @@ export interface ViaturaFrota {
   bateria: number | null;
   sinal: number | null;
   velocidade: number | null;
+  /** Desativada no painel (rádio, chefe, enfermagem). */
+  desativacao?: DesativacaoFrota | null;
   noHospital: {
     id: number | null;
     hospitalId: string;
@@ -387,7 +435,7 @@ export interface ParadaHistorico {
   entrada: string;
   fim: string;
   aberta: boolean;
-  motivoFim: "saiu" | "sem-sinal" | null;
+  motivoFim: "saiu" | "sem-sinal" | "desativada" | null;
   minutos: number;
   alertou: boolean;
   naBase: boolean;

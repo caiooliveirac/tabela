@@ -11,6 +11,7 @@ import { escapeHtml } from "../lib/telegram.js";
 import { hhmm } from "./aviso.js";
 import { ALERTA_MIN } from "./regras.js";
 import type { ViaturaFrota } from "./painel.js";
+import { rotuloMotivos } from "./desativacoes.js";
 
 /** Sem posição nova há 10 min: perdeu o sinal. */
 export const SEM_SINAL_MIN = 10;
@@ -87,7 +88,7 @@ export interface QuedaRecente {
 export interface QuedaFechada {
     queda: Queda;
     volta: Date | null;
-    motivo: "voltou" | "fora-do-turno" | "cronica";
+    motivo: "voltou" | "fora-do-turno" | "desativada" | "cronica";
 }
 
 export interface Instavel {
@@ -130,7 +131,7 @@ export function avancarQuedas(
             };
             const mudo = (t - a.desde.getTime()) / MIN;
             if (posicao && posicao > a.desde) fecha(posicao, "voltou");
-            else if (!elegivel(v)) fecha(null, "fora-do-turno");
+            else if (!elegivel(v)) fecha(null, v.desativacao ? "desativada" : "fora-do-turno");
             else if (mudo >= CRONICO_MIN) fecha(null, "cronica");
             else if (!a.avisar && a.silenciada === "reincidente" && mudo >= REINCIDE_AVISA_MIN) {
                 const p = { ...a, avisar: true };
@@ -285,6 +286,9 @@ export function textoFimQueda(v: ViaturaFrota, f: QuedaFechada, agora: Date): { 
             resposta: `✅ ${quem(v)} voltou a transmitir às ${hhmm(f.volta!)} — ${duracao(min)} sem sinal`,
         };
     }
+    if (f.motivo === "desativada") {
+        return { edicao: `⚪ ${quem(v)} sem sinal desde ${hhmm(q.desde)} — <b>desativada</b> no painel, aviso encerrado às ${hhmm(agora)}`, resposta: null };
+    }
     if (f.motivo === "fora-do-turno") {
         return { edicao: `⚪ ${quem(v)} sem sinal desde ${hhmm(q.desde)} — saiu do turno, aviso encerrado às ${hhmm(agora)}`, resposta: null };
     }
@@ -335,11 +339,14 @@ export function ranking(
     itens: ItemRanking[];
     /** "CN11 08:07" (desde quando) ou "CN10 nunca" — só listadas. */
     cronicas: string[];
+    /** Desativadas no painel — fora do ranking, só listadas. */
+    desativadas: string[];
     escaladas: number;
     transmitindo: number;
 } {
     const itens: ItemRanking[] = [];
     const cronicas: string[] = [];
+    const desativadas = viaturas.filter((v) => v.desativacao).map((v) => v.nome);
     let escaladas = 0;
     let transmitindo = 0;
     for (const v of viaturas) {
@@ -378,7 +385,7 @@ export function ranking(
         itens.push({ chave: v.chave, score, linha: `${quem(v)} — ${partes.join(" · ")}` });
     }
     itens.sort((a, b) => b.score - a.score);
-    return { itens, cronicas, escaladas, transmitindo };
+    return { itens, cronicas, desativadas, escaladas, transmitindo };
 }
 
 export const RANKING_MAX = 15;
@@ -408,6 +415,9 @@ export function textoFrota(r: ReturnType<typeof ranking>, agora: Date): string {
     }
     if (r.cronicas.length) {
         linhas.push("", `⚫ ${r.cronicas.length} sem transmitir há ${CRONICO_MIN / 60} h+ (fora do ranking): ${r.cronicas.map(escapeHtml).join(", ")}`);
+    }
+    if (r.desativadas.length) {
+        linhas.push(`⛔ ${r.desativadas.length} desativadas no painel: ${r.desativadas.map(escapeHtml).join(", ")}`);
     }
     linhas.push(`<a href="${PAINEL}">ver no painel</a>`);
     return cortar(linhas);
@@ -460,7 +470,16 @@ export function textoResumo(
     if (r.cronicas.length) {
         linhas.push("", `⚫ <b>Sem transmitir há ${CRONICO_MIN / 60} h+</b> (${r.cronicas.length}): ${r.cronicas.map(escapeHtml).join(", ")}`);
     }
-    if (!mudas.length && !paradas.length && !baterias.length && !instaveis.size && !r.cronicas.length) {
+    // Lembrete: desativada no painel só volta aos avisos quando alguém reativar.
+    const desativadas = viaturas.filter((v) => v.desativacao);
+    if (desativadas.length) {
+        linhas.push("", `⛔ <b>Desativadas no painel</b> (${desativadas.length}) — reativar quando voltar`);
+        for (const v of desativadas) {
+            const d = v.desativacao!;
+            linhas.push(`• ${quem(v)} desde ${quando(new Date(d.desde), agora)} — ${escapeHtml(rotuloMotivos(d))} (${escapeHtml(d.informadoPor)})`);
+        }
+    }
+    if (!mudas.length && !paradas.length && !baterias.length && !instaveis.size && !r.cronicas.length && !desativadas.length) {
         linhas.push("", "✅ Nenhum problema.");
     }
     linhas.push(`<a href="${PAINEL}">ver no painel</a>`);

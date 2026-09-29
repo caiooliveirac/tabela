@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api/client";
-import type { ViaturaFrota } from "../lib/types";
+import type { DesativarViaturaPayload, ViaturaFrota } from "../lib/types";
 
 /**
  * Painel da frota. O servidor coleta do SAMU+ a cada 2 min; aqui basta olhar
@@ -14,6 +14,23 @@ export function useFrota() {
     queryFn: api.getFrota,
     refetchInterval: 30_000,
     refetchIntervalInBackground: true,
+  });
+}
+
+/** Desativar/reativar no painel: o painel se atualiza na hora (não espera os 30 s). */
+export function useDesativarViatura() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: DesativarViaturaPayload) => api.desativarViatura(data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["frota"] }),
+  });
+}
+
+export function useReativarViatura() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, reativadaPor }: { id: number; reativadaPor: string }) => api.reativarViatura(id, reativadaPor),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["frota"] }),
   });
 }
 
