@@ -69,7 +69,13 @@ function descricao(i: Item, hospitalNome: string): string {
   }
   const p = i.p;
   const quem = `${p.nome}${p.tipo ? ` (${p.tipo}${p.base ? ` · ${p.base}` : ""})` : ""}`;
-  const fim = p.aberta ? "ainda lá" : p.motivoFim === "sem-sinal" ? `sem sinal desde ${hora(p.fim)}` : `saiu ${hora(p.fim)}`;
+  const fim = p.aberta
+    ? "ainda lá"
+    : p.motivoFim === "sem-sinal"
+      ? `sem sinal desde ${hora(p.fim)}`
+      : p.motivoFim === "desativada"
+        ? `desativada no painel (última posição ${hora(p.fim)})`
+        : `saiu ${hora(p.fim)}`;
   const gps = `${quem} ${p.naBase ? "na própria base, junto d" : "n"}${artigo(hospitalNome)} ${hospitalNome} · entrou ${hora(p.entrada)} · ${p.minutos} min · ${fim}`;
   if (p.acolhimento) return `${gps}. Acolhimentos: ${notificado(p.acolhimento)}`;
   if (p.semNotificacao) return `${gps}. Sem notificação no Acolhimentos.`;

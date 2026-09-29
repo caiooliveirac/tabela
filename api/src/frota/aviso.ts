@@ -20,7 +20,8 @@ export interface DadosAviso {
 export type EstadoAviso =
     | { tipo: "parada"; minutos: number }
     | { tipo: "saiu"; saida: Date }
-    | { tipo: "sem-sinal" };
+    | { tipo: "sem-sinal" }
+    | { tipo: "desativada"; em: Date };
 
 const PAINEL = "https://mnrs.com.br/tabela/?tab=frota";
 
@@ -58,6 +59,13 @@ export function textoAviso(d: DadosAviso, e: EstadoAviso, agora?: Date): string 
         return (
             `✅ ${quem} saiu d${a} ${onde} às ${hhmm(e.saida)} — <b>${min(d.entrada, e.saida)} min</b> parada ` +
             `(entrou ${hhmm(d.entrada)})` +
+            editado
+        );
+    }
+    if (e.tipo === "desativada") {
+        return (
+            `⚪ ${quem} n${a} ${onde}: <b>desativada</b> no painel às ${hhmm(e.em)} — aviso encerrado ` +
+            `(entrou ${hhmm(d.entrada)}, ${min(d.entrada, d.ultimaVez)} min até a última posição)` +
             editado
         );
     }
