@@ -30,8 +30,8 @@ Procedimentos completos: `~/labctl/README.md` no servidor magalu.
 - **ROLLBACK**: `ssh magalu labctl rollback tabela` (rebuild do commit anterior).
 - **CANARY**: PIN da chefia / papéis internos no LIVE já promovido (cron semanal
   `scripts/chefia-pin.sh rotate` roda no LIVE, segunda 07:00).
-- **Exigem aprovação explícita**: migrations no banco de produção, mexer no
-  `tabela-notifier`, qualquer escrita manual no banco `tabela`.
+- **Exigem aprovação explícita**: migration destrutiva, escrita manual no banco
+  `tabela`, qualquer coisa que faça o `tabela-notifier` mandar mensagem real.
 
 ## Dois bots de Telegram — não confundir
 
