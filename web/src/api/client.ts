@@ -90,10 +90,21 @@ export function foraDoPlantao(): void {
   window.location.replace(window.location.href);
 }
 
+// ── Conta só do Painel de Vagas (interno) ──
+// O porteiro marca o login com o cookie mnrs_painel=1 (sem HttpOnly, só dica)
+// e barra no portão tudo que não for leitura da Tabela. Aqui a escrita nem
+// sai: qualquer ação volta ao portal.
+const PORTAL_URL = "https://mnrs.com.br/";
+export const somentePainel = /(?:^|;\s*)mnrs_painel=1(?:;|$)/.test(document.cookie);
+
 async function request<T>(
   path: string,
   options?: RequestInit
 ): Promise<T> {
+  if (somentePainel && (options?.method ?? "GET") !== "GET") {
+    window.location.href = PORTAL_URL;
+    throw new Error("Somente leitura");
+  }
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers: {
