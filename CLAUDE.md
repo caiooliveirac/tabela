@@ -54,8 +54,8 @@ grupo `TELEGRAM_FROTA_CHAT_ID`, não ao dos reguladores. Numeral acima de 74
 (RMS) é dado lixo e não aparece (`catalogo.ts`). Viatura fora de operação
 informada no painel sai dos avisos; o Huddle do SAMU lê
 `/frota/desativacoes` pela rede Docker. USA presa 40+ min sem registro no
-Acolhimentos: cobrança no grupo SAMU - Salvador (`TELEGRAM_SALVADOR_CHAT_ID`),
-chamando o médico do Plantões pelo nome.
+Acolhimentos: `GET /frota/cobrancas` (médico do Plantões + texto); o Tom
+(WhatsApp) entrega no grupo SAMU-Salvador.
 
 ## Pegadinhas conhecidas
 

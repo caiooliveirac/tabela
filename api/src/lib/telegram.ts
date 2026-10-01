@@ -68,11 +68,6 @@ export function frotaChatId(): string {
     return (process.env.TELEGRAM_FROTA_CHAT_ID || "").trim();
 }
 
-/** Grupo SAMU - Salvador (médicos das viaturas): cobrança da denúncia de USA presa. Vazio = não cobra. */
-export function salvadorChatId(): string {
-    return (process.env.TELEGRAM_SALVADOR_CHAT_ID || "").trim();
-}
-
 /**
  * Mensagem que depois pode ser EDITADA ou respondida (avisos da frota: uma
  * mensagem por parada ou queda de sinal). Com `respondeA`, sai como resposta

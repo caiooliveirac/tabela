@@ -1,27 +1,26 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { textoCobranca, type DadosAviso } from "./aviso.js";
+import { textoCobranca } from "./aviso.js";
 
 const t = (hhmm: string) => new Date(`2026-10-01T${hhmm}:00-03:00`);
-const d: DadosAviso = { nome: "SM01", tipo: "USA", hospitalNome: "HGE", entrada: t("14:00"), ultimaVez: t("14:44") };
+const d = { nome: "SM01", hospitalNome: "HGE", entrada: t("14:00") };
 
-test("cobrança chama o médico pelo nome, com link do Acolhimentos", () => {
-    const s = textoCobranca(d, "Fulano", "aberta", t("14:45"));
-    assert.match(s, /<b>SM01<\/b> presa no <b>HGE<\/b> há <b>45 min<\/b> \(entrou 14:00\)/);
-    assert.match(s, /Dr\(a\)\. <b>Fulano<\/b>, por favor abra o aplicativo/);
-    assert.match(s, /acolhimentos\.mnrs\.com\.br/);
+test("cobrança chama o médico pelo nome, com link do Acolhimentos (formatação do WhatsApp)", () => {
+    const s = textoCobranca(d, "Fulano", t("14:45"));
+    assert.match(s, /\*SM01\* presa no \*HGE\* há \*45 min\* \(chegou 14:00\)/);
+    assert.match(s, /Dr\(a\)\. \*Fulano\*, por favor abra o aplicativo/);
+    assert.match(s, /https:\/\/acolhimentos\.mnrs\.com\.br\//);
+    assert.doesNotMatch(s, /<b>/);
 });
 
 test("dupla do Plantões vira dois nomes; sem nome, chama o médico da viatura", () => {
-    assert.match(textoCobranca(d, "Fulano + Beltrano", "aberta", t("14:45")), /Dr\(a\)\. <b>Fulano<\/b> e Dr\(a\)\. <b>Beltrano<\/b>/);
-    assert.match(textoCobranca(d, null, "aberta", t("14:45")), /Médico\(a\) da <b>SM01<\/b>/);
+    assert.match(textoCobranca(d, "Fulano + Beltrano", t("14:45")), /Dr\(a\)\. \*Fulano\* e Dr\(a\)\. \*Beltrano\*/);
+    assert.match(textoCobranca(d, null, t("14:45")), /Médico\(a\) da \*SM01\*/);
+    assert.match(textoCobranca(d, "  ", t("14:45")), /Médico\(a\) da \*SM01\*/);
 });
 
-test("nome com HTML é escapado", () => {
-    assert.match(textoCobranca(d, "<x>", "aberta", t("14:45")), /&lt;x&gt;/);
-});
-
-test("registrada e saída sem registro", () => {
-    assert.match(textoCobranca(d, null, "registrada", t("15:00")), /✅ .*registrada no Acolhimentos/);
-    assert.match(textoCobranca({ ...d, hospitalNome: "UPA Barris" }, null, "saiu-sem-registro", t("15:10")), /saiu da <b>UPA Barris<\/b> às 15:10 .*\(70 min\)/);
+test("UPA leva artigo feminino; asterisco no nome não quebra o negrito", () => {
+    const s = textoCobranca({ ...d, hospitalNome: "UPA Barris" }, "Ana *Maria*", t("14:50"));
+    assert.match(s, /presa na \*UPA Barris\* há \*50 min\*/);
+    assert.match(s, /Dr\(a\)\. \*Ana Maria\*/);
 });
