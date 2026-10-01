@@ -182,6 +182,18 @@ retenção", link do app), em formatação do WhatsApp.
 - Colunas `cobranca_*` em `frota_permanencias`: sobra da primeira versão
   (Telegram, 01/10/2026), sem uso.
 
+## Balanço da virada (`balancoPlantao`, `GET /frota/balanco`)
+
+Às 07h e às 19h o Tom busca e manda ao grupo SAMU-Salvador: viaturas (USA e
+USB) 40+ min paradas em hospital (não UPA, não a própria base) nas últimas
+12 h, por hospital — mais viaturas primeiro, maior espera primeiro; a que
+ainda está presa na virada conta até agora (⏳). USA sem notificação no
+Acolhimentos entra num convite gentil a registrar tempos e motivos, com o
+nome do médico **da hora da retenção**: `gravarMedicos` grava em
+`frota_permanencias.medico` o médico do Plantões quando a USA passa de 40 min
+(às 07h o Plantões já mostra quem assumiu). Acolhimentos fora do ar: sai sem
+o convite.
+
 ## Dados copiados (atualizar na fonte e trazer para cá)
 
 - `catalogo.ts` — viaturas e bases: ChecagemdeBases `bot/src/data/bases.ts` e
