@@ -92,8 +92,8 @@ export function foraDoPlantao(): void {
 
 // ── Conta só do Painel de Vagas (interno) ──
 // O porteiro marca o login com o cookie mnrs_painel=1 (sem HttpOnly, só dica)
-// e barra no portão tudo que não for leitura da Tabela. Aqui a escrita nem
-// sai: qualquer ação volta ao portal.
+// e barra no portão tudo que não for leitura (e só de PC da Central). Aqui a
+// escrita nem sai: qualquer ação volta ao portal.
 const PORTAL_URL = "https://mnrs.com.br/";
 export const somentePainel = /(?:^|;\s*)mnrs_painel=1(?:;|$)/.test(document.cookie);
 

@@ -1,6 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import UpasView from "./UpasView";
-import { somentePainel } from "../api/client";
 import type { HospitalData, CaseRow, IntelRow } from "../lib/types";
 import {
   HOSPITALS,
@@ -113,10 +112,8 @@ const TAB_LABELS = [
   ["upas", "UPAs"],
   ["frota", "Frota"],
 ] as const;
+const TABS = TAB_LABELS.map(([k]) => k);
 type Tab = (typeof TAB_LABELS)[number][0];
-// Conta só do Painel de Vagas (interno): sem a aba UPAs.
-const ABAS = somentePainel ? TAB_LABELS.filter(([k]) => k !== "upas") : TAB_LABELS;
-const TABS: readonly Tab[] = ABAS.map(([k]) => k);
 
 export default function Dashboard() {
   // API data
@@ -734,7 +731,7 @@ export default function Dashboard() {
 
           {/* Tab switcher */}
           <div data-tutorial-id="tab-switcher" className="flex gap-[2px] bg-white/[.15] rounded-lg p-[3px]">
-            {ABAS.map(([k, l]) => (
+            {TAB_LABELS.map(([k, l]) => (
               <button
                 key={k}
                 onClick={() => setTab(k)}
