@@ -1,7 +1,7 @@
 import { Router, type Response } from "express";
 import { z } from "zod";
 import {
-    alertasRecentes, desativarViatura, diagnostico, linhaDoTempo, listarDesativacoes, painelAtual, reativarViatura,
+    alertasRecentes, cobrancasPendentes, desativarViatura, diagnostico, linhaDoTempo, listarDesativacoes, painelAtual, reativarViatura,
 } from "./coletor.js";
 import { ErroDesativacao, esquemaDesativar, esquemaReativar } from "./desativacoes.js";
 
@@ -81,6 +81,18 @@ router.get("/linha-do-tempo", async (req, res) => {
     } catch (e) {
         console.error("[frota] linha do tempo:", e);
         res.status(500).json({ error: "linha do tempo indisponível" });
+    }
+});
+
+// USA presa 40+ min sem registro no Acolhimentos, com médico e texto pronto.
+// Quem lê é o Tom (secretário, WhatsApp) pela porta local, sem o portão.
+// 503 quando o Acolhimentos não responde: sem prova, ninguém é cobrado.
+router.get("/cobrancas", async (_req, res) => {
+    try {
+        res.json({ cobrancas: await cobrancasPendentes() });
+    } catch (e) {
+        console.error("[frota] cobranças:", (e as Error).message);
+        res.status(503).json({ error: "cobranças indisponíveis" });
     }
 });
 

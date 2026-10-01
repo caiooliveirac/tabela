@@ -161,23 +161,26 @@ faixa cinza = notificado (tique na passagem), faixa roxa = maca retida,
 barra vazada = notificação sem parada no GPS, "sem notificação" = USA 40+ min
 sem registro. O Acolhimentos só cobre USA.
 
-## Cobrança da denúncia no grupo SAMU - Salvador (`cobrar` em `coletor.ts`)
+## Cobrança da denúncia no grupo SAMU-Salvador (`cobrancasPendentes`)
 
 USA parada 40+ min em hospital (não UPA, não a própria base) **sem
-notificação casada no Acolhimentos** → uma mensagem no grupo
-`TELEGRAM_SALVADOR_CHAT_ID` chamando o médico da viatura pelo nome ("Dr(a).
-Fulano, por favor abra o aplicativo e registre a retenção", link do app).
+notificação casada no Acolhimentos** — o mesmo `semNotificacao` da linha do
+tempo. `GET /tabela/api/frota/cobrancas` devolve cada uma com o médico e o
+texto pronto ("Dr(a). *Fulano*, por favor abra o aplicativo e registre a
+retenção", link do app), em formatação do WhatsApp.
 
+- **Quem entrega é o Tom** (repo TomSecretario, pm2 `tom`): busca pela porta
+  local (`http://127.0.0.1:3001/tabela/api/frota/cobrancas`, sem o portão) e
+  manda cada `id` (a parada) uma vez ao grupo SAMU-Salvador do WhatsApp. A
+  regra e o texto moram aqui; o Tom só entrega.
 - Nome: `plantoes.ts` lê `GET https://plantoes.mnrs.com.br/api/servicos/quadro/plantao`
   (header `x-escala-token` = `ESCALA_SSO_TOKEN` do plantoes, aqui
   `PLANTOES_TOKEN`; a mesma rota do Quadro). Dupla: os dois nomes. Plantões
   fora do ar: "Médico(a) da SM01".
-- Uma mensagem por parada (`cobranca_msg_id/_chat/_estado` em
-  `frota_permanencias`). Notificação apareceu → editada para ✅; saiu sem
-  registro → editada para ⚠️ "ainda dá para registrar".
-- Acolhimentos fora do ar (ou sem `ACOLHIMENTOS_TOKEN`): ninguém é cobrado.
-- Chat vazio ou `FROTA_AVISOS_TELEGRAM=0`: desligado. O bot regulador precisa
-  estar no grupo; chat_id com `/id@ReguladorSAMU_bot`.
+- Acolhimentos fora do ar (ou sem `ACOLHIMENTOS_TOKEN`): 503 — ninguém é
+  cobrado sem a prova de que não registrou.
+- Colunas `cobranca_*` em `frota_permanencias`: sobra da primeira versão
+  (Telegram, 01/10/2026), sem uso.
 
 ## Dados copiados (atualizar na fonte e trazer para cá)
 

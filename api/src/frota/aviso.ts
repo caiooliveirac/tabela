@@ -76,41 +76,29 @@ export function textoAviso(d: DadosAviso, e: EstadoAviso, agora?: Date): string 
     );
 }
 
-// ── Cobrança da denúncia no grupo SAMU - Salvador ───────────────
+// ── Cobrança da denúncia no grupo SAMU-Salvador (WhatsApp, pelo Tom) ──
 // USA 40+ min no hospital sem notificação no Acolhimentos: o médico da
 // viatura é chamado pelo nome para registrar a retenção no app.
+// Formatação do WhatsApp (*negrito*), não HTML.
 
 export const ACOLHIMENTOS_APP = "https://acolhimentos.mnrs.com.br/";
 
-export type EstadoCobranca = "aberta" | "registrada" | "saiu-sem-registro";
-
-/** "Fulano + Beltrano" (dupla no Plantões) → "Dr(a). Fulano e Dr(a). Beltrano". */
+/** "Fulano + Beltrano" (dupla no Plantões) → "Dr(a). *Fulano* e Dr(a). *Beltrano*". */
 function chamada(medico: string | null, codigo: string): string {
-    if (!medico) return `Médico(a) da <b>${escapeHtml(codigo)}</b>`;
-    return medico
-        .split(/\s*\+\s*/)
-        .filter(Boolean)
-        .map((n) => `Dr(a). <b>${escapeHtml(n)}</b>`)
-        .join(" e ");
+    const nomes = (medico ?? "").split(/\s*\+\s*/).map((n) => n.replace(/[*_~`]/g, "").trim()).filter(Boolean);
+    if (!nomes.length) return `Médico(a) da *${codigo}*`;
+    return nomes.map((n) => `Dr(a). *${n}*`).join(" e ");
 }
 
-export function textoCobranca(d: DadosAviso, medico: string | null, estado: EstadoCobranca, agora: Date): string {
-    const quem = `<b>${escapeHtml(d.nome)}</b>`;
-    const onde = `<b>${escapeHtml(d.hospitalNome)}</b>`;
-    const a = artigo(d.hospitalNome);
-    if (estado === "registrada") {
-        return `✅ ${quem} n${a} ${onde}: retenção registrada no Acolhimentos. Obrigado!`;
-    }
-    if (estado === "saiu-sem-registro") {
-        return (
-            `⚠️ ${quem} saiu d${a} ${onde} às ${hhmm(agora)} sem registro no Acolhimentos ` +
-            `(${min(d.entrada, agora)} min). Ainda dá para registrar: <a href="${ACOLHIMENTOS_APP}">abrir o app</a>`
-        );
-    }
+export function textoCobranca(
+    d: Pick<DadosAviso, "nome" | "hospitalNome" | "entrada">,
+    medico: string | null,
+    agora: Date,
+): string {
     return (
-        `🚨 ${quem} presa n${a} ${onde} há <b>${min(d.entrada, agora)} min</b> (entrou ${hhmm(d.entrada)}), ` +
-        `sem registro no Acolhimentos.\n` +
-        `${chamada(medico, d.nome)}, por favor abra o aplicativo e registre a retenção — ` +
-        `é a denúncia que conta: <a href="${ACOLHIMENTOS_APP}">abrir o Acolhimentos</a>`
+        `🚨 *${d.nome}* presa n${artigo(d.hospitalNome)} *${d.hospitalNome}* há *${min(d.entrada, agora)} min* ` +
+        `(chegou ${hhmm(d.entrada)}), sem registro no Acolhimentos.\n\n` +
+        `${chamada(medico, d.nome)}, por favor abra o aplicativo e registre a retenção da maca — ` +
+        `é assim que a denúncia chega a quem pode resolver.\n${ACOLHIMENTOS_APP}`
     );
 }
