@@ -361,6 +361,14 @@ export const POSTOS_FROTA = {
 } as const;
 export type PostoFrota = keyof typeof POSTOS_FROTA;
 
+/** Onde a desativação foi informada — os três apps leem e escrevem a mesma lista. */
+export const ORIGENS_FROTA = {
+  frota: "painel da Frota",
+  huddle: "Huddle",
+  quadro: "Quadro Informativo",
+} as const;
+export type OrigemFrota = keyof typeof ORIGENS_FROTA;
+
 /** Desativação informada no painel: fora dos avisos até alguém reativar. */
 export interface DesativacaoFrota {
   id: number;
@@ -369,6 +377,8 @@ export interface DesativacaoFrota {
   observacao: string | null;
   informadoPor: string;
   posto: PostoFrota;
+  /** Ausente em API antiga: trate como "frota". */
+  origem?: OrigemFrota;
   desde: string;
   reativadaEm: string | null;
   reativadaPor: string | null;

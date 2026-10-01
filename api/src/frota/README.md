@@ -142,7 +142,14 @@ quem (docs/login-unico.md, fase 2) — por isso nome + posto.
   rede Docker (`http://tabela-api-1:3000/...`, sem o portão) para chegar com
   "fora de operação" preenchido. `POST /desativacoes` e
   `POST /desativacoes/:id/reativar` (atrás do login único).
-- Tabela `frota_desativacoes`, criada no boot.
+- O **Quadro Informativo** (quadro.mnrs.com.br) também lê e posta nas mesmas
+  rotas. `origem` (`frota` | `huddle` | `quadro`, opcional no POST, padrão
+  `frota`; linha antiga sem a coluna sai como `frota`) diz onde foi informada:
+  o painel mostra "informado no Quadro Informativo por Fulano" e o grupo
+  "desativada no Quadro Informativo por…". O GET devolve também `origens`
+  (rótulos). As telas avisam que informar num lugar vale nos outros.
+- Tabela `frota_desativacoes`, criada no boot (coluna `origem` nula
+  acrescentada no boot com `ADD COLUMN IF NOT EXISTS`).
 
 ## Cruzamento com o Acolhimentos
 

@@ -31,8 +31,8 @@ import { ABERTA_MAX_MS, acolhimentosLigado, buscarAcolhimentos, cruzar, janela, 
 import { buscarDispositivos, buscarPosicoes, type DispositivoSamu, type PosicaoSamu } from "./samumais.js";
 import { leiturasParaPermanencia, montarPainel, resolverPosicoes, type PainelFrota } from "./painel.js";
 import {
-    ErroDesativacao, MOTIVOS, POSTOS, textoDesativacao,
-    type Desativacao, type Motivo, type Posto, esquemaDesativar,
+    ErroDesativacao, MOTIVOS, ORIGENS, POSTOS, textoDesativacao,
+    type Desativacao, type Motivo, type Origem, type Posto, esquemaDesativar,
 } from "./desativacoes.js";
 import type { z } from "zod";
 
@@ -156,6 +156,8 @@ async function criarTabelas(): Promise<void> {
     await db.execute(sql`
         CREATE UNIQUE INDEX IF NOT EXISTS frota_desativacoes_ativa_idx
         ON frota_desativacoes (codigo) WHERE reativada_em IS NULL`);
+    // Onde foi informada (frota | huddle | quadro). Nula = linha antiga = "frota".
+    await db.execute(sql`ALTER TABLE frota_desativacoes ADD COLUMN IF NOT EXISTS origem varchar(10)`);
     await db.execute(sql`
         CREATE TABLE IF NOT EXISTS frota_estado (
             chave         varchar(40) PRIMARY KEY,
@@ -741,6 +743,7 @@ function desativacaoDe(r: Linha): Desativacao {
         observacao: r.observacao != null ? String(r.observacao) : null,
         informadoPor: String(r.informado_por),
         posto: String(r.posto) as Posto,
+        origem: r.origem != null ? (String(r.origem) as Origem) : "frota",
         desde: iso(r.desde)!,
         reativadaEm: iso(r.reativada_em),
         reativadaPor: r.reativada_por != null ? String(r.reativada_por) : null,
@@ -762,8 +765,8 @@ export async function desativarViatura(dados: z.infer<typeof esquemaDesativar>):
     let linha: Linha | undefined;
     try {
         [linha] = await consultar(sql`
-            INSERT INTO frota_desativacoes (codigo, motivos, observacao, informado_por, posto)
-            VALUES (${c.codigo}, ${JSON.stringify(dados.motivos)}::jsonb, ${dados.observacao || null}, ${dados.informadoPor}, ${dados.posto})
+            INSERT INTO frota_desativacoes (codigo, motivos, observacao, informado_por, posto, origem)
+            VALUES (${c.codigo}, ${JSON.stringify(dados.motivos)}::jsonb, ${dados.observacao || null}, ${dados.informadoPor}, ${dados.posto}, ${dados.origem})
             RETURNING *`);
     } catch (e) {
         // Índice único parcial: dois cliques ao mesmo tempo.
@@ -774,7 +777,7 @@ export async function desativarViatura(dados: z.infer<typeof esquemaDesativar>):
     }
     const d = desativacaoDe(linha!);
     desativacoes.set(d.codigo, d);
-    console.log(`[frota] ${d.codigo} desativada por ${d.informadoPor} (${d.posto}): ${d.motivos.join(",")}`);
+    console.log(`[frota] ${d.codigo} desativada por ${d.informadoPor} (${d.posto}, ${d.origem}): ${d.motivos.join(",")}`);
     await avisarDesativacao(d);
     return d;
 }
@@ -798,7 +801,7 @@ export async function reativarViatura(id: number, reativadaPor: string): Promise
  * Huddle do SAMU lê (rede Docker, sem o portão) para "fora de operação".
  */
 export async function listarDesativacoes(horas: number) {
-    if (!TOKEN) return { ativo: false, motivos: MOTIVOS, postos: POSTOS, desativacoes: [] };
+    if (!TOKEN) return { ativo: false, motivos: MOTIVOS, postos: POSTOS, origens: ORIGENS, desativacoes: [] };
     const linhas = await consultar(sql`
         SELECT * FROM frota_desativacoes
         WHERE reativada_em IS NULL
@@ -810,6 +813,7 @@ export async function listarDesativacoes(horas: number) {
         ativo: true,
         motivos: MOTIVOS,
         postos: POSTOS,
+        origens: ORIGENS,
         desativacoes: linhas.map((r) => {
             const d = desativacaoDe(r);
             return { ...d, ativa: d.reativadaEm === null };

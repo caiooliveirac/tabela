@@ -220,7 +220,7 @@ test("cortar: respeita o limite do Telegram inteiro por linha", () => {
 
 const DES = {
     id: 7, codigo: "CB27", motivos: ["mecanica" as const], observacao: null, informadoPor: "Ana", posto: "radio" as const,
-    desde: antes(90).toISOString(), reativadaEm: null, reativadaPor: null,
+    origem: "frota" as const, desde: antes(90).toISOString(), reativadaEm: null, reativadaPor: null,
 };
 
 test("desativação: esquema exige motivo, nome e posto; \"Outro\" pede observação", async () => {
@@ -233,6 +233,11 @@ test("desativação: esquema exige motivo, nome e posto; \"Outro\" pede observa�
     assert.ok(!esquemaDesativar.safeParse({ ...ok, posto: "regulador" }).success);
     assert.ok(!esquemaDesativar.safeParse({ ...ok, motivos: ["outro"] }).success);
     assert.ok(esquemaDesativar.safeParse({ ...ok, motivos: ["outro"], observacao: "batida leve" }).success);
+    // origem: opcional (quem já posta sem ela continua valendo, como "frota"); só os três apps.
+    assert.equal(esquemaDesativar.parse(ok).origem, "frota");
+    assert.equal(esquemaDesativar.parse({ ...ok, origem: "quadro" }).origem, "quadro");
+    assert.equal(esquemaDesativar.parse({ ...ok, origem: "huddle" }).origem, "huddle");
+    assert.ok(!esquemaDesativar.safeParse({ ...ok, origem: "telegram" }).success);
 });
 
 test("desativação: textos do grupo ao desativar e ao reativar", async () => {
@@ -241,6 +246,11 @@ test("desativação: textos do grupo ao desativar e ao reativar", async () => {
     const volta = { ...DES, reativadaEm: AGORA.toISOString(), reativadaPor: "Bruno" };
     assert.match(textoDesativacao(volta, "USB"), /✅ <b>CB27<\/b> \(USB\) <b>reativada<\/b> por Bruno às 16:00 — ficou 1h30 desativada/);
     assert.equal(motivoPainel({ ...DES, motivos: ["outro"], observacao: "batida" }), "batida · Ana (Rádio-operador(a)) às 14:30");
+    // Informada no Quadro ou no Huddle: o grupo e o painel dizem onde.
+    const quadro = { ...DES, origem: "quadro" as const };
+    assert.match(textoDesativacao(quadro, "USB"), /<b>desativada<\/b> no Quadro Informativo por Ana \(Rádio-operador\(a\)\)/);
+    assert.equal(motivoPainel(quadro), "Mecânica ou pneu · Ana (Rádio-operador(a)) no Quadro Informativo às 14:30");
+    assert.equal(motivoPainel({ ...DES, origem: "huddle" }), "Mecânica ou pneu · Ana (Rádio-operador(a)) no Huddle às 14:30");
 });
 
 test("desativação: some dos avisos — queda fecha como desativada, fora do ranking, lembrada no resumo", () => {
