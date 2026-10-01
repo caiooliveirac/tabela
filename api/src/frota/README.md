@@ -161,6 +161,24 @@ faixa cinza = notificado (tique na passagem), faixa roxa = maca retida,
 barra vazada = notificação sem parada no GPS, "sem notificação" = USA 40+ min
 sem registro. O Acolhimentos só cobre USA.
 
+## Cobrança da denúncia no grupo SAMU - Salvador (`cobrar` em `coletor.ts`)
+
+USA parada 40+ min em hospital (não UPA, não a própria base) **sem
+notificação casada no Acolhimentos** → uma mensagem no grupo
+`TELEGRAM_SALVADOR_CHAT_ID` chamando o médico da viatura pelo nome ("Dr(a).
+Fulano, por favor abra o aplicativo e registre a retenção", link do app).
+
+- Nome: `plantoes.ts` lê `GET https://plantoes.mnrs.com.br/api/servicos/quadro/plantao`
+  (header `x-escala-token` = `ESCALA_SSO_TOKEN` do plantoes, aqui
+  `PLANTOES_TOKEN`; a mesma rota do Quadro). Dupla: os dois nomes. Plantões
+  fora do ar: "Médico(a) da SM01".
+- Uma mensagem por parada (`cobranca_msg_id/_chat/_estado` em
+  `frota_permanencias`). Notificação apareceu → editada para ✅; saiu sem
+  registro → editada para ⚠️ "ainda dá para registrar".
+- Acolhimentos fora do ar (ou sem `ACOLHIMENTOS_TOKEN`): ninguém é cobrado.
+- Chat vazio ou `FROTA_AVISOS_TELEGRAM=0`: desligado. O bot regulador precisa
+  estar no grupo; chat_id com `/id@ReguladorSAMU_bot`.
+
 ## Dados copiados (atualizar na fonte e trazer para cá)
 
 - `catalogo.ts` — viaturas e bases: ChecagemdeBases `bot/src/data/bases.ts` e
