@@ -38,6 +38,17 @@ export const POSTOS = {
 } as const;
 export type Posto = keyof typeof POSTOS;
 
+/**
+ * Onde foi informada: aqui, no Huddle ou no Quadro Informativo
+ * (quadro.mnrs.com.br). Os três escrevem e leem esta mesma lista.
+ */
+export const ORIGENS = {
+    frota: "painel da Frota",
+    huddle: "Huddle",
+    quadro: "Quadro Informativo",
+} as const;
+export type Origem = keyof typeof ORIGENS;
+
 export interface Desativacao {
     id: number;
     codigo: string;
@@ -45,6 +56,8 @@ export interface Desativacao {
     observacao: string | null;
     informadoPor: string;
     posto: Posto;
+    /** Linha antiga (sem a coluna) conta como "frota". */
+    origem: Origem;
     /** ISO. */
     desde: string;
     reativadaEm: string | null;
@@ -58,6 +71,7 @@ export const esquemaDesativar = z
         observacao: z.string().trim().max(300).optional().nullable(),
         informadoPor: z.string().trim().min(2, "Preencha seu nome no cabeçalho").max(80),
         posto: z.enum(Object.keys(POSTOS) as [Posto, ...Posto[]]),
+        origem: z.enum(Object.keys(ORIGENS) as [Origem, ...Origem[]]).default("frota"),
     })
     .refine((d) => !d.motivos.includes("outro") || (d.observacao ?? "").length >= 3, {
         message: "Motivo \"Outro\": diga qual na observação",
@@ -72,9 +86,12 @@ export const esquemaReativar = z.object({
 export const rotuloMotivos = (d: Pick<Desativacao, "motivos" | "observacao">) =>
     d.motivos.map((m) => (m === "outro" && d.observacao ? d.observacao : MOTIVOS[m])).join(", ");
 
+/** " no Quadro Informativo" — vazio quando foi no próprio painel da Frota. */
+const onde = (d: Pick<Desativacao, "origem">) => (d.origem && d.origem !== "frota" ? ` no ${ORIGENS[d.origem]}` : "");
+
 /** Motivo curto para o painel: "Mecânica ou pneu · Fulano (Rádio-operador(a)) às 08:10". */
 export const motivoPainel = (d: Desativacao) =>
-    `${rotuloMotivos(d)} · ${d.informadoPor} (${POSTOS[d.posto]}) às ${hhmm(new Date(d.desde))}`;
+    `${rotuloMotivos(d)} · ${d.informadoPor} (${POSTOS[d.posto]})${onde(d)} às ${hhmm(new Date(d.desde))}`;
 
 const minutos = (de: string, ate: string) => Math.max(0, Math.round((Date.parse(ate) - Date.parse(de)) / 60_000));
 const duracao = (m: number) => (m < 60 ? `${m} min` : `${Math.floor(m / 60)}h${String(m % 60).padStart(2, "0")}`);
@@ -89,7 +106,7 @@ export function textoDesativacao(d: Desativacao, tipo: string | null): string {
     }
     const obs = d.observacao && !d.motivos.includes("outro") ? ` — ${escapeHtml(d.observacao)}` : "";
     return (
-        `⛔ ${quem} <b>desativada</b> por ${escapeHtml(d.informadoPor)} (${POSTOS[d.posto]}): ` +
+        `⛔ ${quem} <b>desativada</b>${onde(d)} por ${escapeHtml(d.informadoPor)} (${POSTOS[d.posto]}): ` +
         `${escapeHtml(rotuloMotivos(d))}${obs}\n` +
         `Sem avisos dela até alguém reativar no painel da Frota.`
     );

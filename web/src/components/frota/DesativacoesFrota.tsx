@@ -3,10 +3,13 @@
 // chefia ou pela enfermagem. Até alguém reativar, ela sai dos avisos
 // (parada, sinal, bateria), o grupo da frota é avisado e o Huddle do SAMU já
 // chega com "fora de operação" preenchido (api/src/frota/desativacoes.ts).
+// O Quadro Informativo (quadro.mnrs.com.br) lê e escreve a mesma lista: a
+// tela sempre avisa que informar aqui vale para os outros, e vice-versa.
 // ═══════════════════════════════════════════════════════════════
 import { useMemo, useState } from "react";
 import {
   MOTIVOS_BAIXA,
+  ORIGENS_FROTA,
   POSTOS_FROTA,
   type MotivoBaixa,
   type PainelFrota,
@@ -19,6 +22,18 @@ import { duracao, hora } from "./formato";
 const PESSOAL: MotivoBaixa[] = ["condutor", "tecnico", "enfermeiro", "medico"];
 const FROTA: MotivoBaixa[] = ["mecanica", "sem_oxigenio", "sem_maca", "sem_monitor", "sem_radio"];
 const CHAVE_POSTO = "tabela:frotaPosto";
+
+/** Mesmo texto no cartão e no formulário: informar num lugar vale nos outros. */
+const VALE_PARA_TODOS =
+  "Vale para todos: o que se informa aqui aparece no Huddle e no Quadro Informativo (quadro.mnrs.com.br), e o que é informado lá aparece aqui.";
+
+function ValeParaTodos() {
+  return (
+    <div className="text-[11px] font-semibold text-sky-800 bg-sky-50 border border-sky-200 rounded-lg px-3 py-2">
+      🔗 {VALE_PARA_TODOS}
+    </div>
+  );
+}
 
 const minutosDesde = (iso: string) => Math.max(0, Math.floor((Date.now() - Date.parse(iso)) / 60_000));
 
@@ -117,6 +132,7 @@ function Modal({ viaturas, operador, onClose }: { viaturas: ViaturaFrota[]; oper
         </div>
 
         <div className="px-5 py-4 space-y-4">
+          <ValeParaTodos />
           <div>
             <div className="text-[11px] font-extrabold text-slate-600 uppercase tracking-wide mb-1">Viatura</div>
             <select
@@ -237,6 +253,9 @@ export default function DesativacoesFrota({ painel, operador }: { painel: Painel
           ⛔ Informar viatura fora de operação
         </button>
       </div>
+      <div className="mb-2">
+        <ValeParaTodos />
+      </div>
       {desativadas.length ? (
         <ul className="divide-y divide-slate-100">
           {desativadas.map((v) => {
@@ -249,7 +268,8 @@ export default function DesativacoesFrota({ painel, operador }: { painel: Painel
                   {d.observacao && !d.motivos.includes("outro") ? ` — ${d.observacao}` : ""}
                   <span className="text-slate-400">
                     {" "}
-                    · {d.informadoPor} ({POSTOS_FROTA[d.posto]}) às {hora(d.desde)}, há {duracao(minutosDesde(d.desde))}
+                    · {d.origem && d.origem !== "frota" ? `informado no ${ORIGENS_FROTA[d.origem]} por ` : ""}
+                    {d.informadoPor} ({POSTOS_FROTA[d.posto]}) às {hora(d.desde)}, há {duracao(minutosDesde(d.desde))}
                   </span>
                 </span>
                 <Reativar v={v} operador={operador} />
