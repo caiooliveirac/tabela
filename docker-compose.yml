@@ -54,6 +54,11 @@ services:
       # Linha do tempo × Acolhimentos (repo help-mnrs): token do endpoint de
       # serviço /api/servico/acolhimentos. Vazio = linha do tempo só com GPS.
       ACOLHIMENTOS_TOKEN: ${ACOLHIMENTOS_TOKEN:-}
+      # Cobrança da denúncia: USA presa 40+ min sem registro no Acolhimentos →
+      # grupo SAMU - Salvador, chamando o médico (nome do Plantões, token =
+      # ESCALA_SSO_TOKEN do plantoes). Chat vazio = não cobra.
+      TELEGRAM_SALVADOR_CHAT_ID: ${TELEGRAM_SALVADOR_CHAT_ID:-}
+      PLANTOES_TOKEN: ${PLANTOES_TOKEN:-}
     networks:
       internal:
         aliases:

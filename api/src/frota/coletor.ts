@@ -20,8 +20,9 @@ import {
     ALERTA_MIN, APRENDE_RAIO_M, aprenderPontos, avancarPermanencias, distanciaM, duracaoMin, ehMoto,
     type Evidencia, type Fechamento, type Permanencia,
 } from "./regras.js";
-import { textoAviso, type DadosAviso } from "./aviso.js";
-import { editarChat, enviarChat, frotaChatId, reguladoresChatId } from "../lib/telegram.js";
+import { textoAviso, textoCobranca, type DadosAviso, type EstadoCobranca } from "./aviso.js";
+import { editarChat, enviarChat, frotaChatId, reguladoresChatId, salvadorChatId } from "../lib/telegram.js";
+import { medicosPorBase } from "./plantoes.js";
 import {
     avancarQuedas, bateriaBaixa, instaveisAgora, plantaoDe, ranking, resumoDevido,
     textoBateria, textoFimQueda, textoFrota, textoInstavel, textoQueda, textoResumo, textoSurto,
@@ -76,6 +77,8 @@ const comPontos = (pontos: Record<string, PontoAprendido[]>) =>
     LOCAIS_FROTA.map((h) => (pontos[h.id]?.length ? { ...h, pontos: pontos[h.id] } : h));
 /** Último texto publicado por parada — só edita a mensagem quando muda. */
 const textoPublicado = new Map<number, string>();
+/** Cobrança da denúncia no grupo SAMU - Salvador, por parada (volta do banco no boot). */
+const cobrancas = new Map<number, { chat: string; msgId: number; estado: EstadoCobranca }>();
 
 // ── Quedas de sinal, bateria, resumo (sinal.ts) ─────────────────
 // Abertas e recentes voltam do banco no boot: o deploy não repete aviso.
@@ -110,6 +113,11 @@ async function criarTabelas(): Promise<void> {
     await db.execute(sql`ALTER TABLE frota_permanencias ADD COLUMN IF NOT EXISTS aviso_msg_id bigint`);
     await db.execute(sql`ALTER TABLE frota_permanencias ADD COLUMN IF NOT EXISTS na_base boolean NOT NULL DEFAULT false`);
     await db.execute(sql`ALTER TABLE frota_permanencias ADD COLUMN IF NOT EXISTS aviso_chat varchar(40)`);
+    await db.execute(sql`
+        ALTER TABLE frota_permanencias
+            ADD COLUMN IF NOT EXISTS cobranca_msg_id bigint,
+            ADD COLUMN IF NOT EXISTS cobranca_chat varchar(40),
+            ADD COLUMN IF NOT EXISTS cobranca_estado varchar(20)`);
     // Última posição confirmada e onde o GPS ficou parado mais tempo (aprendizado).
     await db.execute(sql`
         ALTER TABLE frota_permanencias
@@ -190,8 +198,15 @@ async function registrarErro(onde: string, e: unknown): Promise<void> {
 async function carregar(): Promise<void> {
     for (const r of await consultar(sql`
         SELECT id, chave, hospital_id, entrada, ultima_vez, alerta_em, aviso_msg_id, aviso_chat, na_base,
-               lat, lng, estavel_lat, estavel_lng, estavel_n
+               lat, lng, estavel_lat, estavel_lng, estavel_n, cobranca_msg_id, cobranca_chat, cobranca_estado
         FROM frota_permanencias WHERE motivo_fim IS NULL`)) {
+        if (r.cobranca_msg_id != null) {
+            cobrancas.set(Number(r.id), {
+                chat: String(r.cobranca_chat),
+                msgId: Number(r.cobranca_msg_id),
+                estado: r.cobranca_estado as EstadoCobranca,
+            });
+        }
         abertas.set(String(r.chave), {
             id: Number(r.id),
             chave: String(r.chave),
@@ -370,6 +385,7 @@ async function ciclo(): Promise<void> {
         erro = null;
         // Telegram fora do ar não é falha de coleta.
         await avisar(r.fechadas, agora).catch((e) => registrarErro("aviso", e));
+        await cobrar(r.fechadas, agora).catch((e) => registrarErro("cobrança", e));
         await avisarSinal(agora).catch((e) => registrarErro("aviso de sinal", e));
     } catch (e) {
         erro = (e as Error).message;
@@ -595,6 +611,70 @@ export async function alertasRecentes(horas: number) {
         if (l.silenciado) c.silenciados[String(l.silenciado)] = (c.silenciados[String(l.silenciado)] ?? 0) + 1;
     }
     return { horas, chat: Boolean(frotaChatId()), contagem, quedasAbertas: quedas.size, alertas: linhas };
+}
+
+/**
+ * USA presa 40+ min em hospital sem notificação no Acolhimentos: o grupo
+ * SAMU - Salvador recebe uma mensagem chamando o médico da viatura (nome do
+ * Plantões) para registrar a retenção no app. Uma por parada; editada para ✅
+ * quando a notificação aparece, ou para ⚠️ se a viatura sai sem registro.
+ * Acolhimentos fora do ar: ninguém é cobrado sem a prova de que não registrou.
+ */
+async function cobrar(fechadas: Fechamento[], agora: Date): Promise<void> {
+    const chat = salvadorChatId();
+    if (!AVISOS || !chat || !acolhimentosLigado()) return;
+    // O Acolhimentos casa só hospital (ver linhaDoTempo): UPA nunca é cobrada.
+    const upas = new Set(LOCAIS_FROTA.filter((h) => h.tipo === "upa").map((h) => h.id));
+    const novas = [...abertas.values()].filter(
+        (p) => p.id !== undefined && p.alertaEm && !p.naBase && !upas.has(p.hospitalId) &&
+            descreverChave(p.chave).tipo === "USA" && !cobrancas.has(p.id),
+    );
+    const pendentes = [
+        ...[...abertas.values()].map((p) => ({ p, saida: undefined as Date | null | undefined })),
+        ...fechadas.map((f) => ({ p: f.permanencia, saida: f.saida })),
+    ].filter(({ p }) => p.id !== undefined && cobrancas.get(p.id)?.estado === "aberta");
+    if (!novas.length && !pendentes.length) return;
+
+    const todas = [...novas.map((p) => ({ p, saida: undefined as Date | null | undefined })), ...pendentes];
+    const desde = new Date(Math.min(...todas.map(({ p }) => p.entrada.getTime())) - ABERTA_MAX_MS);
+    const { casadas } = cruzar(
+        todas.map(({ p, saida }) => ({
+            id: p.id!, chave: p.chave, hospitalId: p.hospitalId, entrada: p.entrada.toISOString(),
+            fim: (saida === undefined ? agora : saida ?? p.ultimaVez).toISOString(),
+        })),
+        await buscarAcolhimentos(desde, agora),
+        agora.getTime(),
+    );
+
+    const salvar = (id: number, c: { chat: string; msgId: number; estado: EstadoCobranca }) => {
+        cobrancas.set(id, c);
+        return db.execute(sql`
+            UPDATE frota_permanencias
+            SET cobranca_msg_id = ${c.msgId}, cobranca_chat = ${c.chat}, cobranca_estado = ${c.estado}
+            WHERE id = ${id}`);
+    };
+    for (const p of novas) {
+        if (casadas.has(p.id!)) continue;
+        // Plantões fora do ar: a cobrança sai assim mesmo, chamando "médico(a) da SM01".
+        const medico = (await medicosPorBase().catch(() => new Map<string, string>())).get(p.chave) ?? null;
+        const id = await enviarChat(chat, textoCobranca(dadosAviso(p), medico, "aberta", agora));
+        if (!id) {
+            await registrarErro("cobrança Telegram", "envio falhou — detalhe em [telegram] no log");
+            continue;
+        }
+        await salvar(p.id!, { chat, msgId: id, estado: "aberta" });
+    }
+    for (const { p, saida } of pendentes) {
+        const c = cobrancas.get(p.id!)!;
+        const estado: EstadoCobranca | null = casadas.has(p.id!) ? "registrada" : saida ? "saiu-sem-registro" : null;
+        if (!estado) continue;
+        if (!(await editarChat(c.chat, c.msgId, textoCobranca(dadosAviso(p), null, estado, saida ?? agora)))) {
+            await registrarErro("cobrança Telegram", "edição falhou");
+            continue;
+        }
+        await salvar(p.id!, { ...c, estado });
+    }
+    for (const f of fechadas) if (f.permanencia.id !== undefined) cobrancas.delete(f.permanencia.id);
 }
 
 export interface ParadaHistorico {
