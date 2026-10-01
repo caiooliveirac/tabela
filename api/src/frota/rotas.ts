@@ -1,7 +1,7 @@
 import { Router, type Response } from "express";
 import { z } from "zod";
 import {
-    alertasRecentes, cobrancasPendentes, desativarViatura, diagnostico, linhaDoTempo, listarDesativacoes, painelAtual, reativarViatura,
+    alertasRecentes, balancoPlantao, cobrancasPendentes, desativarViatura, diagnostico, linhaDoTempo, listarDesativacoes, painelAtual, reativarViatura,
 } from "./coletor.js";
 import { ErroDesativacao, esquemaDesativar, esquemaReativar } from "./desativacoes.js";
 
@@ -93,6 +93,17 @@ router.get("/cobrancas", async (_req, res) => {
     } catch (e) {
         console.error("[frota] cobranças:", (e as Error).message);
         res.status(503).json({ error: "cobranças indisponíveis" });
+    }
+});
+
+// Balanço da virada (07h/19h): retenções 40+ min das últimas 12 h por hospital,
+// texto pronto para o WhatsApp. Quem lê é o Tom, pela porta local.
+router.get("/balanco", async (_req, res) => {
+    try {
+        res.json(await balancoPlantao());
+    } catch (e) {
+        console.error("[frota] balanço:", (e as Error).message);
+        res.status(503).json({ error: "balanço indisponível" });
     }
 });
 

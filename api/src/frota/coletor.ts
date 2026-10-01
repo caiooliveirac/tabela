@@ -20,7 +20,7 @@ import {
     ALERTA_MIN, APRENDE_RAIO_M, aprenderPontos, avancarPermanencias, distanciaM, duracaoMin, ehMoto,
     type Evidencia, type Fechamento, type Permanencia,
 } from "./regras.js";
-import { textoAviso, textoCobranca, type DadosAviso } from "./aviso.js";
+import { textoAviso, textoBalanco, textoCobranca, type DadosAviso } from "./aviso.js";
 import { editarChat, enviarChat, frotaChatId, reguladoresChatId } from "../lib/telegram.js";
 import { medicosPorBase } from "./plantoes.js";
 import {
@@ -77,6 +77,8 @@ const comPontos = (pontos: Record<string, PontoAprendido[]>) =>
     LOCAIS_FROTA.map((h) => (pontos[h.id]?.length ? { ...h, pontos: pontos[h.id] } : h));
 /** Último texto publicado por parada — só edita a mensagem quando muda. */
 const textoPublicado = new Map<number, string>();
+/** Paradas com o médico já gravado (o UPDATE também confere `medico IS NULL`). */
+const medicoGravado = new Set<number>();
 
 // ── Quedas de sinal, bateria, resumo (sinal.ts) ─────────────────
 // Abertas e recentes voltam do banco no boot: o deploy não repete aviso.
@@ -111,6 +113,9 @@ async function criarTabelas(): Promise<void> {
     await db.execute(sql`ALTER TABLE frota_permanencias ADD COLUMN IF NOT EXISTS aviso_msg_id bigint`);
     await db.execute(sql`ALTER TABLE frota_permanencias ADD COLUMN IF NOT EXISTS na_base boolean NOT NULL DEFAULT false`);
     await db.execute(sql`ALTER TABLE frota_permanencias ADD COLUMN IF NOT EXISTS aviso_chat varchar(40)`);
+    // Médico da USA (Plantões) na hora da retenção: o balanço das 07h/19h chama
+    // quem estava lá, não o colega que acabou de assumir.
+    await db.execute(sql`ALTER TABLE frota_permanencias ADD COLUMN IF NOT EXISTS medico varchar(200)`);
     // Última posição confirmada e onde o GPS ficou parado mais tempo (aprendizado).
     await db.execute(sql`
         ALTER TABLE frota_permanencias
@@ -371,6 +376,7 @@ async function ciclo(): Promise<void> {
         erro = null;
         // Telegram fora do ar não é falha de coleta.
         await avisar(r.fechadas, agora).catch((e) => registrarErro("aviso", e));
+        await gravarMedicos().catch((e) => registrarErro("médico da parada", e));
         await avisarSinal(agora).catch((e) => registrarErro("aviso de sinal", e));
     } catch (e) {
         erro = (e as Error).message;
@@ -598,6 +604,21 @@ export async function alertasRecentes(horas: number) {
     return { horas, chat: Boolean(frotaChatId()), contagem, quedasAbertas: quedas.size, alertas: linhas };
 }
 
+/** USA que passou de 40 min fora da base: grava quem é o médico dela agora (Plantões). */
+async function gravarMedicos(): Promise<void> {
+    const faltam = [...abertas.values()].filter(
+        (p) => p.id !== undefined && p.alertaEm && !p.naBase && !medicoGravado.has(p.id) && descreverChave(p.chave).tipo === "USA",
+    );
+    if (!faltam.length) return;
+    const medicos = await medicosPorBase();
+    for (const p of faltam) {
+        const medico = medicos.get(p.chave);
+        if (!medico) continue;
+        await db.execute(sql`UPDATE frota_permanencias SET medico = ${medico} WHERE id = ${p.id} AND medico IS NULL`);
+        medicoGravado.add(p.id!);
+    }
+}
+
 export interface ParadaHistorico {
     id: number;
     chave: string;
@@ -618,6 +639,8 @@ export interface ParadaHistorico {
     acolhimento: NotificacaoResumo | null;
     /** USA parada 40+ min sem notificação no Acolhimentos (que só cobre USA). */
     semNotificacao: boolean;
+    /** Médico da USA na hora da retenção (Plantões), gravado aos 40 min. */
+    medico: string | null;
 }
 
 export interface NotificacaoResumo {
@@ -672,7 +695,7 @@ export async function linhaDoTempo(horas: number): Promise<{
     const semCruzamento = { ligado: acolhimentosLigado(), erro: null, soltas: [] };
     if (!TOKEN) return { ...base, paradas: [], acolhimentos: semCruzamento };
     const linhas = await consultar(sql`
-        SELECT id, chave, hospital_id, entrada, ultima_vez, saida, motivo_fim, alerta_em, na_base
+        SELECT id, chave, hospital_id, entrada, ultima_vez, saida, motivo_fim, alerta_em, na_base, medico
         FROM frota_permanencias
         WHERE motivo_fim IS NULL OR COALESCE(saida, ultima_vez) >= ${desde.toISOString()}
         ORDER BY entrada`);
@@ -701,6 +724,7 @@ export async function linhaDoTempo(horas: number): Promise<{
             naBase: r.na_base === true,
             acolhimento: null,
             semNotificacao: false,
+            medico: r.medico != null ? String(r.medico) : null,
         };
     });
 
@@ -759,6 +783,30 @@ export async function cobrancasPendentes(): Promise<{
             texto: textoCobranca({ nome: p.nome, hospitalNome: hospital, entrada: new Date(p.entrada) }, medico, agora),
         };
     });
+}
+
+/**
+ * Balanço da virada (07h e 19h), para o Tom levar ao grupo SAMU-Salvador:
+ * viaturas 40+ min paradas em hospital nas últimas 12 h, por hospital — as
+ * que ainda estão presas na virada contam até agora. USA sem notificação no
+ * Acolhimentos vai para o convite a registrar, com o médico da hora.
+ * Acolhimentos fora do ar: o balanço sai sem o convite (não dá para afirmar).
+ */
+export async function balancoPlantao(agora = new Date()): Promise<{ texto: string; retidas: number; semRegistro: number }> {
+    const t = await linhaDoTempo(12);
+    const nomes = new Map(t.hospitais.filter((h) => h.tipo === "hospital").map((h) => [h.id, h.nome]));
+    const retidas = t.paradas
+        .filter((p) => !p.naBase && nomes.has(p.hospitalId) && p.minutos >= ALERTA_MIN)
+        .map((p) => ({
+            codigo: p.nome, tipo: p.tipo, hospital: nomes.get(p.hospitalId)!, minutos: p.minutos,
+            presa: p.aberta, semRegistro: p.semNotificacao, medico: p.medico,
+        }));
+    const conferido = t.acolhimentos.ligado && !t.acolhimentos.erro;
+    return {
+        texto: textoBalanco(retidas, { agora, conferido, alertaMin: ALERTA_MIN }),
+        retidas: retidas.length,
+        semRegistro: retidas.filter((r) => r.semRegistro).length,
+    };
 }
 
 // ── Desativação informada no painel (desativacoes.ts) ───────────

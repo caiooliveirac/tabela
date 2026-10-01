@@ -102,3 +102,75 @@ export function textoCobranca(
         `é assim que a denúncia chega a quem pode resolver.\n${ACOLHIMENTOS_APP}`
     );
 }
+
+// ── Balanço da virada (07h/19h) no grupo SAMU-Salvador (pelo Tom) ──
+
+export interface Retida {
+    codigo: string;
+    tipo: string | null;
+    hospital: string;
+    minutos: number;
+    /** Ainda parada na hora do balanço: o tempo conta até agora. */
+    presa: boolean;
+    /** USA sem notificação no Acolhimentos. */
+    semRegistro: boolean;
+    medico: string | null;
+}
+
+/** 95 → "1h35"; 50 → "50 min". */
+export function duracaoTexto(minutos: number): string {
+    if (minutos < 60) return `${minutos} min`;
+    return `${Math.floor(minutos / 60)}h${String(minutos % 60).padStart(2, "0")}`;
+}
+
+const DIA_SEMANA = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+
+/** O plantão que acabou de virar: às 07h o noturno (19h–07h), às 19h o diurno. */
+function plantaoQueVirou(agora: Date): string {
+    const bahia = new Date(agora.getTime() - 3 * 3_600_000);
+    const h = bahia.getUTCHours();
+    const diurno = h >= 13;
+    // Noturno: começou ontem às 19h.
+    const inicio = new Date(bahia.getTime() - (diurno ? 0 : 86_400_000));
+    const dia = `${DIA_SEMANA[inicio.getUTCDay()]} ${String(inicio.getUTCDate()).padStart(2, "0")}/${String(inicio.getUTCMonth() + 1).padStart(2, "0")}`;
+    return diurno ? `plantão diurno · ${dia}` : `plantão noturno · ${dia}`;
+}
+
+/** Hospitais com mais viaturas retidas primeiro; dentro, a maior espera primeiro. */
+export function textoBalanco(retidas: Retida[], o: { agora: Date; conferido: boolean; alertaMin: number }): string {
+    const titulo = `🏥 *Retenção de ambulâncias · ${plantaoQueVirou(o.agora)}*`;
+    if (!retidas.length) {
+        return `${titulo}\n\n✅ Nenhuma viatura ficou ${o.alertaMin} min ou mais parada em hospital neste plantão.`;
+    }
+    const porHospital = new Map<string, Retida[]>();
+    for (const r of retidas) porHospital.set(r.hospital, [...(porHospital.get(r.hospital) ?? []), r]);
+    const total = (rs: Retida[]) => rs.reduce((s, r) => s + r.minutos, 0);
+    const blocos = [...porHospital.entries()]
+        .sort((a, b) => b[1].length - a[1].length || total(b[1]) - total(a[1]))
+        .map(([hospital, rs]) => {
+            const linhas = [...rs]
+                .sort((a, b) => b.minutos - a.minutos)
+                .map((r) => `• ${r.codigo}${r.tipo ? ` (${r.tipo})` : ""} · *${duracaoTexto(r.minutos)}*${r.presa ? " ⏳ ainda presa" : ""}`);
+            const n = rs.length === 1 ? "1 viatura" : `${rs.length} viaturas`;
+            return `*${hospital}* — ${n}\n${linhas.join("\n")}`;
+        });
+    let texto = `${titulo}\n_viaturas ${o.alertaMin} min ou mais paradas em hospital_\n\n${blocos.join("\n\n")}`;
+
+    const semRegistro = retidas.filter((r) => r.semRegistro);
+    if (o.conferido && semRegistro.length) {
+        const linhas = semRegistro
+            .sort((a, b) => b.minutos - a.minutos)
+            .map((r) => {
+                const nomes = (r.medico ?? "").split(/\s*\+\s*/).map((n) => n.replace(/[*_~`]/g, "").trim()).filter(Boolean);
+                const quem = nomes.length ? ` — ${nomes.map((n) => `Dr(a). *${n}*`).join(" e ")}` : "";
+                return `• ${r.codigo} no ${r.hospital} (${duracaoTexto(r.minutos)})${quem}`;
+            });
+        texto +=
+            `\n\n📝 *Ainda sem registro no Acolhimentos:*\n${linhas.join("\n")}\n\n` +
+            `Colegas, quando puderem, registrem no app os tempos e os motivos da retenção — ` +
+            `é o registro de vocês que vira prova para cobrar a solução. Obrigado! 🙏\n${ACOLHIMENTOS_APP}`;
+    } else if (o.conferido && retidas.some((r) => r.tipo === "USA")) {
+        texto += `\n\n✅ Todas as USAs retidas registraram no Acolhimentos. Obrigado!`;
+    }
+    return texto;
+}
