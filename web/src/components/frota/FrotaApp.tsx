@@ -21,7 +21,7 @@ export default function FrotaApp() {
   const semNome = !op.trim();
 
   useEffect(() => {
-    document.title = "Frota — SAMU Salvador";
+    document.title = "Rastreador de Equipes — SAMU Salvador";
   }, []);
   useEffect(() => {
     localStorage.setItem("tabela:op", op);
@@ -37,7 +37,7 @@ export default function FrotaApp() {
           <div className="text-slate-400 text-[10px] font-bold tracking-[0.12em] uppercase">
             Rádio-operação SAMU · Salvador
           </div>
-          <h1 className="text-white text-xl font-black m-0">Frota</h1>
+          <h1 className="text-white text-xl font-black m-0">Rastreador de Equipes</h1>
         </div>
         <div className="relative">
           <input
