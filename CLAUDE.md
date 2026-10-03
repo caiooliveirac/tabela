@@ -57,6 +57,13 @@ informada no painel sai dos avisos; o Huddle do SAMU lê
 Acolhimentos: `GET /frota/cobrancas` (médico do Plantões + texto); o Tom
 (WhatsApp) entrega no grupo SAMU-Salvador.
 
+Frota sozinha: `/tabela/frota` (`FrotaApp.tsx`; endereço público
+`mnrs.com.br/frota`, card próprio no portal) é a mesma `FrotaView` sem o resto
+do painel. É só o que o rádio-operador alcança: o porteiro (`mnrs-portal`,
+`radioPermite`) libera para ele `/tabela/frota`, `/tabela/assets/`,
+`/tabela/api/frota*` e `/tabela/api/encaminhamento/config` — chamada nova da
+Frota a outra rota da API precisa entrar lá.
+
 ## Pegadinhas conhecidas
 
 - A API devolve **camelCase** (`hospitalId`, `criadoPor`) — o bug histórico do
