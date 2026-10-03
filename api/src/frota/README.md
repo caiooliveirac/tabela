@@ -132,7 +132,10 @@ mecânica, oxigênio, maca, monitor, rádio; outro com observação), o nome do
 cabeçalho do painel e o posto. O portão do login único só diz "logado", não
 quem (docs/login-unico.md, fase 2) — por isso nome + posto.
 
-- Até alguém **reativar**, conta como desativada: some de todos os avisos
+- Vale **até a virada do plantão** (07h/19h) de quem informou: o coletor
+  encerra sozinho (`reativada_por = "virada do plantão"`) e manda um aviso só
+  ao grupo; o que continuar fora, o plantão seguinte informa de novo.
+- Até alguém **reativar** (ou a virada), conta como desativada: some de todos os avisos
   (parada de 40 min fecha na hora, queda de sinal fecha, bateria e ranking
   ignoram), mesmo transmitindo. Uma ativa por viatura (índice único).
 - O grupo da frota recebe "⛔ desativada por…" e "✅ reativada por…"; o

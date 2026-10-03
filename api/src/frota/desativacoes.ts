@@ -1,8 +1,10 @@
 // ═══════════════════════════════════════════════════════════════
 // Desativação informada no painel da Frota: o rádio-operador, a chefia ou a
 // enfermagem avisa que a viatura saiu de operação (mecânica, falta de
-// condutor…). Até alguém reativar, ela conta como desativada: sai dos
-// avisos (parada, sinal, bateria) e do ranking, e aparece no resumo.
+// condutor…). Até alguém reativar — ou até a virada do plantão (07h/19h) de
+// quem informou —, ela conta como desativada: sai dos avisos (parada, sinal,
+// bateria) e do ranking, e aparece no resumo. Cada chefia responde pelo
+// próprio plantão: o que continuar fora, o plantão seguinte informa de novo.
 //
 // O Huddle do SAMU (repo hge-huddle) lê GET /frota/desativacoes pela rede
 // Docker do tabela e pré-preenche "viatura fora de operação". Por isso os
@@ -109,6 +111,21 @@ export function textoDesativacao(d: Desativacao, tipo: string | null): string {
         `⛔ ${quem} <b>desativada</b>${onde(d)} por ${escapeHtml(d.informadoPor)} (${POSTOS[d.posto]}): ` +
         `${escapeHtml(rotuloMotivos(d))}${obs}\n` +
         `Sem avisos dela até alguém reativar no painel da Frota.`
+    );
+}
+
+/** `reativadaPor` de quem a virada do plantão encerrou (ninguém clicou). */
+export const VIRADA = "virada do plantão";
+
+/**
+ * Um aviso só para todas as que a virada encerrou: o plantão que entra é
+ * outra equipe e informa de novo o que continuar fora.
+ */
+export function textoVirada(ds: Pick<Desativacao, "codigo" | "motivos" | "observacao">[]): string {
+    return (
+        `🔄 <b>Virada do plantão</b>: desativações informadas no plantão anterior foram encerradas.\n` +
+        ds.map((d) => `• <b>${escapeHtml(d.codigo)}</b> — ${escapeHtml(rotuloMotivos(d))}`).join("\n") +
+        `\nContinua fora? Informe de novo (Frota, Huddle ou Quadro). Os avisos delas voltam a valer.`
     );
 }
 

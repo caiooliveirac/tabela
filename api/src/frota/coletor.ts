@@ -32,7 +32,7 @@ import { ABERTA_MAX_MS, acolhimentosLigado, buscarAcolhimentos, cruzar, janela, 
 import { buscarDispositivos, buscarPosicoes, type DispositivoSamu, type PosicaoSamu } from "./samumais.js";
 import { leiturasParaPermanencia, montarPainel, resolverPosicoes, type PainelFrota } from "./painel.js";
 import {
-    ErroDesativacao, MOTIVOS, ORIGENS, POSTOS, textoDesativacao,
+    ErroDesativacao, MOTIVOS, ORIGENS, POSTOS, VIRADA, textoDesativacao, textoVirada,
     type Desativacao, type Motivo, type Origem, type Posto, esquemaDesativar,
 } from "./desativacoes.js";
 import type { z } from "zod";
@@ -334,6 +334,7 @@ async function ciclo(): Promise<void> {
         }
 
         const agora = new Date();
+        await vencerDesativacoes(agora).catch((e) => registrarErro("virada das desativações", e));
         const resolvidas = resolverPosicoes(posicoes, dispositivos, CATALOGO);
         // Desativada no painel com parada aberta: a parada fecha agora (e o aviso dela).
         const desativadas = desativadasAgora();
@@ -831,6 +832,24 @@ function desativacaoDe(r: Linha): Desativacao {
 async function avisarDesativacao(d: Desativacao): Promise<void> {
     const tipo = CATALOGO.find((c) => c.codigo === d.codigo)?.tipo ?? null;
     await mandar(textoDesativacao(d, tipo)).catch((e) => registrarErro("aviso Telegram", e));
+}
+
+/** Encerra as desativações informadas em plantão que já virou (desativacoes.ts). */
+async function vencerDesativacoes(agora: Date): Promise<void> {
+    const plantao = plantaoDe(agora);
+    const velhas = [...desativacoes.values()].filter((d) => plantaoDe(new Date(d.desde)) !== plantao);
+    const encerradas: Desativacao[] = [];
+    for (const d of velhas) {
+        const [linha] = await consultar(sql`
+            UPDATE frota_desativacoes SET reativada_em = now(), reativada_por = ${VIRADA}
+            WHERE id = ${d.id} AND reativada_em IS NULL
+            RETURNING *`);
+        desativacoes.delete(d.codigo);
+        if (linha) encerradas.push(d);
+    }
+    if (!encerradas.length) return;
+    console.log(`[frota] virada do plantão encerrou: ${encerradas.map((d) => d.codigo).join(", ")}`);
+    await mandar(textoVirada(encerradas)).catch((e) => registrarErro("aviso Telegram", e));
 }
 
 export async function desativarViatura(dados: z.infer<typeof esquemaDesativar>): Promise<Desativacao> {

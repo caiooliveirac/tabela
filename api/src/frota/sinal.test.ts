@@ -253,6 +253,13 @@ test("desativação: textos do grupo ao desativar e ao reativar", async () => {
     assert.equal(motivoPainel({ ...DES, origem: "huddle" }), "Mecânica ou pneu · Ana (Rádio-operador(a)) no Huddle às 14:30");
 });
 
+test("desativação: a virada do plantão encerra num aviso só", async () => {
+    const { textoVirada } = await import("./desativacoes.js");
+    const txt = textoVirada([DES, { ...DES, codigo: "BR05", motivos: ["enfermeiro", "medico"] }]);
+    assert.match(txt, /Virada do plantão/);
+    assert.match(txt, /• <b>CB27<\/b> — Mecânica ou pneu\n• <b>BR05<\/b> — Enfermeiro\(a\), Médico\(a\)/);
+});
+
 test("desativação: some dos avisos — queda fecha como desativada, fora do ranking, lembrada no resumo", () => {
     const v = vt("CB27", 20, { situacao: "desativada", motivo: "Mecânica ou pneu · Ana", desativacao: DES });
     const abertas = new Map<string, Queda>([["CB27", { chave: "CB27", desde: antes(20), abertaEm: antes(10), avisar: true, silenciada: null }]]);
