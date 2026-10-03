@@ -2,9 +2,9 @@
 // Frota sozinha — /tabela/frota (endereço público: mnrs.com.br/frota).
 //
 // A mesma FrotaView da aba do Painel de Vagas, sem o resto do painel: é o
-// que o rádio-operador abre pelo card "Frota" do portal. O porteiro só deixa
-// a conta dele ler esta página e /tabela/api/frota (mnrs-portal,
-// porteiro/lib.mjs, radioPermite).
+// que a Central (rádio-operador, TARM, enfermeiro) abre pelo card do portal. O porteiro só deixa
+// essas contas alcançarem esta página e /tabela/api/frota (mnrs-portal,
+// porteiro/lib.mjs, centralPermite).
 // ═══════════════════════════════════════════════════════════════
 import { useEffect, useState } from "react";
 import { useFrota, useAlertasFrota } from "../../hooks/useFrota";
