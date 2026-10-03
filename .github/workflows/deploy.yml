@@ -14,9 +14,9 @@ jobs:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1
         with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
+          host: ${{ secrets.MAGALU_HOST || secrets.EC2_HOST }}
+          username: ${{ secrets.MAGALU_USER || secrets.EC2_USER }}
+          key: ${{ secrets.MAGALU_SSH_KEY || secrets.EC2_SSH_KEY }}
           script: |
             cd ~/tabela || git clone git@github.com:caiooliveirac/tabela.git ~/tabela && cd ~/tabela
 
