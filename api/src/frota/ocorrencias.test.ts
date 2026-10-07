@@ -8,6 +8,7 @@ const t = (hhmm: string) => new Date(`2026-10-07T${hhmm}:00-03:00`);
 const ocorrencia = {
     protocolo: "202610070787", medico: "FULANA DE TAL", status: "CHEGADA AO HOSPITAL",
     statusEm: "07/10/2026 15:59:58", abertura: "07/10/2026 15:39:35", risco: "Vermelho", regulacaoSecundaria: false,
+    endereco: "Rua Tal, 10", bairro: "Brotas", queixa: "DOR TORÁCICA", hma: "HISTÓRIA CLÍNICA",
 };
 const envio = {
     equipes: [
@@ -43,6 +44,8 @@ test("aviso dos 40 min diz se está em ocorrência e com qual MR", () => {
     const d = { nome: "SM01", tipo: "USA", hospitalNome: "HGE", entrada: t("15:59"), ultimaVez: t("16:40") };
     const m = porCodigo(envio, CATALOGO);
     const com = textoAviso({ ...d, ocorrencia: m.get("SM01") }, { tipo: "parada", minutos: 41 });
+    // Queixa, endereço e HMA ficam no painel; no grupo, não.
+    assert.doesNotMatch(com, /DOR TORÁCICA|Rua Tal|Brotas|HISTÓRIA/);
     assert.match(com, /🚑 <b>em ocorrência<\/b> 202610070787 · MR <b>Fulana De Tal<\/b>\nchegada ao hospital às 15:59\n<a /);
     const livre = textoAviso({ ...d, ocorrencia: m.get("CZ53") }, { tipo: "parada", minutos: 41 });
     assert.match(livre, /🟢 <b>sem ocorrência<\/b> no mapa de equipes\n<a /);

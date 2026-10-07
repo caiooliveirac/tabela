@@ -5,7 +5,7 @@
 //
 // O magalu não alcança o mapa. Um coletor dentro da rede
 // (scripts/mapa-equipes-coletor.mjs) lê o JSON, corta o dado do paciente na
-// origem e manda só isto a POST /frota/ocorrencias (header x-mapa-token =
+// origem (nome, idade, sexo, telefone, solicitante) e manda só isto a POST /frota/ocorrencias (header x-mapa-token =
 // MAPA_EQUIPES_TOKEN). Fica em memória: nada vai ao banco.
 // ═══════════════════════════════════════════════════════════════
 import { z } from "zod";
@@ -33,6 +33,10 @@ export const esquemaOcorrencias = z.object({
                         abertura: texto(30),
                         risco: texto(30),
                         regulacaoSecundaria: z.boolean().nullish(),
+                        endereco: texto(300),
+                        bairro: texto(100),
+                        queixa: texto(500),
+                        hma: texto(6000),
                     })
                     .nullable(),
             }),
@@ -50,6 +54,11 @@ export interface Ocorrencia {
     abertura: string | null;
     risco: string | null;
     regulacaoSecundaria: boolean;
+    endereco: string | null;
+    bairro: string | null;
+    queixa: string | null;
+    /** História clínica, texto livre. Só no painel (atrás do login), nunca no Telegram. */
+    hma: string | null;
 }
 
 /** Equipe no mapa: em ocorrência, ou livre (`ocorrencia: null`). */
@@ -85,6 +94,10 @@ export function porCodigo(
                 abertura: instanteMapa(o.abertura),
                 risco: o.risco || null,
                 regulacaoSecundaria: Boolean(o.regulacaoSecundaria),
+                endereco: o.endereco || null,
+                bairro: o.bairro || null,
+                queixa: o.queixa || null,
+                hma: o.hma || null,
             },
         });
     });

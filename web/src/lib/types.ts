@@ -420,6 +420,10 @@ export interface ViaturaFrota {
       statusEm: string | null;
       risco: string | null;
       regulacaoSecundaria: boolean;
+      endereco: string | null;
+      bairro: string | null;
+      queixa: string | null;
+      hma: string | null;
     } | null;
   } | null;
   noHospital: {

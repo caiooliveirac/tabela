@@ -4,8 +4,9 @@
 // O mapa (dashmapa) só responde dentro da rede da SMS/VPN; o servidor da
 // Tabela não o alcança. Este script roda numa máquina de dentro da rede, lê o
 // JSON a cada 30 s e manda a POST /tabela/api/frota/ocorrencias SÓ o que o
-// aviso precisa: equipe, protocolo, médico regulador, status e horários.
-// Nome, idade, telefone, endereço, queixa e HMA do paciente não saem daqui.
+// painel precisa: equipe, protocolo, médico regulador, status, horários,
+// endereço, bairro, queixa e HMA. Nome, idade, sexo e telefone do paciente e o
+// solicitante não saem daqui.
 //
 // Node 18+, sem dependências:
 //   MAPA_EQUIPES_TOKEN=... node scripts/mapa-equipes-coletor.mjs
@@ -37,6 +38,10 @@ async function ciclo() {
                 abertura: d.horario_abertura,
                 risco: d.classificacao_risco,
                 regulacaoSecundaria: d.regulacao_secundaria === "SIM",
+                endereco: [d.endereco, d.numero].filter(Boolean).join(", "),
+                bairro: d.bairro,
+                queixa: d.queixa,
+                hma: d.hma,
             },
         };
     });

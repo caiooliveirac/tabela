@@ -167,7 +167,9 @@ tabela de hospitais (coluna Ocorrência).
 - Ponte: `scripts/mapa-equipes-coletor.mjs`, numa máquina de dentro da rede,
   lê a cada 30 s e manda a `POST /tabela/api/frota/ocorrencias` (header
   `x-mapa-token` = `MAPA_EQUIPES_TOKEN`; fora do portão no nginx). **Corta na
-  origem** nome, idade, telefone, endereço, queixa e HMA do paciente.
+  origem** nome, idade, sexo e telefone do paciente e o solicitante. Endereço,
+  bairro, queixa e HMA vêm, mas só para o painel (atrás do login): no
+  Telegram, nunca.
 - Só em memória, nada no banco. Sem envio há 5 min (coletor parado, VPN
   caída) ou viatura fora do mapa: o aviso sai sem a linha — nunca "sem
   ocorrência" por falta de dado. `GET /frota/diagnostico` → `mapaEquipes`.

@@ -146,6 +146,18 @@ export default function TabelaHospitais({ painel, noMapa, onVer }: Props) {
                                 {v.ocorrencia.ocorrencia.statusEm && ` às ${hora(v.ocorrencia.ocorrencia.statusEm)}`}
                               </div>
                             )}
+                            {(v.ocorrencia.ocorrencia.queixa || v.ocorrencia.ocorrencia.bairro) && (
+                              <div className="text-[11px] text-slate-600 max-w-[280px]">
+                                {[v.ocorrencia.ocorrencia.queixa, v.ocorrencia.ocorrencia.bairro].filter(Boolean).join(" · ")}
+                              </div>
+                            )}
+                            {(v.ocorrencia.ocorrencia.hma || v.ocorrencia.ocorrencia.endereco) && (
+                              <details className="text-[11px] text-slate-600 max-w-[280px]" onClick={(e) => e.stopPropagation()}>
+                                <summary className="cursor-pointer text-slate-400">endereço e HMA</summary>
+                                {v.ocorrencia.ocorrencia.endereco && <div className="font-semibold">{v.ocorrencia.ocorrencia.endereco}</div>}
+                                {v.ocorrencia.ocorrencia.hma && <div className="whitespace-pre-wrap">{v.ocorrencia.ocorrencia.hma}</div>}
+                              </details>
+                            )}
                           </>
                         ) : (
                           <span className="font-bold" style={{ color: COR.alerta }}>sem ocorrência</span>
