@@ -5,6 +5,7 @@
 import { COORDENADAS_BASES, numeroNoLimite, type ViaturaCatalogo } from "./catalogo.js";
 import { motivoPainel, type Desativacao } from "./desativacoes.js";
 import type { HospitalFrota } from "./hospitais.js";
+import type { SituacaoOcorrencia } from "./ocorrencias.js";
 import type { DispositivoSamu, PosicaoSamu } from "./samumais.js";
 import {
     ALERTA_MIN, JANELA_CHEGADA_MIN, MAPA_MIN, RAIO_BUSCA_M, RAIO_M, RAIO_SAIDA_M, RECENTE_MIN,
@@ -41,6 +42,8 @@ export interface ViaturaFrota {
     velocidade: number | null;
     /** Desativada no painel (rádio, chefe, enfermagem): quem, por quê, desde quando. */
     desativacao: Desativacao | null;
+    /** Pelo mapa de equipes: em ocorrência (com o MR) ou livre. `null` = não sei. */
+    ocorrencia: SituacaoOcorrencia | null;
     noHospital: {
         /** Id da parada (frota_permanencias) — casa com a linha do tempo. */
         id: number | null;
@@ -141,6 +144,7 @@ export function montarPainel(entrada: {
     abertas: ReadonlyMap<string, Permanencia>;
     /** Desativações informadas no painel, por código (já somadas em `desativadas`). */
     desativacoes?: ReadonlyMap<string, Desativacao>;
+    ocorrenciaDe?: (chave: string) => SituacaoOcorrencia | null;
     agora: Date;
 }): PainelFrota {
     const { catalogo, desativadas, hospitais, resolvidas, abertas, agora } = entrada;
@@ -174,6 +178,7 @@ export function montarPainel(entrada: {
             situacao: s.situacao,
             motivo: des ? motivoPainel(des) : s.motivo,
             desativacao: des,
+            ocorrencia: entrada.ocorrenciaDe?.(chave) ?? null,
             posicao:
                 r && r.posicao.lat !== null && r.posicao.lng !== null && idadeMin !== null
                     ? { lat: r.posicao.lat, lng: r.posicao.lng, em: r.em.toISOString(), idadeMin }

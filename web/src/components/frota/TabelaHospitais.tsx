@@ -46,6 +46,8 @@ export default function TabelaHospitais({ painel, noMapa, onVer }: Props) {
   );
   const cruzando = Boolean(historico?.acolhimentos.ligado && !historico.acolhimentos.erro);
   const L = painel.limites;
+  // Só com o coletor do mapa de equipes mandando (api/src/frota/ocorrencias.ts).
+  const comOcorrencia = noMapa.some((v) => v.ocorrencia);
 
   const linhas = useMemo(
     () =>
@@ -83,6 +85,7 @@ export default function TabelaHospitais({ painel, noMapa, onVer }: Props) {
                 <th className="py-2 pr-3 font-extrabold">Entrou</th>
                 <th className="py-2 pr-3 font-extrabold">Tempo</th>
                 <th className="py-2 pr-3 font-extrabold">Situação</th>
+                {comOcorrencia && <th className="py-2 pr-3 font-extrabold">Ocorrência</th>}
                 {cruzando && <th className="py-2 pr-3 font-extrabold">Acolhimentos</th>}
                 <th className="py-2 font-extrabold">Posição</th>
               </tr>
@@ -125,6 +128,30 @@ export default function TabelaHospitais({ painel, noMapa, onVer }: Props) {
                     <td className="py-2 pr-3">
                       <Situacao v={v} alertaMin={L.alertaMin} />
                     </td>
+                    {comOcorrencia && (
+                      <td className="py-2 pr-3 text-[12px]">
+                        {!v.ocorrencia ? (
+                          <span className="text-slate-300">—</span>
+                        ) : v.ocorrencia.ocorrencia ? (
+                          <>
+                            <div className="font-bold">
+                              {v.ocorrencia.ocorrencia.protocolo ?? "em ocorrência"}
+                              {v.ocorrencia.ocorrencia.medico && (
+                                <span className="font-semibold capitalize"> · MR {v.ocorrencia.ocorrencia.medico.toLowerCase()}</span>
+                              )}
+                            </div>
+                            {v.ocorrencia.ocorrencia.status && (
+                              <div className="text-[11px] text-slate-500 lowercase">
+                                {v.ocorrencia.ocorrencia.status}
+                                {v.ocorrencia.ocorrencia.statusEm && ` às ${hora(v.ocorrencia.ocorrencia.statusEm)}`}
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <span className="font-bold" style={{ color: COR.alerta }}>sem ocorrência</span>
+                        )}
+                      </td>
+                    )}
                     {cruzando && (
                       <td className="py-2 pr-3 text-[12px]">
                         {h?.acolhimento ? (

@@ -154,6 +154,25 @@ quem (docs/login-unico.md, fase 2) — por isso nome + posto.
 - Tabela `frota_desativacoes`, criada no boot (coluna `origem` nula
   acrescentada no boot com `ADD COLUMN IF NOT EXISTS`).
 
+## Ocorrência e MR no aviso (`ocorrencias.ts`)
+
+A parada de 40 min diz se a viatura está **em ocorrência** (protocolo, médico
+regulador, status e hora — "chegada ao hospital às 15:59") ou **sem
+ocorrência** no mapa de equipes da regulação. O painel mostra o mesmo na
+tabela de hospitais (coluna Ocorrência).
+
+- Fonte: `GET http://172.23.130.87/dashmapa/mapa/refresh_maps_equipes` (sem
+  login, só na rede da SMS/VPN; o magalu não alcança). `dados: null` = livre.
+  O campo `medico` é o regulador (vem preenchido também em USB).
+- Ponte: `scripts/mapa-equipes-coletor.mjs`, numa máquina de dentro da rede,
+  lê a cada 30 s e manda a `POST /tabela/api/frota/ocorrencias` (header
+  `x-mapa-token` = `MAPA_EQUIPES_TOKEN`; fora do portão no nginx). **Corta na
+  origem** nome, idade, telefone, endereço, queixa e HMA do paciente.
+- Só em memória, nada no banco. Sem envio há 5 min (coletor parado, VPN
+  caída) ou viatura fora do mapa: o aviso sai sem a linha — nunca "sem
+  ocorrência" por falta de dado. `GET /frota/diagnostico` → `mapaEquipes`.
+- Nome da equipe ("CZ 53 (8h)") → código pela mesma `vincular` do SAMU+.
+
 ## Cruzamento com o Acolhimentos
 
 `acolhimentos.ts` lê `GET https://acolhimentos.mnrs.com.br/api/servico/acolhimentos`

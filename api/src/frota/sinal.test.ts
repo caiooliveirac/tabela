@@ -20,7 +20,7 @@ function vt(chave: string, silencio: number | null = 1, extra: Partial<ViaturaFr
         situacao: silencio !== null && silencio <= 60 ? "mapa" : "sem-sinal", motivo: null, foraDoCatalogo: false,
         posicao: silencio === null ? null : { lat: -12.9, lng: -38.4, em: antes(silencio).toISOString(), idadeMin: silencio },
         naBase: false, bateria: null, bateriaEm: null, bateriaAntes: null, sinal: null, conexao: null, evento: null,
-        velocidade: null, noHospital: null, desativacao: null,
+        velocidade: null, noHospital: null, desativacao: null, ocorrencia: null,
         ...extra,
     };
 }

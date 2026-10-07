@@ -411,6 +411,17 @@ export interface ViaturaFrota {
   velocidade: number | null;
   /** Desativada no painel (rádio, chefe, enfermagem). */
   desativacao?: DesativacaoFrota | null;
+  /** Pelo mapa de equipes: em ocorrência (com o MR) ou livre. null = sem informação. */
+  ocorrencia?: {
+    ocorrencia: {
+      protocolo: string | null;
+      medico: string | null;
+      status: string | null;
+      statusEm: string | null;
+      risco: string | null;
+      regulacaoSecundaria: boolean;
+    } | null;
+  } | null;
   noHospital: {
     id: number | null;
     hospitalId: string;

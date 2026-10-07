@@ -1,9 +1,12 @@
+import { timingSafeEqual } from "node:crypto";
 import { Router, type Response } from "express";
 import { z } from "zod";
 import {
     alertasRecentes, balancoPlantao, cobrancasPendentes, desativarViatura, diagnostico, linhaDoTempo, listarDesativacoes, painelAtual, reativarViatura,
 } from "./coletor.js";
+import { CATALOGO } from "./catalogo.js";
 import { ErroDesativacao, esquemaDesativar, esquemaReativar } from "./desativacoes.js";
+import { esquemaOcorrencias, receberOcorrencias } from "./ocorrencias.js";
 
 const router = Router();
 
@@ -71,6 +74,29 @@ router.post("/desativacoes/:id/reativar", async (req, res) => {
     } catch (e) {
         erroDesativacao(res, e);
     }
+});
+
+// Ocorrência de cada equipe, enviada pelo coletor do mapa de equipes
+// (scripts/mapa-equipes-coletor.mjs, de dentro da rede da SMS). Fora do portão
+// no nginx — o coletor não tem sessão —, por isso o token. Sem
+// MAPA_EQUIPES_TOKEN no ambiente: desligado.
+router.post("/ocorrencias", (req, res) => {
+    const esperado = Buffer.from(process.env.MAPA_EQUIPES_TOKEN || "");
+    const veio = Buffer.from(String(req.headers["x-mapa-token"] ?? ""));
+    if (!esperado.length) {
+        res.status(503).json({ error: "mapa de equipes desligado" });
+        return;
+    }
+    if (veio.length !== esperado.length || !timingSafeEqual(veio, esperado)) {
+        res.status(401).json({ error: "token inválido" });
+        return;
+    }
+    const envio = esquemaOcorrencias.safeParse(req.body);
+    if (!envio.success) {
+        res.status(400).json({ error: envio.error.errors.map((x) => x.message).join("; ") });
+        return;
+    }
+    res.json(receberOcorrencias(envio.data, CATALOGO));
 });
 
 // Paradas em hospital das últimas N horas (1–72, padrão 12) — linha do tempo.
