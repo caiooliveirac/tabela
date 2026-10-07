@@ -6,6 +6,7 @@
 // Desligar sem deploy: FROTA_AVISOS_TELEGRAM=0 no .env.
 // ═══════════════════════════════════════════════════════════════
 import { escapeHtml } from "../lib/telegram.js";
+import type { SituacaoOcorrencia } from "./ocorrencias.js";
 
 export interface DadosAviso {
     nome: string;
@@ -15,6 +16,8 @@ export interface DadosAviso {
     ultimaVez: Date;
     /** Quando o aviso saiu. O Telegram mostra essa hora no balão, mesmo depois de editado. */
     avisoEm?: Date | null;
+    /** Pelo mapa de equipes (ocorrencias.ts). Ausente ou null = não sei: o aviso sai sem a linha. */
+    ocorrencia?: SituacaoOcorrencia | null;
 }
 
 export type EstadoAviso =
@@ -34,6 +37,28 @@ const min = (de: Date, ate: Date) => Math.max(0, Math.floor((ate.getTime() - de.
 /** "na UPA", "na UE"; o resto (hospital, PA, Centro) é masculino. */
 const artigo = (nome: string) => (/^(UPA|UE)\b/.test(nome) ? "a" : "o");
 
+/** "BRUNA MICHELI ALVES" → "Bruna Micheli Alves". */
+const nomeProprio = (s: string) => s.toLowerCase().replace(/(^|\s)\p{L}/gu, (c) => c.toUpperCase());
+
+/**
+ * A viatura está em ocorrência, e com qual médico regulador (MR)? Parada sem
+ * ocorrência é outra conversa — o aviso diz qual das duas.
+ */
+export function linhaOcorrencia(s: SituacaoOcorrencia | null | undefined): string {
+    if (!s) return "";
+    const o = s.ocorrencia;
+    if (!o) return "\n🟢 <b>sem ocorrência</b> no mapa de equipes";
+    const status = o.status
+        ? `\n${escapeHtml(o.status.toLowerCase())}${o.statusEm ? ` às ${hhmm(new Date(o.statusEm))}` : ""}`
+        : "";
+    return (
+        `\n🚑 <b>em ocorrência</b>${o.protocolo ? ` ${escapeHtml(o.protocolo)}` : ""}` +
+        `${o.medico ? ` · MR <b>${escapeHtml(nomeProprio(o.medico))}</b>` : ""}` +
+        `${o.regulacaoSecundaria ? " · regulação secundária" : ""}` +
+        status
+    );
+}
+
 /**
  * Texto da mensagem. Com `agora`, a edição diz de quando é o aviso e quando
  * foi atualizado — o Telegram não marca edição de bot, e "saiu às 14:33"
@@ -50,7 +75,8 @@ export function textoAviso(d: DadosAviso, e: EstadoAviso, agora?: Date): string 
     if (e.tipo === "parada") {
         return (
             `⏱ ${quem} parada há <b>${e.minutos} min</b> n${a} ${onde}\n` +
-            `entrou ${hhmm(d.entrada)} · posição confirmada ${hhmm(d.ultimaVez)}\n` +
+            `entrou ${hhmm(d.entrada)} · posição confirmada ${hhmm(d.ultimaVez)}` +
+            `${linhaOcorrencia(d.ocorrencia)}\n` +
             `<a href="${PAINEL}">ver no painel</a>` +
             editado
         );

@@ -57,6 +57,9 @@ services:
       # Cobrança da denúncia (GET /frota/cobrancas, o Tom entrega no WhatsApp):
       # nome do médico da USA pelo Plantões (token = ESCALA_SSO_TOKEN do plantoes).
       PLANTOES_TOKEN: ${PLANTOES_TOKEN:-}
+      # Ocorrência e MR de cada equipe (POST /frota/ocorrencias, enviado pelo
+      # scripts/mapa-equipes-coletor.mjs de dentro da rede da SMS). Vazio = desligado.
+      MAPA_EQUIPES_TOKEN: ${MAPA_EQUIPES_TOKEN:-}
     networks:
       internal:
         aliases:

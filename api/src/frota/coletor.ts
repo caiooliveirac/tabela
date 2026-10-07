@@ -23,6 +23,7 @@ import {
 import { textoAviso, textoBalanco, textoCobranca, type DadosAviso } from "./aviso.js";
 import { editarChat, enviarChat, frotaChatId, reguladoresChatId } from "../lib/telegram.js";
 import { medicosPorBase } from "./plantoes.js";
+import { diagnosticoOcorrencias, ocorrenciaDe } from "./ocorrencias.js";
 import {
     avancarQuedas, bateriaBaixa, instaveisAgora, plantaoDe, ranking, resumoDevido,
     textoBateria, textoFimQueda, textoFrota, textoInstavel, textoQueda, textoResumo, textoSurto,
@@ -397,12 +398,13 @@ export function descreverChave(chave: string): { nome: string; tipo: string | nu
     return { nome, tipo: ehMoto(nome) ? "MOTO" : null, base: null };
 }
 
-function dadosAviso(p: Permanencia): DadosAviso {
+function dadosAviso(p: Permanencia, agora = new Date()): DadosAviso {
     const q = descreverChave(p.chave);
     const h = LOCAIS_FROTA.find((x) => x.id === p.hospitalId);
     return {
         nome: q.nome, tipo: q.tipo, hospitalNome: h?.nome ?? p.hospitalId,
         entrada: p.entrada, ultimaVez: p.ultimaVez, avisoEm: p.alertaEm,
+        ocorrencia: ocorrenciaDe(p.chave, agora),
     };
 }
 
@@ -429,7 +431,7 @@ async function avisar(fechadas: Fechamento[], agora: Date): Promise<void> {
     if (!AVISOS) return;
     for (const p of abertas.values()) {
         if (!p.alertaEm || p.id === undefined) continue;
-        const texto = textoAviso(dadosAviso(p), { tipo: "parada", minutos: duracaoMin(p, agora) }, agora);
+        const texto = textoAviso(dadosAviso(p, agora), { tipo: "parada", minutos: duracaoMin(p, agora) }, agora);
         if (!p.avisoMsgId) {
             const m = await mandar(texto);
             if (!m) continue;
@@ -944,6 +946,7 @@ export function diagnostico() {
         abertas: abertas.size,
         esperandoPulo: [...abertas.values()].filter((p) => p.fora).length,
         quedasAbertas: quedas.size,
+        mapaEquipes: diagnosticoOcorrencias(agora),
         aprendizado,
     };
 }
@@ -961,6 +964,7 @@ export function painelAtual(agora = new Date()): PainelFrota {
         resolvidas: resolverPosicoes(posicoes, dispositivos, CATALOGO),
         dispositivos,
         abertas,
+        ocorrenciaDe: (chave) => ocorrenciaDe(chave, agora),
         agora,
     });
 }
