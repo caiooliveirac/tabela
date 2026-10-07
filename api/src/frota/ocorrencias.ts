@@ -6,7 +6,8 @@
 // O magalu não alcança o mapa. Um coletor dentro da rede
 // (scripts/mapa-equipes-coletor.mjs) lê o JSON, corta o dado do paciente na
 // origem (nome, idade, sexo, telefone, solicitante) e manda só isto a POST /frota/ocorrencias (header x-mapa-token =
-// MAPA_EQUIPES_TOKEN). Fica em memória: nada vai ao banco.
+// MAPA_EQUIPES_TOKEN). O estado atual fica em memória; o histórico, em
+// frota_ocorrencias (coletor.ts, `registrarOcorrencias`) — para os relatórios.
 // ═══════════════════════════════════════════════════════════════
 import { z } from "zod";
 import type { ViaturaCatalogo } from "./catalogo.js";
@@ -109,6 +110,11 @@ let recebido: { em: Date; equipes: number; porCodigo: Map<string, SituacaoOcorre
 export function receberOcorrencias(envio: z.infer<typeof esquemaOcorrencias>, catalogo: readonly ViaturaCatalogo[], agora = new Date()) {
     recebido = { em: agora, equipes: envio.equipes.length, porCodigo: porCodigo(envio, catalogo) };
     return { equipes: recebido.equipes, noCatalogo: recebido.porCodigo.size };
+}
+
+/** O último envio, por código — o que `registrarOcorrencias` grava. */
+export function situacoesRecebidas(): ReadonlyMap<string, SituacaoOcorrencia> {
+    return recebido?.porCodigo ?? new Map();
 }
 
 /** `null` = não sei (coletor parado, ou a viatura não está no mapa). */

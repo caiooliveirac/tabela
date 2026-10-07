@@ -23,7 +23,9 @@ import {
 import { textoAviso, textoBalanco, textoCobranca, type DadosAviso } from "./aviso.js";
 import { editarChat, enviarChat, frotaChatId, reguladoresChatId } from "../lib/telegram.js";
 import { medicosPorBase } from "./plantoes.js";
-import { diagnosticoOcorrencias, ocorrenciaDe } from "./ocorrencias.js";
+import {
+    diagnosticoOcorrencias, ocorrenciaDe, receberOcorrencias, situacoesRecebidas, type esquemaOcorrencias,
+} from "./ocorrencias.js";
 import {
     avancarQuedas, bateriaBaixa, instaveisAgora, plantaoDe, ranking, resumoDevido,
     textoBateria, textoFimQueda, textoFrota, textoInstavel, textoQueda, textoResumo, textoSurto,
@@ -165,6 +167,44 @@ async function criarTabelas(): Promise<void> {
         ON frota_desativacoes (codigo) WHERE reativada_em IS NULL`);
     // Onde foi informada (frota | huddle | quadro). Nula = linha antiga = "frota".
     await db.execute(sql`ALTER TABLE frota_desativacoes ADD COLUMN IF NOT EXISTS origem varchar(10)`);
+    // Histórico do mapa de equipes (ocorrencias.ts), para os relatórios: uma
+    // linha por ocorrência de cada viatura e uma por status que ela passou,
+    // com o MR da hora. `ultima_vez` = última vez vista no mapa.
+    await db.execute(sql`
+        CREATE TABLE IF NOT EXISTS frota_ocorrencias (
+            id                   serial PRIMARY KEY,
+            chave                varchar(60)  NOT NULL,
+            protocolo            varchar(30)  NOT NULL,
+            medico               varchar(120),
+            risco                varchar(30),
+            regulacao_secundaria boolean      NOT NULL DEFAULT false,
+            abertura             timestamptz,
+            endereco             text,
+            bairro               varchar(100),
+            queixa               text,
+            hma                  text,
+            primeira_vez         timestamptz  NOT NULL,
+            ultima_vez           timestamptz  NOT NULL,
+            UNIQUE (chave, protocolo)
+        )`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS frota_ocorrencias_ultima_idx ON frota_ocorrencias (ultima_vez)`);
+    await db.execute(sql`
+        CREATE TABLE IF NOT EXISTS frota_ocorrencia_status (
+            ocorrencia_id integer      NOT NULL REFERENCES frota_ocorrencias (id) ON DELETE CASCADE,
+            status        varchar(60)  NOT NULL,
+            em            timestamptz  NOT NULL,
+            medico        varchar(120),
+            PRIMARY KEY (ocorrencia_id, status, em)
+        )`);
+    // A parada no hospital/UPA × o mapa de equipes: em quantas coletas (2 min
+    // cada) a viatura estava em ocorrência e em quantas estava livre — coleta
+    // sem dado do mapa não conta em nenhuma —, e a última ocorrência e MR.
+    await db.execute(sql`
+        ALTER TABLE frota_permanencias
+            ADD COLUMN IF NOT EXISTS oc_coletas integer NOT NULL DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS livre_coletas integer NOT NULL DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS oc_protocolo varchar(30),
+            ADD COLUMN IF NOT EXISTS oc_mr varchar(120)`);
     await db.execute(sql`
         CREATE TABLE IF NOT EXISTS frota_estado (
             chave         varchar(40) PRIMARY KEY,
@@ -379,6 +419,7 @@ async function ciclo(): Promise<void> {
         // Telegram fora do ar não é falha de coleta.
         await avisar(r.fechadas, agora).catch((e) => registrarErro("aviso", e));
         await gravarMedicos().catch((e) => registrarErro("médico da parada", e));
+        await gravarOcorrenciaDasParadas(agora).catch((e) => registrarErro("ocorrência da parada", e));
         await avisarSinal(agora).catch((e) => registrarErro("aviso de sinal", e));
     } catch (e) {
         erro = (e as Error).message;
@@ -620,6 +661,57 @@ async function gravarMedicos(): Promise<void> {
         await db.execute(sql`UPDATE frota_permanencias SET medico = ${medico} WHERE id = ${p.id} AND medico IS NULL`);
         medicoGravado.add(p.id!);
     }
+}
+
+/** Cada parada aberta × o mapa de equipes nesta coleta (colunas oc_* de frota_permanencias). */
+async function gravarOcorrenciaDasParadas(agora: Date): Promise<void> {
+    for (const p of abertas.values()) {
+        const s = p.id === undefined ? null : ocorrenciaDe(p.chave, agora);
+        if (!s) continue;
+        if (!s.ocorrencia) {
+            await db.execute(sql`UPDATE frota_permanencias SET livre_coletas = livre_coletas + 1 WHERE id = ${p.id}`);
+            continue;
+        }
+        await db.execute(sql`
+            UPDATE frota_permanencias
+            SET oc_coletas = oc_coletas + 1,
+                oc_protocolo = COALESCE(${s.ocorrencia.protocolo}, oc_protocolo),
+                oc_mr = COALESCE(${s.ocorrencia.medico}, oc_mr)
+            WHERE id = ${p.id}`);
+    }
+}
+
+/**
+ * Envio do coletor do mapa de equipes: vale na hora (memória) e fica no
+ * histórico. Banco fora do ar não derruba o envio — o aviso segue com a memória.
+ */
+export async function registrarOcorrencias(envio: z.infer<typeof esquemaOcorrencias>) {
+    const agora = new Date();
+    const resposta = receberOcorrencias(envio, CATALOGO, agora);
+    try {
+        for (const [chave, s] of situacoesRecebidas()) {
+            const o = s.ocorrencia;
+            if (!o?.protocolo) continue;
+            const [linha] = await consultar(sql`
+                INSERT INTO frota_ocorrencias
+                    (chave, protocolo, medico, risco, regulacao_secundaria, abertura, endereco, bairro, queixa, hma, primeira_vez, ultima_vez)
+                VALUES (${chave}, ${o.protocolo}, ${o.medico}, ${o.risco}, ${o.regulacaoSecundaria}, ${o.abertura},
+                        ${o.endereco}, ${o.bairro}, ${o.queixa}, ${o.hma}, ${agora.toISOString()}, ${agora.toISOString()})
+                ON CONFLICT (chave, protocolo) DO UPDATE
+                SET medico = EXCLUDED.medico, risco = EXCLUDED.risco, regulacao_secundaria = EXCLUDED.regulacao_secundaria,
+                    endereco = EXCLUDED.endereco, bairro = EXCLUDED.bairro, queixa = EXCLUDED.queixa, hma = EXCLUDED.hma,
+                    ultima_vez = EXCLUDED.ultima_vez
+                RETURNING id`);
+            if (!o.status || !o.statusEm) continue;
+            await db.execute(sql`
+                INSERT INTO frota_ocorrencia_status (ocorrencia_id, status, em, medico)
+                VALUES (${Number(linha.id)}, ${o.status}, ${o.statusEm}, ${o.medico})
+                ON CONFLICT DO NOTHING`);
+        }
+    } catch (e) {
+        await registrarErro("histórico de ocorrências", e);
+    }
+    return resposta;
 }
 
 export interface ParadaHistorico {

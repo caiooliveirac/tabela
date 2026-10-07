@@ -3,10 +3,10 @@ import { Router, type Response } from "express";
 import { z } from "zod";
 import {
     alertasRecentes, balancoPlantao, cobrancasPendentes, desativarViatura, diagnostico, linhaDoTempo, listarDesativacoes, painelAtual, reativarViatura,
+    registrarOcorrencias,
 } from "./coletor.js";
-import { CATALOGO } from "./catalogo.js";
 import { ErroDesativacao, esquemaDesativar, esquemaReativar } from "./desativacoes.js";
-import { esquemaOcorrencias, receberOcorrencias } from "./ocorrencias.js";
+import { esquemaOcorrencias } from "./ocorrencias.js";
 
 const router = Router();
 
@@ -80,7 +80,7 @@ router.post("/desativacoes/:id/reativar", async (req, res) => {
 // (scripts/mapa-equipes-coletor.mjs, de dentro da rede da SMS). Fora do portão
 // no nginx — o coletor não tem sessão —, por isso o token. Sem
 // MAPA_EQUIPES_TOKEN no ambiente: desligado.
-router.post("/ocorrencias", (req, res) => {
+router.post("/ocorrencias", async (req, res) => {
     const esperado = Buffer.from(process.env.MAPA_EQUIPES_TOKEN || "");
     const veio = Buffer.from(String(req.headers["x-mapa-token"] ?? ""));
     if (!esperado.length) {
@@ -96,7 +96,7 @@ router.post("/ocorrencias", (req, res) => {
         res.status(400).json({ error: envio.error.errors.map((x) => x.message).join("; ") });
         return;
     }
-    res.json(receberOcorrencias(envio.data, CATALOGO));
+    res.json(await registrarOcorrencias(envio.data));
 });
 
 // Paradas em hospital das últimas N horas (1–72, padrão 12) — linha do tempo.

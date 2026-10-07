@@ -170,9 +170,17 @@ tabela de hospitais (coluna Ocorrência).
   origem** nome, idade, sexo e telefone do paciente e o solicitante. Endereço,
   bairro, queixa e HMA vêm, mas só para o painel (atrás do login): no
   Telegram, nunca.
-- Só em memória, nada no banco. Sem envio há 5 min (coletor parado, VPN
-  caída) ou viatura fora do mapa: o aviso sai sem a linha — nunca "sem
-  ocorrência" por falta de dado. `GET /frota/diagnostico` → `mapaEquipes`.
+- Sem envio há 5 min (coletor parado, VPN caída) ou viatura fora do mapa: o
+  aviso sai sem a linha — nunca "sem ocorrência" por falta de dado — e todo o
+  resto (parada, Acolhimentos, cobrança, balanço) segue igual.
+  `GET /frota/diagnostico` → `mapaEquipes`.
+- **Histórico para relatórios** (`registrarOcorrencias`, tabelas criadas no
+  boot): `frota_ocorrencias` (uma linha por viatura × protocolo: MR, risco,
+  abertura, endereço, bairro, queixa, HMA, primeira e última vez no mapa) e
+  `frota_ocorrencia_status` (cada status com a hora e o MR da hora). Em
+  `frota_permanencias`, por parada: `oc_coletas` / `livre_coletas` (coletas
+  de 2 min em ocorrência / livre; sem dado do mapa não conta), `oc_protocolo`
+  e `oc_mr` (os últimos vistos na parada).
 - Nome da equipe ("CZ 53 (8h)") → código pela mesma `vincular` do SAMU+.
 
 ## Cruzamento com o Acolhimentos
