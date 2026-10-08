@@ -41,13 +41,15 @@ export const POSTOS = {
 export type Posto = keyof typeof POSTOS;
 
 /**
- * Onde foi informada: aqui, no Huddle ou no Quadro Informativo
- * (quadro.mnrs.com.br). Os três escrevem e leem esta mesma lista.
+ * Onde foi informada: aqui, no Huddle, no Quadro Informativo
+ * (quadro.mnrs.com.br) ou no Relatório da chefia (relatorio.mnrs.com.br, a
+ * chefia marca a unidade como desativada). Todos escrevem nesta mesma lista.
  */
 export const ORIGENS = {
     frota: "painel da Frota",
     huddle: "Huddle",
     quadro: "Quadro Informativo",
+    relatorio: "Relatório da chefia",
 } as const;
 export type Origem = keyof typeof ORIGENS;
 

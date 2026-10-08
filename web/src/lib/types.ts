@@ -366,6 +366,7 @@ export const ORIGENS_FROTA = {
   frota: "painel da Frota",
   huddle: "Huddle",
   quadro: "Quadro Informativo",
+  relatorio: "Relatório da chefia",
 } as const;
 export type OrigemFrota = keyof typeof ORIGENS_FROTA;
 

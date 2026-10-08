@@ -237,6 +237,7 @@ test("desativação: esquema exige motivo, nome e posto; \"Outro\" pede observa�
     assert.equal(esquemaDesativar.parse(ok).origem, "frota");
     assert.equal(esquemaDesativar.parse({ ...ok, origem: "quadro" }).origem, "quadro");
     assert.equal(esquemaDesativar.parse({ ...ok, origem: "huddle" }).origem, "huddle");
+    assert.equal(esquemaDesativar.parse({ ...ok, origem: "relatorio" }).origem, "relatorio");
     assert.ok(!esquemaDesativar.safeParse({ ...ok, origem: "telegram" }).success);
 });
 

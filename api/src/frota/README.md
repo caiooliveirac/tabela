@@ -146,7 +146,9 @@ quem (docs/login-unico.md, fase 2) — por isso nome + posto.
   "fora de operação" preenchido. `POST /desativacoes` e
   `POST /desativacoes/:id/reativar` (atrás do login único).
 - O **Quadro Informativo** (quadro.mnrs.com.br) também lê e posta nas mesmas
-  rotas. `origem` (`frota` | `huddle` | `quadro`, opcional no POST, padrão
+  rotas, e o **Relatório da chefia** (repo `relatorio`) posta quando a chefia
+  desativa ou reativa uma unidade do turno vigente. `origem` (`frota` |
+  `huddle` | `quadro` | `relatorio`, opcional no POST, padrão
   `frota`; linha antiga sem a coluna sai como `frota`) diz onde foi informada:
   o painel mostra "informado no Quadro Informativo por Fulano" e o grupo
   "desativada no Quadro Informativo por…". O GET devolve também `origens`
