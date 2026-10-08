@@ -124,7 +124,7 @@ export function textoCobranca(
     return (
         `🚨 *${d.nome}* presa n${artigo(d.hospitalNome)} *${d.hospitalNome}* há *${min(d.entrada, agora)} min* ` +
         `(chegou ${hhmm(d.entrada)}), sem registro no Acolhimentos.\n\n` +
-        `${chamada(medico, d.nome)}, por favor abra o aplicativo e registre a retenção da maca — ` +
+        `${chamada(medico, d.nome)}, por favor abra o aplicativo e registre a retenção da equipe — ` +
         `é assim que a denúncia chega a quem pode resolver.\n${ACOLHIMENTOS_APP}`
     );
 }
