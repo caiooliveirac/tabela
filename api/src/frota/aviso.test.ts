@@ -11,7 +11,7 @@ test("cobrança chama o médico pelo nome, com link do Acolhimentos (formataçã
     assert.match(s, /Dr\(a\)\. \*Fulano\*, por favor abra o aplicativo/);
     assert.match(s, /https:\/\/acolhimentos\.mnrs\.com\.br\//);
     assert.doesNotMatch(s, /<b>/);
-    assert.match(s, /registre a retenção da equipe/);
+    assert.match(s, /registre a demora para acolher o paciente/);
     assert.doesNotMatch(s, /maca/i);
 });
 
