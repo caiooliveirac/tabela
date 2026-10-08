@@ -21,10 +21,10 @@ import {
     type Evidencia, type Fechamento, type Permanencia,
 } from "./regras.js";
 import { textoAviso, textoBalanco, textoCobranca, type DadosAviso } from "./aviso.js";
-import { editarChat, enviarChat, frotaChatId, reguladoresChatId } from "../lib/telegram.js";
+import { editarChat, enviarChat, frotaChatId, notifyAdmin, reguladoresChatId } from "../lib/telegram.js";
 import { medicosPorBase } from "./plantoes.js";
 import {
-    diagnosticoOcorrencias, ocorrenciaDe, receberOcorrencias, situacoesRecebidas, type esquemaOcorrencias,
+    diagnosticoOcorrencias, ocorrenciaDe, receberOcorrencias, situacoesRecebidas, vigiarMapa, type esquemaOcorrencias,
 } from "./ocorrencias.js";
 import {
     avancarQuedas, bateriaBaixa, instaveisAgora, plantaoDe, ranking, resumoDevido,
@@ -421,6 +421,9 @@ async function ciclo(): Promise<void> {
         await gravarMedicos().catch((e) => registrarErro("médico da parada", e));
         await gravarOcorrenciaDasParadas(agora).catch((e) => registrarErro("ocorrência da parada", e));
         await avisarSinal(agora).catch((e) => registrarErro("aviso de sinal", e));
+        // Ponte do mapa de equipes muda (ou de volta): só o admin, no privado.
+        const mapa = vigiarMapa(agora);
+        if (mapa && AVISOS) await notifyAdmin(mapa).catch((e) => registrarErro("aviso do mapa de equipes", e));
     } catch (e) {
         erro = (e as Error).message;
         await registrarErro("coleta", e);

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { CATALOGO } from "./catalogo.js";
-import { instanteMapa, ocorrenciaDe, porCodigo, receberOcorrencias } from "./ocorrencias.js";
+import { instanteMapa, ocorrenciaDe, porCodigo, receberOcorrencias, vigiarMapa } from "./ocorrencias.js";
 import { linhaOcorrencia, textoAviso } from "./aviso.js";
 
 const t = (hhmm: string) => new Date(`2026-10-07T${hhmm}:00-03:00`);
@@ -52,4 +52,14 @@ test("aviso dos 40 min diz se está em ocorrência e com qual MR", () => {
     // Sem informação, o aviso é o de sempre.
     assert.equal(linhaOcorrencia(null), "");
     assert.doesNotMatch(textoAviso(d, { tipo: "parada", minutos: 41 }), /ocorrência/);
+});
+
+test("ponte muda há 10 min avisa o admin uma vez; na volta, outra", () => {
+    receberOcorrencias(envio, CATALOGO, t("17:00"));
+    assert.equal(vigiarMapa(t("17:08")), null);
+    assert.match(vigiarMapa(t("17:10"))!, /sem dados<\/b> desde 17:00/);
+    assert.equal(vigiarMapa(t("17:30")), null);
+    receberOcorrencias(envio, CATALOGO, t("17:45"));
+    assert.match(vigiarMapa(t("17:46"))!, /voltou<\/b> às 17:45 — 45 min sem dados/);
+    assert.equal(vigiarMapa(t("17:48")), null);
 });

@@ -174,6 +174,10 @@ tabela de hospitais (coluna Ocorrência).
   aviso sai sem a linha — nunca "sem ocorrência" por falta de dado — e todo o
   resto (parada, Acolhimentos, cobrança, balanço) segue igual.
   `GET /frota/diagnostico` → `mapaEquipes`.
+- Ponte muda há 10 min: o admin recebe no privado ("sem dados desde…"), e
+  de novo na volta (`vigiarMapa`). No Mac, com `MAPA_EQUIPES_VPN` = nome do
+  serviço de VPN do macOS, o coletor derruba e sobe a VPN depois de 3 min
+  sem alcançar o mapa (no máximo a cada 5 min).
 - **Histórico para relatórios** (`registrarOcorrencias`, tabelas criadas no
   boot): `frota_ocorrencias` (uma linha por viatura × protocolo: MR, risco,
   abertura, endereço, bairro, queixa, HMA, primeira e última vez no mapa) e

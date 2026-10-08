@@ -11,11 +11,19 @@
 // Node 18+, sem dependências:
 //   MAPA_EQUIPES_TOKEN=... node scripts/mapa-equipes-coletor.mjs
 // O token é o MAPA_EQUIPES_TOKEN do .env da Tabela no servidor.
+//
+// Só no macOS, por VPN: MAPA_EQUIPES_VPN="nome do serviço de VPN" faz o script
+// derrubar e subir a VPN quando o mapa fica 3 min sem responder (a VPN às
+// vezes aparece conectada e não passa tráfego). A senha tem de estar salva.
+import { execFileSync } from "node:child_process";
 
 const ORIGEM = process.env.MAPA_EQUIPES_URL || "http://172.23.130.87/dashmapa/mapa/refresh_maps_equipes";
 const DESTINO = process.env.TABELA_OCORRENCIAS_URL || "https://mnrs.com.br/tabela/api/frota/ocorrencias";
 const TOKEN = process.env.MAPA_EQUIPES_TOKEN || "";
 const INTERVALO_MS = 30_000;
+const VPN = process.platform === "darwin" ? process.env.MAPA_EQUIPES_VPN || "" : "";
+const VPN_FALHA_MS = 3 * 60_000;
+const VPN_ESPERA_MS = 5 * 60_000;
 
 if (!TOKEN) {
     console.error("MAPA_EQUIPES_TOKEN não definido");
@@ -24,7 +32,9 @@ if (!TOKEN) {
 
 async function ciclo() {
     // A VPN leva até 10 s só para conectar.
-    const res = await fetch(ORIGEM, { signal: AbortSignal.timeout(25_000) });
+    const res = await fetch(ORIGEM, { signal: AbortSignal.timeout(25_000) }).catch((e) => {
+        throw new Error(`mapa: ${e.message}`);
+    });
     if (!res.ok) throw new Error(`mapa: HTTP ${res.status}`);
     const equipes = (await res.json()).map((e) => {
         const d = e.dados;
@@ -57,12 +67,28 @@ async function ciclo() {
 
 // Uma linha quando muda de estado (ok ↔ erro), não uma a cada 30 s.
 let ultimo = "";
+let mapaFalhaDesde = 0;
+let vpnTentadaEm = 0;
 for (;;) {
     let estado;
     try {
         estado = `ok: ${await ciclo()} equipes`;
+        mapaFalhaDesde = 0;
     } catch (e) {
         estado = `erro: ${e.message}`;
+        // Só falha do mapa mexe na VPN; servidor fora do ar não é culpa dela.
+        if (e.message.startsWith("mapa:")) mapaFalhaDesde ||= Date.now();
+        if (VPN && mapaFalhaDesde && Date.now() - mapaFalhaDesde >= VPN_FALHA_MS && Date.now() - vpnTentadaEm >= VPN_ESPERA_MS) {
+            vpnTentadaEm = Date.now();
+            console.log(new Date().toISOString(), `reconectando a VPN "${VPN}"`);
+            try {
+                execFileSync("scutil", ["--nc", "stop", VPN], { timeout: 15_000 });
+                await new Promise((r) => setTimeout(r, 3_000));
+                execFileSync("scutil", ["--nc", "start", VPN], { timeout: 15_000 });
+            } catch (erro) {
+                console.log(new Date().toISOString(), `VPN: ${erro.message}`);
+            }
+        }
     }
     if (estado !== ultimo) console.log(new Date().toISOString(), estado);
     ultimo = estado;

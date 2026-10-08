@@ -11,6 +11,7 @@
 // ═══════════════════════════════════════════════════════════════
 import { z } from "zod";
 import type { ViaturaCatalogo } from "./catalogo.js";
+import { hhmm } from "./aviso.js";
 import { vincular } from "./regras.js";
 
 /** Sem envio do coletor há mais que isto, ninguém afirma nada sobre ocorrência. */
@@ -121,6 +122,29 @@ export function situacoesRecebidas(): ReadonlyMap<string, SituacaoOcorrencia> {
 export function ocorrenciaDe(chave: string, agora: Date): SituacaoOcorrencia | null {
     if (!recebido || agora.getTime() - recebido.em.getTime() > OCORRENCIA_VALE_MIN * 60_000) return null;
     return recebido.porCodigo.get(chave) ?? null;
+}
+
+/** Sem envio há tanto, o admin é avisado no privado (a VPN da ponte caiu). */
+export const MAPA_MUDO_MIN = 10;
+let mudoDesde: Date | null = null;
+
+/**
+ * Texto a mandar ao admin: uma vez quando o coletor fica mudo, uma na volta.
+ * Nunca recebeu desde o boot: nada — deploy com a ponte parada não avisa.
+ */
+export function vigiarMapa(agora: Date): string | null {
+    if (!recebido) return null;
+    const mudo = agora.getTime() - recebido.em.getTime() >= MAPA_MUDO_MIN * 60_000;
+    if (mudo && !mudoDesde) {
+        mudoDesde = recebido.em;
+        return `🔌 <b>Mapa de equipes sem dados</b> desde ${hhmm(mudoDesde)} — a ponte parou (VPN?). Os avisos seguem sem a linha de ocorrência.`;
+    }
+    if (!mudo && mudoDesde) {
+        const min = Math.floor((recebido.em.getTime() - mudoDesde.getTime()) / 60_000);
+        mudoDesde = null;
+        return `✅ <b>Mapa de equipes voltou</b> às ${hhmm(recebido.em)} — ${min} min sem dados.`;
+    }
+    return null;
 }
 
 export function diagnosticoOcorrencias(agora = Date.now()) {
