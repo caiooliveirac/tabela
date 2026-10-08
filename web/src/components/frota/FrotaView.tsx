@@ -214,7 +214,6 @@ export default function FrotaView({ painel, carregando, erro, foco, focar, opera
         onVer={(v) => {
           if (!v.posicao) return;
           focar({ lat: v.posicao.lat, lng: v.posicao.lng, zoom: 17 });
-          document.getElementById("frota-mapa")?.scrollIntoView({ behavior: "smooth", block: "center" });
         }}
       />
 
@@ -224,7 +223,6 @@ export default function FrotaView({ painel, carregando, erro, foco, focar, opera
           const h = painel.hospitais.find((x) => x.id === id);
           if (!h) return;
           focar({ lat: h.lat, lng: h.lng, zoom: 17 });
-          document.getElementById("frota-mapa")?.scrollIntoView({ behavior: "smooth", block: "center" });
         }}
       />
 

@@ -76,8 +76,12 @@ export default function MapaFrota({ mapsKey, mapId, painel, noMapa, foco, alto, 
   useEffect(() => {
     const m = mapa.current;
     if (!pronto || !m || !foco) return;
-    m.panTo({ lat: foco.lat, lng: foco.lng });
-    m.setZoom(foco.zoom);
+    // Um único movimento de câmera. panTo + setZoom separados não funcionam:
+    // o setZoom interrompe a animação do panTo no meio do caminho, e no zoom
+    // 12 a restriction ainda empurra o centro antes do zoom — o mapa parava
+    // longe da viatura.
+    m.moveCamera({ center: { lat: foco.lat, lng: foco.lng }, zoom: foco.zoom });
+    div.current?.scrollIntoView({ behavior: "smooth", block: "center" });
   }, [pronto, foco]);
 
   return (
