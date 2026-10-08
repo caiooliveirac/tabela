@@ -22,7 +22,7 @@ import {
 } from "./regras.js";
 import { textoAviso, textoBalanco, textoCobranca, type DadosAviso } from "./aviso.js";
 import { editarChat, enviarChat, frotaChatId, notifyAdmin, reguladoresChatId } from "../lib/telegram.js";
-import { medicosPorBase } from "./plantoes.js";
+import { medicosPorBase, mesaAgora } from "./plantoes.js";
 import {
     diagnosticoOcorrencias, ocorrenciaDe, receberOcorrencias, situacoesRecebidas, vigiarMapa, type esquemaOcorrencias,
 } from "./ocorrencias.js";
@@ -35,8 +35,8 @@ import { ABERTA_MAX_MS, acolhimentosLigado, buscarAcolhimentos, cruzar, janela, 
 import { buscarDispositivos, buscarPosicoes, type DispositivoSamu, type PosicaoSamu } from "./samumais.js";
 import { leiturasParaPermanencia, montarPainel, resolverPosicoes, type PainelFrota } from "./painel.js";
 import {
-    ErroDesativacao, MOTIVOS, ORIGENS, POSTOS, VIRADA, textoDesativacao, textoVirada,
-    type Desativacao, type Motivo, type Origem, type Posto, esquemaDesativar,
+    ErroDesativacao, MOTIVOS, ORIGENS, POSTOS, VIRADA, textoDesativacao, textoMotivo, textoVirada,
+    type Desativacao, type Motivo, type Origem, type Posto, esquemaDesativar, esquemaMotivo,
 } from "./desativacoes.js";
 import type { z } from "zod";
 
@@ -376,6 +376,7 @@ async function ciclo(): Promise<void> {
 
         const agora = new Date();
         await vencerDesativacoes(agora).catch((e) => registrarErro("virada das desativações", e));
+        await espelharMesa(agora).catch((e) => registrarErro("desativações da Mesa", e));
         const resolvidas = resolverPosicoes(posicoes, dispositivos, CATALOGO);
         // Desativada no painel com parada aberta: a parada fecha agora (e o aviso dela).
         const desativadas = desativadasAgora();
@@ -949,6 +950,33 @@ async function vencerDesativacoes(agora: Date): Promise<void> {
     await mandar(textoVirada(encerradas)).catch((e) => registrarErro("aviso Telegram", e));
 }
 
+/** `reativadaPor` de quem a Mesa reativou (a base voltou a ter médico ou a chefia reativou lá). */
+const MESA = "Mesa operacional";
+
+/**
+ * Base que a chefia desativou na Mesa operacional (plantoes) vale aqui: vira
+ * desativação de origem "mesa", sem motivo (a Mesa não pede), e é reativada
+ * quando a Mesa reativa. Reativada à mão aqui com a Mesa ainda desativada: não
+ * volta neste plantão.
+ */
+async function espelharMesa(agora: Date): Promise<void> {
+    const mesa = await mesaAgora();
+    // Leitura do plantão anterior (memória de 5 min): a virada já encerrou o que era dela.
+    if (!mesa || plantaoDe(new Date(mesa.em)) !== plantaoDe(agora)) return;
+    for (const d of [...desativacoes.values()]) {
+        if (d.origem === "mesa" && !mesa.desativadas.has(d.codigo)) await reativarViatura(d.id, MESA);
+    }
+    for (const codigo of mesa.desativadas) {
+        if (desativacoes.has(codigo) || DESATIVADAS_ATE_SEGUNDA_ORDEM.has(codigo) || !CATALOGO.some((c) => c.codigo === codigo)) continue;
+        const antes = await consultar(sql`
+            SELECT desde FROM frota_desativacoes
+            WHERE codigo = ${codigo} AND origem = 'mesa' AND reativada_por NOT IN (${MESA}, ${VIRADA})
+              AND desde > now() - interval '13 hours'`);
+        if (antes.some((r) => plantaoDe(new Date(r.desde as string)) === plantaoDe(agora))) continue;
+        await desativarViatura({ codigo, motivos: [], observacao: null, informadoPor: "chefia de plantão", posto: "chefe", origem: "mesa" });
+    }
+}
+
 export async function desativarViatura(dados: z.infer<typeof esquemaDesativar>): Promise<Desativacao> {
     if (!TOKEN) throw new ErroDesativacao(503, "Frota desligada neste servidor");
     const c = CATALOGO.find((v) => v.codigo === dados.codigo);
@@ -986,6 +1014,21 @@ export async function reativarViatura(id: number, reativadaPor: string): Promise
     desativacoes.delete(d.codigo);
     console.log(`[frota] ${d.codigo} reativada por ${reativadaPor}`);
     await avisarDesativacao(d);
+    return d;
+}
+
+/** Motivo de uma desativação aberta — a que chegou sem ele, ou para corrigir. */
+export async function informarMotivo(id: number, dados: z.infer<typeof esquemaMotivo>): Promise<Desativacao> {
+    if (!TOKEN) throw new ErroDesativacao(503, "Frota desligada neste servidor");
+    const [linha] = await consultar(sql`
+        UPDATE frota_desativacoes SET motivos = ${JSON.stringify(dados.motivos)}::jsonb, observacao = ${dados.observacao || null}
+        WHERE id = ${id} AND reativada_em IS NULL
+        RETURNING *`);
+    if (!linha) throw new ErroDesativacao(404, "Desativação não encontrada ou já reativada");
+    const d = desativacaoDe(linha);
+    desativacoes.set(d.codigo, d);
+    console.log(`[frota] ${d.codigo}: motivo informado por ${dados.informadoPor}: ${d.motivos.join(",")}`);
+    await mandar(textoMotivo(d, dados.informadoPor)).catch((e) => registrarErro("aviso Telegram", e));
     return d;
 }
 

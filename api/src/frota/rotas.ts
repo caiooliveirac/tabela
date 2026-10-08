@@ -2,10 +2,10 @@ import { timingSafeEqual } from "node:crypto";
 import { Router, type Response } from "express";
 import { z } from "zod";
 import {
-    alertasRecentes, balancoPlantao, cobrancasPendentes, desativarViatura, diagnostico, linhaDoTempo, listarDesativacoes, painelAtual, reativarViatura,
+    alertasRecentes, balancoPlantao, cobrancasPendentes, desativarViatura, diagnostico, informarMotivo, linhaDoTempo, listarDesativacoes, painelAtual, reativarViatura,
     registrarOcorrencias,
 } from "./coletor.js";
-import { ErroDesativacao, esquemaDesativar, esquemaReativar } from "./desativacoes.js";
+import { ErroDesativacao, esquemaDesativar, esquemaMotivo, esquemaReativar } from "./desativacoes.js";
 import { esquemaOcorrencias } from "./ocorrencias.js";
 
 const router = Router();
@@ -71,6 +71,20 @@ router.post("/desativacoes/:id/reativar", async (req, res) => {
     }
     try {
         res.json(await reativarViatura(id, esquemaReativar.parse(req.body).reativadaPor));
+    } catch (e) {
+        erroDesativacao(res, e);
+    }
+});
+
+// Motivo da desativação que chegou sem ele (Relatório da chefia, Mesa operacional).
+router.post("/desativacoes/:id/motivo", async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) {
+        res.status(400).json({ error: "ID inválido" });
+        return;
+    }
+    try {
+        res.json(await informarMotivo(id, esquemaMotivo.parse(req.body)));
     } catch (e) {
         erroDesativacao(res, e);
     }

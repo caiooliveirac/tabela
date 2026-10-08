@@ -239,6 +239,9 @@ export const api = {
   desativarViatura: (data: DesativarViaturaPayload) =>
     request<DesativacaoFrota>("/frota/desativacoes", { method: "POST", body: JSON.stringify(data) }),
 
+  informarMotivoViatura: (id: number, data: Pick<DesativarViaturaPayload, "motivos" | "observacao" | "informadoPor">) =>
+    request<DesativacaoFrota>(`/frota/desativacoes/${id}/motivo`, { method: "POST", body: JSON.stringify(data) }),
+
   reativarViatura: (id: number, reativadaPor: string) =>
     request<DesativacaoFrota>(`/frota/desativacoes/${id}/reativar`, {
       method: "POST",

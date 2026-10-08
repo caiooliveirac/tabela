@@ -53,7 +53,9 @@ Posições das viaturas e retenção de maca (40 min em hospital):
 grupo `TELEGRAM_FROTA_CHAT_ID`, não ao dos reguladores. Numeral acima de 74
 (RMS) é dado lixo e não aparece (`catalogo.ts`). Viatura fora de operação
 informada no painel sai dos avisos; o Huddle do SAMU lê
-`/frota/desativacoes` pela rede Docker. USA presa 40+ min sem registro no
+`/frota/desativacoes` pela rede Docker. A mesma lista recebe o que a chefia
+desativa no Relatório (repo `relatorio` posta) e na Mesa operacional (o
+coletor lê do plantoes); de fora pode vir sem motivo, e o painel cobra. USA presa 40+ min sem registro no
 Acolhimentos: `GET /frota/cobrancas` (médico do Plantões + texto); o Tom
 (WhatsApp) entrega no grupo SAMU-Salvador.
 

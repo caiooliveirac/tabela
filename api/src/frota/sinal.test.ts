@@ -238,7 +238,24 @@ test("desativação: esquema exige motivo, nome e posto; \"Outro\" pede observa�
     assert.equal(esquemaDesativar.parse({ ...ok, origem: "quadro" }).origem, "quadro");
     assert.equal(esquemaDesativar.parse({ ...ok, origem: "huddle" }).origem, "huddle");
     assert.equal(esquemaDesativar.parse({ ...ok, origem: "relatorio" }).origem, "relatorio");
+    assert.equal(esquemaDesativar.parse({ ...ok, origem: "mesa" }).origem, "mesa");
     assert.ok(!esquemaDesativar.safeParse({ ...ok, origem: "telegram" }).success);
+    // Sem motivo só de fora do painel: lá a chefia desativa num clique e o motivo vem depois.
+    assert.ok(esquemaDesativar.safeParse({ ...ok, motivos: [], origem: "relatorio" }).success);
+    assert.ok(esquemaDesativar.safeParse({ ...ok, motivos: [], origem: "mesa" }).success);
+    assert.ok(!esquemaDesativar.safeParse({ ...ok, motivos: [], origem: "frota" }).success);
+});
+
+test("desativação sem motivo: o grupo e o painel cobram, e o motivo chega depois", async () => {
+    const { esquemaMotivo, motivoPainel, textoDesativacao, textoMotivo } = await import("./desativacoes.js");
+    const sem = { ...DES, motivos: [], posto: "chefe" as const, origem: "mesa" as const };
+    assert.match(textoDesativacao(sem, "USA"), /<b>desativada<\/b> na Mesa operacional por Ana \(Chefe\): <b>sem motivo informado<\/b>/);
+    assert.match(textoDesativacao(sem, "USA"), /Falta o <b>motivo<\/b>/);
+    assert.doesNotMatch(textoDesativacao(DES, "USB"), /Falta o/);
+    assert.equal(motivoPainel(sem), "sem motivo informado · Ana (Chefe) na Mesa operacional às 14:30");
+    assert.ok(!esquemaMotivo.safeParse({ motivos: [], informadoPor: "Bia" }).success);
+    assert.ok(esquemaMotivo.safeParse({ motivos: ["medico"], informadoPor: "Bia" }).success);
+    assert.equal(textoMotivo({ ...sem, motivos: ["medico"] }, "Bia"), "📝 <b>CB27</b> desativada: motivo informado por Bia — Médico(a)");
 });
 
 test("desativação: textos do grupo ao desativar e ao reativar", async () => {

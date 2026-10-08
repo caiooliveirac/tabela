@@ -44,12 +44,15 @@ export type Posto = keyof typeof POSTOS;
  * Onde foi informada: aqui, no Huddle, no Quadro Informativo
  * (quadro.mnrs.com.br) ou no Relatório da chefia (relatorio.mnrs.com.br, a
  * chefia marca a unidade como desativada). Todos escrevem nesta mesma lista.
+ * "mesa": base desativada pela chefia na Mesa operacional (plantoes) — quem
+ * escreve é o coletor daqui, que lê a Mesa a cada ciclo (espelharMesa).
  */
 export const ORIGENS = {
     frota: "painel da Frota",
     huddle: "Huddle",
     quadro: "Quadro Informativo",
     relatorio: "Relatório da chefia",
+    mesa: "Mesa operacional",
 } as const;
 export type Origem = keyof typeof ORIGENS;
 
@@ -71,11 +74,26 @@ export interface Desativacao {
 export const esquemaDesativar = z
     .object({
         codigo: z.string().trim().min(2).max(10),
-        motivos: z.array(z.enum(Object.keys(MOTIVOS) as [Motivo, ...Motivo[]])).min(1, "Escolha pelo menos um motivo").max(10),
+        motivos: z.array(z.enum(Object.keys(MOTIVOS) as [Motivo, ...Motivo[]])).max(10),
         observacao: z.string().trim().max(300).optional().nullable(),
         informadoPor: z.string().trim().min(2, "Preencha seu nome no cabeçalho").max(80),
         posto: z.enum(Object.keys(POSTOS) as [Posto, ...Posto[]]),
         origem: z.enum(Object.keys(ORIGENS) as [Origem, ...Origem[]]).default("frota"),
+    })
+    // Sem motivo só vindo de fora (Relatório, Mesa…): lá a chefia desativa num
+    // clique e o motivo vem depois (esquemaMotivo). Aqui no painel é obrigatório.
+    .refine((d) => d.motivos.length > 0 || d.origem !== "frota", { message: "Escolha pelo menos um motivo", path: ["motivos"] })
+    .refine((d) => !d.motivos.includes("outro") || (d.observacao ?? "").length >= 3, {
+        message: "Motivo \"Outro\": diga qual na observação",
+        path: ["observacao"],
+    });
+
+/** Motivo informado depois, para a desativação que chegou sem ele. */
+export const esquemaMotivo = z
+    .object({
+        motivos: z.array(z.enum(Object.keys(MOTIVOS) as [Motivo, ...Motivo[]])).min(1, "Escolha pelo menos um motivo").max(10),
+        observacao: z.string().trim().max(300).optional().nullable(),
+        informadoPor: z.string().trim().min(2, "Preencha seu nome no cabeçalho").max(80),
     })
     .refine((d) => !d.motivos.includes("outro") || (d.observacao ?? "").length >= 3, {
         message: "Motivo \"Outro\": diga qual na observação",
@@ -86,12 +104,15 @@ export const esquemaReativar = z.object({
     reativadaPor: z.string().trim().min(2, "Preencha seu nome no cabeçalho").max(80),
 });
 
-/** "Mecânica ou pneu, Sem oxigênio". */
+export const SEM_MOTIVO = "sem motivo informado";
+
+/** "Mecânica ou pneu, Sem oxigênio" — ou "sem motivo informado". */
 export const rotuloMotivos = (d: Pick<Desativacao, "motivos" | "observacao">) =>
-    d.motivos.map((m) => (m === "outro" && d.observacao ? d.observacao : MOTIVOS[m])).join(", ");
+    d.motivos.map((m) => (m === "outro" && d.observacao ? d.observacao : MOTIVOS[m])).join(", ") || SEM_MOTIVO;
 
 /** " no Quadro Informativo" — vazio quando foi no próprio painel da Frota. */
-const onde = (d: Pick<Desativacao, "origem">) => (d.origem && d.origem !== "frota" ? ` no ${ORIGENS[d.origem]}` : "");
+const onde = (d: Pick<Desativacao, "origem">) =>
+    d.origem && d.origem !== "frota" ? ` n${d.origem === "mesa" ? "a" : "o"} ${ORIGENS[d.origem]}` : "";
 
 /** Motivo curto para o painel: "Mecânica ou pneu · Fulano (Rádio-operador(a)) às 08:10". */
 export const motivoPainel = (d: Desativacao) =>
@@ -111,10 +132,15 @@ export function textoDesativacao(d: Desativacao, tipo: string | null): string {
     const obs = d.observacao && !d.motivos.includes("outro") ? ` — ${escapeHtml(d.observacao)}` : "";
     return (
         `⛔ ${quem} <b>desativada</b>${onde(d)} por ${escapeHtml(d.informadoPor)} (${POSTOS[d.posto]}): ` +
-        `${escapeHtml(rotuloMotivos(d))}${obs}\n` +
-        `Sem avisos dela até alguém reativar no painel da Frota.`
+        `${d.motivos.length ? escapeHtml(rotuloMotivos(d)) : `<b>${SEM_MOTIVO}</b>`}${obs}\n` +
+        `Sem avisos dela até alguém reativar no painel da Frota.` +
+        (d.motivos.length ? "" : `\n⚠️ Falta o <b>motivo</b>: quem souber informa no painel da Frota ou no Relatório da chefia.`)
     );
 }
+
+/** O motivo chegou depois (desativação que veio sem ele). */
+export const textoMotivo = (d: Desativacao, por: string) =>
+    `📝 <b>${escapeHtml(d.codigo)}</b> desativada: motivo informado por ${escapeHtml(por)} — ${escapeHtml(rotuloMotivos(d))}`;
 
 /** `reativadaPor` de quem a virada do plantão encerrou (ninguém clicou). */
 export const VIRADA = "virada do plantão";

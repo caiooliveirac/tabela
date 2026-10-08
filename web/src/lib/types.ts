@@ -361,12 +361,13 @@ export const POSTOS_FROTA = {
 } as const;
 export type PostoFrota = keyof typeof POSTOS_FROTA;
 
-/** Onde a desativação foi informada — os três apps leem e escrevem a mesma lista. */
+/** Onde a desativação foi informada — todos leem e escrevem a mesma lista ("mesa": base desativada na Mesa operacional). */
 export const ORIGENS_FROTA = {
   frota: "painel da Frota",
   huddle: "Huddle",
   quadro: "Quadro Informativo",
   relatorio: "Relatório da chefia",
+  mesa: "Mesa operacional",
 } as const;
 export type OrigemFrota = keyof typeof ORIGENS_FROTA;
 
@@ -374,6 +375,7 @@ export type OrigemFrota = keyof typeof ORIGENS_FROTA;
 export interface DesativacaoFrota {
   id: number;
   codigo: string;
+  /** Vazio = chegou sem motivo (Relatório, Mesa): o painel cobra. */
   motivos: MotivoBaixa[];
   observacao: string | null;
   informadoPor: string;

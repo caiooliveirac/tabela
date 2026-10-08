@@ -16,7 +16,7 @@ import {
   type PostoFrota,
   type ViaturaFrota,
 } from "../../lib/types";
-import { useDesativarViatura, useReativarViatura } from "../../hooks/useFrota";
+import { useDesativarViatura, useInformarMotivoViatura, useReativarViatura } from "../../hooks/useFrota";
 import { duracao, hora } from "./formato";
 
 const PESSOAL: MotivoBaixa[] = ["condutor", "tecnico", "enfermeiro", "medico"];
@@ -25,7 +25,7 @@ const CHAVE_POSTO = "tabela:frotaPosto";
 
 /** Mesmo texto no cartão e no formulário: informar num lugar vale nos outros. */
 const VALE_PARA_TODOS =
-  "Vale para todos: o que se informa aqui aparece no Huddle e no Quadro Informativo (quadro.mnrs.com.br), e o que é informado lá aparece aqui.";
+  "Vale para todos: o que se informa aqui aparece no Huddle, no Quadro Informativo (quadro.mnrs.com.br) e no Relatório da chefia, e o que é informado lá — ou na Mesa operacional — aparece aqui.";
 
 function ValeParaTodos() {
   return (
@@ -71,9 +71,12 @@ function Reativar({ v, operador }: { v: ViaturaFrota; operador: string }) {
   );
 }
 
-function Modal({ viaturas, operador, onClose }: { viaturas: ViaturaFrota[]; operador: string; onClose: () => void }) {
-  const desativar = useDesativarViatura();
-  const [codigo, setCodigo] = useState("");
+/** `pendente`: desativação que chegou sem motivo (Relatório, Mesa) — o formulário só completa o motivo. */
+function Modal({ viaturas, operador, pendente, onClose }: { viaturas: ViaturaFrota[]; operador: string; pendente?: ViaturaFrota; onClose: () => void }) {
+  const nova = useDesativarViatura();
+  const completar = useInformarMotivoViatura();
+  const desativar = pendente ? completar : nova;
+  const [codigo, setCodigo] = useState(pendente?.codigo ?? "");
   const [motivos, setMotivos] = useState<MotivoBaixa[]>([]);
   const [observacao, setObservacao] = useState("");
   const [posto, setPosto] = useState<PostoFrota | "">(() => {
@@ -92,19 +95,27 @@ function Modal({ viaturas, operador, onClose }: { viaturas: ViaturaFrota[]; oper
         ? "Marque pelo menos um motivo."
         : motivos.includes("outro") && observacao.trim().length < 3
           ? "Motivo \"Outro\": diga qual na observação."
-          : !posto
+          : !posto && !pendente
             ? "Diga seu posto."
             : null;
 
   const alternar = (m: MotivoBaixa) => setMotivos((ms) => (ms.includes(m) ? ms.filter((x) => x !== m) : [...ms, m]));
   const enviar = () => {
-    if (falta || !posto) return;
+    if (falta) return;
+    if (pendente) {
+      completar.mutate(
+        { id: pendente.desativacao!.id, motivos, observacao: observacao.trim() || null, informadoPor: nome },
+        { onSuccess: onClose },
+      );
+      return;
+    }
+    if (!posto) return;
     try {
       localStorage.setItem(CHAVE_POSTO, posto);
     } catch {
       // sem localStorage: só não lembra o posto
     }
-    desativar.mutate(
+    nova.mutate(
       { codigo, motivos, observacao: observacao.trim() || null, informadoPor: nome, posto },
       { onSuccess: onClose },
     );
@@ -124,16 +135,19 @@ function Modal({ viaturas, operador, onClose }: { viaturas: ViaturaFrota[]; oper
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="px-5 py-4 border-b border-red-200 bg-gradient-to-r from-red-600 to-red-700 rounded-t-2xl">
-          <h2 className="text-white font-black text-base m-0">⛔ Viatura fora de operação</h2>
+          <h2 className="text-white font-black text-base m-0">
+            {pendente ? `⚠ ${pendente.nome} desativada sem motivo` : "⛔ Viatura fora de operação"}
+          </h2>
           <p className="text-red-100 text-[12px] mt-1 mb-0 font-semibold">
-            Os avisos dela (parada, sinal, bateria) param até alguém reativar. O grupo da frota é avisado e o Huddle já
-            chega sabendo.
+            {pendente
+              ? `Foi desativada n${pendente.desativacao!.origem === "mesa" ? "a" : "o"} ${ORIGENS_FROTA[pendente.desativacao!.origem ?? "frota"]} sem dizer por quê. Informe o motivo: o grupo da frota é avisado.`
+              : "Os avisos dela (parada, sinal, bateria) param até alguém reativar. O grupo da frota é avisado e o Huddle já chega sabendo."}
           </p>
         </div>
 
         <div className="px-5 py-4 space-y-4">
           <ValeParaTodos />
-          <div>
+          <div className={pendente ? "hidden" : ""}>
             <div className="text-[11px] font-extrabold text-slate-600 uppercase tracking-wide mb-1">Viatura</div>
             <select
               value={codigo}
@@ -183,7 +197,7 @@ function Modal({ viaturas, operador, onClose }: { viaturas: ViaturaFrota[]; oper
             <div className="text-[13px] text-slate-700 mb-2">
               {nome ? <b>{nome}</b> : <span className="text-red-700 font-bold">preencha seu nome no cabeçalho do painel</span>}
             </div>
-            <div className="flex gap-2 flex-wrap">
+            <div className={pendente ? "hidden" : "flex gap-2 flex-wrap"}>
               {(Object.keys(POSTOS_FROTA) as PostoFrota[]).map((p) => (
                 <button
                   key={p}
@@ -215,7 +229,7 @@ function Modal({ viaturas, operador, onClose }: { viaturas: ViaturaFrota[]; oper
                 disabled={!!falta || desativar.isPending}
                 className="px-4 py-2 text-[13px] font-bold rounded-lg bg-red-600 text-white cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                {desativar.isPending ? "Registrando…" : codigo ? `Desativar ${codigo}` : "Desativar"}
+                {desativar.isPending ? "Registrando…" : pendente ? "Informar motivo" : codigo ? `Desativar ${codigo}` : "Desativar"}
               </button>
             </div>
           </div>
@@ -227,6 +241,7 @@ function Modal({ viaturas, operador, onClose }: { viaturas: ViaturaFrota[]; oper
 
 export default function DesativacoesFrota({ painel, operador }: { painel: PainelFrota; operador: string }) {
   const [aberto, setAberto] = useState(false);
+  const [pendente, setPendente] = useState<ViaturaFrota | null>(null);
   const desativadas = painel.viaturas.filter((v) => v.desativacao);
   // Só o catálogo; quem já está desativada (até segunda ordem ou no painel) fica fora da lista.
   const escolhiveis = useMemo(
@@ -264,11 +279,21 @@ export default function DesativacoesFrota({ painel, operador }: { painel: Painel
               <li key={v.chave} className="flex items-center gap-3 py-2 text-[13px] flex-wrap">
                 <span className="font-black text-slate-800 w-[52px] shrink-0">{v.nome}</span>
                 <span className="text-slate-700 flex-1 min-w-[200px]">
-                  <b>{rotulo(v)}</b>
+                  {d.motivos.length ? (
+                    <b>{rotulo(v)}</b>
+                  ) : (
+                    <button
+                      onClick={() => setPendente(v)}
+                      title="Clique para informar o motivo"
+                      className="animate-pulse px-2 py-[3px] text-[11px] font-black uppercase tracking-wide rounded-md bg-amber-400 text-amber-950 border border-amber-600 cursor-pointer"
+                    >
+                      ⚠ Desativada sem motivo — informar
+                    </button>
+                  )}
                   {d.observacao && !d.motivos.includes("outro") ? ` — ${d.observacao}` : ""}
                   <span className="text-slate-400">
                     {" "}
-                    · {d.origem && d.origem !== "frota" ? `informado no ${ORIGENS_FROTA[d.origem]} por ` : ""}
+                    · {d.origem && d.origem !== "frota" ? `informado n${d.origem === "mesa" ? "a" : "o"} ${ORIGENS_FROTA[d.origem]} por ` : ""}
                     {d.informadoPor} ({POSTOS_FROTA[d.posto]}) às {hora(d.desde)}, há {duracao(minutosDesde(d.desde))}
                   </span>
                 </span>
@@ -281,6 +306,7 @@ export default function DesativacoesFrota({ painel, operador }: { painel: Painel
         <div className="text-[12px] text-slate-400">Nenhuma informada no painel.</div>
       )}
       {aberto && <Modal viaturas={escolhiveis} operador={operador} onClose={() => setAberto(false)} />}
+      {pendente && <Modal viaturas={[]} operador={operador} pendente={pendente} onClose={() => setPendente(null)} />}
     </div>
   );
 }

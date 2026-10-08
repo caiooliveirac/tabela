@@ -26,6 +26,15 @@ export function useDesativarViatura() {
   });
 }
 
+export function useInformarMotivoViatura() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }: { id: number } & Pick<DesativarViaturaPayload, "motivos" | "observacao" | "informadoPor">) =>
+      api.informarMotivoViatura(id, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["frota"] }),
+  });
+}
+
 export function useReativarViatura() {
   const qc = useQueryClient();
   return useMutation({

@@ -148,11 +148,21 @@ quem (docs/login-unico.md, fase 2) — por isso nome + posto.
 - O **Quadro Informativo** (quadro.mnrs.com.br) também lê e posta nas mesmas
   rotas, e o **Relatório da chefia** (repo `relatorio`) posta quando a chefia
   desativa ou reativa uma unidade do turno vigente. `origem` (`frota` |
-  `huddle` | `quadro` | `relatorio`, opcional no POST, padrão
+  `huddle` | `quadro` | `relatorio` | `mesa`, opcional no POST, padrão
   `frota`; linha antiga sem a coluna sai como `frota`) diz onde foi informada:
   o painel mostra "informado no Quadro Informativo por Fulano" e o grupo
   "desativada no Quadro Informativo por…". O GET devolve também `origens`
   (rótulos). As telas avisam que informar num lugar vale nos outros.
+- **Sem motivo**: quem posta de fora do painel (`origem` ≠ `frota`) pode mandar
+  `motivos: []` — a chefia desativa num clique no Relatório, e a Mesa nem pede
+  motivo. O grupo e o painel cobram ("sem motivo informado", selo âmbar);
+  `POST /desativacoes/:id/motivo` (`motivos`, `observacao`, `informadoPor`)
+  completa depois, do painel ou do Relatório.
+- **Mesa operacional** (plantoes): base desativada pela chefia lá vira
+  desativação `origem: "mesa"` aqui — o coletor lê `bases[].ativa` da rota
+  `/api/servicos/quadro/plantao` a cada ciclo (`espelharMesa`, memória de
+  5 min) e reativa quando a Mesa reativa. Reativada à mão aqui com a Mesa
+  ainda desativada: não volta neste plantão.
 - Tabela `frota_desativacoes`, criada no boot (coluna `origem` nula
   acrescentada no boot com `ADD COLUMN IF NOT EXISTS`).
 

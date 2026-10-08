@@ -9,12 +9,20 @@ const URL_BASE = (process.env.PLANTOES_URL || "https://plantoes.mnrs.com.br").re
 const TOKEN = process.env.PLANTOES_TOKEN || "";
 const MEMO_MS = 5 * 60_000;
 
-let memo: { em: number; medicos: Map<string, string> } | null = null;
+let memo: { em: number; medicos: Map<string, string>; desativadas: Set<string> } | null = null;
 
 /** Nome(s) do médico por código da base (SM01, CB02…). Falha: mapa vazio — a cobrança sai sem nome. */
 export async function medicosPorBase(): Promise<Map<string, string>> {
-    if (!TOKEN) return new Map();
-    if (memo && Date.now() - memo.em < MEMO_MS) return memo.medicos;
+    return (await mesaAgora())?.medicos ?? new Map();
+}
+
+/**
+ * A Mesa agora: médico por base e as bases que a chefia desativou neste turno
+ * (`ativa: false`). `em` = quando foi lida. null sem token.
+ */
+export async function mesaAgora(): Promise<{ em: number; medicos: Map<string, string>; desativadas: Set<string> } | null> {
+    if (!TOKEN) return null;
+    if (memo && Date.now() - memo.em < MEMO_MS) return memo;
     const res = await fetch(`${URL_BASE}/api/servicos/quadro/plantao`, {
         headers: { "x-escala-token": TOKEN, Accept: "application/json" },
         signal: AbortSignal.timeout(10_000),
@@ -23,6 +31,6 @@ export async function medicosPorBase(): Promise<Map<string, string>> {
     const corpo = (await res.json()) as { bases?: { codigo: string; ativa: boolean; medico: string | null }[] };
     const medicos = new Map<string, string>();
     for (const b of corpo.bases ?? []) if (b.ativa && b.medico?.trim()) medicos.set(b.codigo, b.medico.trim());
-    memo = { em: Date.now(), medicos };
-    return medicos;
+    memo = { em: Date.now(), medicos, desativadas: new Set((corpo.bases ?? []).filter((b) => !b.ativa).map((b) => b.codigo)) };
+    return memo;
 }
