@@ -47,7 +47,12 @@ export default function MapaFrota({ mapsKey, mapId, painel, noMapa, foco, alto, 
           zoom: 12,
           mapId,
           clickableIcons: false,
-          mapTypeControl: false,
+          // Mapa | Satélite (com "Rótulos"), nativo: funciona também em tela cheia.
+          mapTypeControl: true,
+          mapTypeControlOptions: {
+            mapTypeIds: ["roadmap", "satellite"],
+            position: google.maps.ControlPosition.RIGHT_BOTTOM,
+          },
           streetViewControl: false,
           fullscreenControl: true,
           minZoom: 10,

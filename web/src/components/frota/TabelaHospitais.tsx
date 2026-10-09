@@ -45,6 +45,17 @@ function Situacao({ v, alertaMin }: { v: ViaturaFrota; alertaMin: number }) {
   );
 }
 
+/** Na própria base, mas o mapa de equipes ainda a dá em ocorrência (ou retornando). */
+function ocupadaNaBase(v: ViaturaFrota): boolean {
+  const est = estadoOcorrencia(v);
+  return Boolean(v.noHospital?.naBase) && (est === "ocorrencia" || est === "retornando");
+}
+
+/** Conta para a leitura da tabela: fora da base, ou na base ainda em ocorrência. */
+function pesa(v: ViaturaFrota): boolean {
+  return !v.noHospital!.naBase || ocupadaNaBase(v);
+}
+
 export default function TabelaHospitais({ painel, noMapa, onVer }: Props) {
   // As paradas abertas sempre vêm na linha do tempo, com o cruzamento do Acolhimentos.
   const { data: historico } = useLinhaDoTempoFrota(6);
@@ -62,10 +73,11 @@ export default function TabelaHospitais({ painel, noMapa, onVer }: Props) {
       noMapa
         .filter((v) => v.noHospital)
         .sort((a, b) => {
-          const na = a.noHospital!;
-          const nb = b.noHospital!;
-          if (na.naBase !== nb.naBase) return na.naBase ? 1 : -1;
-          return nb.minutos - na.minutos;
+          // Na base em ocorrência entra na ordem das que contam; só a base livre vai para o fim.
+          const pa = pesa(a);
+          const pb = pesa(b);
+          if (pa !== pb) return pa ? -1 : 1;
+          return b.noHospital!.minutos - a.noHospital!.minutos;
         }),
     [noMapa],
   );
@@ -101,14 +113,24 @@ export default function TabelaHospitais({ painel, noMapa, onVer }: Props) {
             <tbody>
               {linhas.map((v) => {
                 const n = v.noHospital!;
-                const cor = n.naBase ? COR.base : corDaParada(n.minutos, L.alertaMin);
+                const destaque = ocupadaNaBase(v);
+                const apagada = n.naBase && !destaque;
+                const cor = apagada
+                  ? COR.base
+                  : destaque
+                    ? n.minutos >= L.alertaMin ? COR.alerta : COR.ocorrencia
+                    : corDaParada(n.minutos, L.alertaMin);
                 const h = n.id != null ? acolhimentoPorId.get(n.id) : undefined;
                 return (
                   <tr
                     key={v.chave}
                     onClick={() => onVer(v)}
                     className="border-t border-slate-100 cursor-pointer hover:bg-slate-50"
-                    style={{ color: n.naBase ? "#64748b" : "#0f172a" }}
+                    style={{
+                      color: apagada ? "#64748b" : "#0f172a",
+                      backgroundColor: destaque ? `color-mix(in srgb, ${COR.ocorrencia} 8%, white)` : undefined,
+                    }}
+                    title={destaque ? "Na própria base, mas o mapa de equipes ainda a dá em ocorrência" : undefined}
                   >
                     <td className="py-2 pr-3 whitespace-nowrap">
                       <span className="font-black">{v.nome}</span>
@@ -121,10 +143,10 @@ export default function TabelaHospitais({ painel, noMapa, onVer }: Props) {
                     </td>
                     <td className="py-2 pr-3 tabular-nums whitespace-nowrap">{hora(n.entrada)}</td>
                     <td className="py-2 pr-3 whitespace-nowrap min-w-[120px]">
-                      <div className="font-bold tabular-nums" style={{ color: n.naBase ? undefined : cor }}>
+                      <div className="font-bold tabular-nums" style={{ color: apagada ? undefined : cor }}>
                         {duracao(n.minutos)}
                       </div>
-                      {!n.naBase && (
+                      {!apagada && (
                         <div className="h-[4px] rounded-full bg-slate-100 overflow-hidden mt-[3px] w-[100px]">
                           <div
                             className="h-full rounded-full"
