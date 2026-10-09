@@ -9,7 +9,7 @@
 import { lazy, Suspense, useMemo, useState } from "react";
 import type { PainelFrota, ViaturaFrota } from "../../lib/types";
 import { useEncaminhamentoConfig } from "../../hooks/useEncaminhamento";
-import { COR, duracao, ha } from "./formato";
+import { COR, duracao, estaNaBase, estadoOcorrencia, ha } from "./formato";
 import type { Foco } from "./MapaFrota";
 import LinhaDoTempo from "./LinhaDoTempo";
 import DesativacoesFrota from "./DesativacoesFrota";
@@ -119,12 +119,28 @@ export default function FrotaView({ painel, carregando, erro, foco, focar, opera
   const naBaseHospital = grupos.noMapa.filter((v) => v.noHospital?.naBase).length;
   const emAlerta = grupos.noMapa.filter((v) => v.noHospital?.alerta).length;
   const posicaoHa = (v: ViaturaFrota) => (v.posicao ? `última posição há ${duracao(v.posicao.idadeMin)}` : "");
+  // Mapa de equipes da regulação (coletor na Central). Sem ele, nada aparece.
+  const comMapaEquipes = grupos.noMapa.some((v) => v.ocorrencia);
+  const emOcorrencia = grupos.noMapa.filter((v) => estadoOcorrencia(v) === "ocorrencia").length;
+  const livres = grupos.noMapa.filter((v) => estadoOcorrencia(v) === "livre");
+  const livresNaBase = livres.filter(estaNaBase).length;
 
   return (
     <div className="flex flex-col gap-4">
       {/* ── O momento, em números ── */}
       <div className="flex gap-2 flex-wrap">
         <Numero valor={grupos.noMapa.length} rotulo="no mapa" cor={COR.recente} detalhe="Posição da última hora" />
+        {comMapaEquipes && (
+          <>
+            <Numero valor={emOcorrencia} rotulo="em ocorrência" cor={COR.ocorrencia} detalhe="Pelo mapa de equipes da regulação — inclui as paradas no endereço da própria base" />
+            <Numero
+              valor={livres.length}
+              rotulo={`livres · ${livresNaBase} na base`}
+              cor={COR.livre}
+              detalhe="Sem ocorrência no mapa de equipes. Na base = disponível de fato"
+            />
+          </>
+        )}
         <Numero valor={emHospital} rotulo="paradas em hospital/UPA" cor={COR.hospital} detalhe={`Dentro de ${L.raioM} m de um hospital ou UPA`} />
         <Numero valor={emAlerta} rotulo={`há ${L.alertaMin} min ou mais`} cor={emAlerta ? COR.alerta : "#cbd5e1"} detalhe="Retenção de maca" />
         <Numero valor={naBaseHospital} rotulo="na base (no hospital)" cor={COR.base} detalhe="Base colada no hospital ou dentro da UPA: sem alerta" />
@@ -146,6 +162,15 @@ export default function FrotaView({ painel, carregando, erro, foco, focar, opera
         <span className="flex items-center gap-1">
           <span className="inline-block w-[12px] h-[12px] rounded-full border-2" style={{ borderColor: COR.alerta, background: "#dc26262e" }} /> alguém parado há {L.alertaMin} min ou mais
         </span>
+        {comMapaEquipes && (
+          <>
+            <span className="flex items-center gap-1">
+              <span className="inline-block w-[12px] h-[10px] rounded-[3px] bg-slate-400" style={{ borderLeft: `4px solid ${COR.alerta}` }} /> 🚑 em ocorrência (faixa = cor do risco)
+            </span>
+            <span>✓ livre</span>
+            <span>↩ encerrando</span>
+          </>
+        )}
         <span className="ml-auto">
           SAMU+ lido {ha(painel.coletadoEm)}
           {painel.vinculosEm ? ` · nomes ${ha(painel.vinculosEm)}` : ""}
@@ -180,6 +205,12 @@ export default function FrotaView({ painel, carregando, erro, foco, focar, opera
             <div className="absolute top-2 left-2 z-10 flex gap-[6px] flex-wrap max-w-[calc(100%-70px)] pointer-events-none">
               {[
                 { n: grupos.noMapa.length, t: "no mapa", c: COR.recente },
+                ...(comMapaEquipes
+                  ? [
+                      { n: emOcorrencia, t: "em ocorrência", c: COR.ocorrencia },
+                      { n: livres.length, t: "livres", c: COR.livre },
+                    ]
+                  : []),
                 { n: emHospital, t: "em hospital/UPA", c: COR.hospital },
                 { n: emAlerta, t: `${L.alertaMin}+ min`, c: emAlerta ? COR.alerta : "#94a3b8" },
                 { n: grupos.semSinal.length, t: "sem sinal", c: COR.atrasada },
@@ -317,6 +348,12 @@ export default function FrotaView({ painel, carregando, erro, foco, focar, opera
           <li>
             Viatura fora de operação (mecânica, falta de condutor…) informada em "Fora de operação agora" sai de todos
             os avisos até alguém reativar; o grupo da frota é avisado e o Huddle do SAMU já chega com ela marcada.
+          </li>
+          <li>
+            Ocorrência vem do mapa de equipes da regulação, lido por um coletor numa máquina da Central a cada 30 s:
+            🚑 em ocorrência (número, risco, MR, status e queixa no balão), ↩ encerrando (retorno à base) e ✓ livre.
+            Parada no endereço da própria base só é "disponível" se o mapa disser livre. Se o coletor parar, as marcas
+            somem e o grupo da frota é avisado.
           </li>
           <li>Desativadas até segunda ordem (29/09): 36, 39, 48, 64, 66, 67 e 68.</li>
         </ul>

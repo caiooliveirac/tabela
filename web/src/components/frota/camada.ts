@@ -13,7 +13,10 @@
 // balão aberto não some a cada 30 s.
 // ═══════════════════════════════════════════════════════════════
 import type { HospitalPonto, PainelFrota, ViaturaFrota } from "../../lib/types";
-import { COR, artigo, corDaIdade, duracao, hora } from "./formato";
+import {
+  COR, artigo, corDaIdade, corRisco, duracao, estaNaBase, estadoOcorrencia, frase, hora, nomeProprio,
+  type EstadoOcorrencia,
+} from "./formato";
 
 export interface OpcoesCamada {
   /** "todos": raio em todo hospital (aba Frota). "ocupados": só onde há viatura (Destino). */
@@ -28,8 +31,28 @@ function esc(s: string): string {
   return s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 }
 
+/**
+ * Etiqueta: na base e livre é "SM 01 · base ✓"; na base EM OCORRÊNCIA perde o
+ * "base" ("SM 01 🚑0384") — parada no endereço da base não é disponível.
+ */
+function rotulo(v: ViaturaFrota, est: EstadoOcorrencia | null): string {
+  const h = v.noHospital;
+  const sufixo =
+    est === "ocorrencia"
+      ? ` 🚑${v.ocorrencia?.ocorrencia?.protocolo ?? ""}`
+      : est === "retornando"
+        ? " ↩"
+        : est === "livre"
+          ? " ✓"
+          : "";
+  if (h && !h.naBase) return `${v.nome} · ${h.minutos}′${est === "ocorrencia" ? " 🚑" : sufixo}`;
+  if (estaNaBase(v)) return est === "ocorrencia" ? `${v.nome}${sufixo}` : `${v.nome} · base${sufixo}`;
+  return `${v.nome}${sufixo}`;
+}
+
 function estiloViatura(el: HTMLElement, v: ViaturaFrota, p: PainelFrota) {
   const h = v.noHospital;
+  const est = estadoOcorrencia(v);
   const cor = h?.alerta ? COR.alerta : corDaIdade(v.posicao!.idadeMin, p.limites.recenteMin);
   const moto = v.tipo === "MOTO";
   el.className = h?.alerta ? "frota-pulso" : "";
@@ -40,11 +63,34 @@ function estiloViatura(el: HTMLElement, v: ViaturaFrota, p: PainelFrota) {
     "padding:3px 5px",
     `border-radius:${moto ? 999 : 6}px`,
     `border:2px solid ${h ? (h.alerta ? "#7f1d1d" : h.naBase ? COR.base : COR.hospital) : "#fff"}`,
+    // Faixa à esquerda na cor do risco: em ocorrência se vê de longe.
+    est === "ocorrencia" ? `border-left:6px solid ${corRisco(v.ocorrencia?.ocorrencia?.risco)}` : "",
     "box-shadow:0 1px 4px rgba(15,23,42,.35)",
     "white-space:nowrap",
     "cursor:pointer",
-  ].join(";");
-  el.textContent = h ? (h.naBase ? `${v.nome} · base` : `${v.nome} · ${h.minutos}′`) : v.nome;
+  ]
+    .filter(Boolean)
+    .join(";");
+  el.textContent = rotulo(v, est);
+}
+
+/** Linhas do mapa de equipes no balão: número, risco, MR, status e queixa. */
+function linhasOcorrencia(v: ViaturaFrota, est: EstadoOcorrencia | null): string[] {
+  if (est === null) return [];
+  const o = v.ocorrencia?.ocorrencia;
+  if (est === "livre" || !o) return [`<span style="color:${COR.livre};font-weight:800">✓ Livre no mapa de equipes</span>`];
+  const risco = o.risco
+    ? ` <span style="background:${corRisco(o.risco)};color:#fff;border-radius:4px;padding:0 5px;font-weight:700">${esc(o.risco)}</span>`
+    : "";
+  const titulo = est === "retornando" ? "↩ Encerrando ocorrência" : "🚑 Em ocorrência";
+  const linhas = [
+    `<span style="color:${COR.ocorrencia};font-weight:800">${titulo}${o.protocolo ? ` #${esc(o.protocolo)}` : ""}</span>${risco}`,
+  ];
+  if (o.medico) linhas.push(`MR <b>${esc(nomeProprio(o.medico))}</b>`);
+  if (o.status) linhas.push(`${esc(frase(o.status))}${o.statusEm ? ` às ${hora(o.statusEm)}` : ""}`);
+  const queixa = [o.queixa, o.bairro].filter(Boolean).map((x) => esc(x!)).join(" · ");
+  if (queixa) linhas.push(`<span style="color:#475569">${queixa}</span>`);
+  return linhas;
 }
 
 function balaoViatura(v: ViaturaFrota): string {
@@ -55,9 +101,19 @@ function balaoViatura(v: ViaturaFrota): string {
       (v.velocidade != null ? ` · ${v.velocidade} km/h` : "") +
       (v.bateria != null ? ` · bateria ${v.bateria}%` : ""),
   ];
+  const est = estadoOcorrencia(v);
+  // Na base: disponível só se o mapa de equipes disser livre.
+  const naBaseComo =
+    est === "ocorrencia"
+      ? `<span style="color:${COR.ocorrencia};font-weight:800">No endereço da base, mas EM OCORRÊNCIA</span>`
+      : est === "retornando"
+        ? "Na própria base, encerrando a ocorrência"
+        : est === "livre"
+          ? `<span style="color:${COR.livre};font-weight:800">Disponível na própria base</span>`
+          : "Na própria base";
   if (v.noHospital?.naBase) {
     const h = v.noHospital;
-    linhas.push(`Na própria base, junto d${artigo(h.hospitalNome)} ${esc(h.hospitalNome)} desde ${hora(h.entrada)} (${duracao(h.minutos)}) — não conta para o alerta`);
+    linhas.push(`${naBaseComo}, junto d${artigo(h.hospitalNome)} ${esc(h.hospitalNome)} desde ${hora(h.entrada)} (${duracao(h.minutos)}) — não conta para o alerta`);
   } else if (v.noHospital) {
     const h = v.noHospital;
     linhas.push(
@@ -66,8 +122,10 @@ function balaoViatura(v: ViaturaFrota): string {
         `${h.alerta ? " ⚠" : ""}</span>`,
     );
   } else if (v.naBase) {
-    linhas.push("Na própria base");
+    linhas.push(naBaseComo);
   }
+  // Na base livre já foi dito acima; o resto ganha o bloco do mapa de equipes.
+  if (!(est === "livre" && estaNaBase(v))) linhas.push(...linhasOcorrencia(v, est));
   if (v.nomeDifere && v.nomeSamu) linhas.push(`<span style="color:#64748b">No SAMU+: ${esc(v.nomeSamu)}</span>`);
   if (v.motivo) linhas.push(`<span style="color:#64748b">${esc(v.motivo)}</span>`);
   return `<div style="font:13px/1.45 'DM Sans',sans-serif;color:#0f172a">${linhas.join("<br>")}</div>`;

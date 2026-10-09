@@ -10,7 +10,7 @@
 import { useMemo } from "react";
 import type { PainelFrota, ViaturaFrota } from "../../lib/types";
 import { useLinhaDoTempoFrota } from "../../hooks/useFrota";
-import { COR, corDaParada, duracao, hora } from "./formato";
+import { COR, corDaParada, duracao, estadoOcorrencia, hora } from "./formato";
 
 interface Props {
   painel: PainelFrota;
@@ -20,8 +20,16 @@ interface Props {
 
 function Situacao({ v, alertaMin }: { v: ViaturaFrota; alertaMin: number }) {
   const n = v.noHospital!;
+  const est = estadoOcorrencia(v);
+  // Na base: livre é disponível; em ocorrência no endereço da base, não.
   const [cor, texto] = n.naBase
-    ? [COR.vazio, "base no hospital"]
+    ? est === "ocorrencia"
+      ? [COR.ocorrencia, "base · em ocorrência"]
+      : est === "retornando"
+        ? [COR.vazio, "base · encerrando"]
+        : est === "livre"
+          ? [COR.livre, "base · livre"]
+          : [COR.vazio, "base no hospital"]
     : n.alerta
       ? [COR.alerta, `⚠ ${alertaMin} min ou mais`]
       : n.minutos >= alertaMin - 10
