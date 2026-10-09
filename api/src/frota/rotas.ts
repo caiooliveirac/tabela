@@ -4,6 +4,7 @@ import {
     alertasRecentes, balancoPlantao, cobrancasPendentes, desativarViatura, diagnostico, linhaDoTempo, listarDesativacoes, painelAtual, reativarViatura,
 } from "./coletor.js";
 import { ErroDesativacao, esquemaDesativar, esquemaReativar } from "./desativacoes.js";
+import { ingerirMapa, mapaExternoAtual, pontePronta, tokenConfere } from "./mapaExterno.js";
 
 const router = Router();
 
@@ -105,6 +106,35 @@ router.get("/balanco", async (_req, res) => {
         console.error("[frota] balanço:", (e as Error).message);
         res.status(503).json({ error: "balanço indisponível" });
     }
+});
+
+// Mapa externo do SAMU+ (ocorrências + disponibilidade). Alimentado pela ponte
+// (coletor-frota.mjs) numa máquina da Central na VPN, que o magalu não alcança.
+// POST autenticado por token próprio (não pelo portal): o nginx precisa deixar
+// ESTE caminho passar sem auth_request. Leitura (GET) fica atrás do portal.
+router.post("/mapa-ingest", (req, res) => {
+    if (!pontePronta()) {
+        res.status(503).json({ error: "ponte não configurada" });
+        return;
+    }
+    if (!tokenConfere(req.header("x-ponte-token"))) {
+        res.status(401).json({ error: "token inválido" });
+        return;
+    }
+    try {
+        res.json(ingerirMapa(req.body));
+    } catch (e) {
+        if (e instanceof z.ZodError) {
+            res.status(400).json({ error: e.errors.map((x) => x.message).join("; ") });
+        } else {
+            console.error("[frota] mapa-ingest:", e);
+            res.status(500).json({ error: "não foi possível receber" });
+        }
+    }
+});
+
+router.get("/mapa", (_req, res) => {
+    res.json(mapaExternoAtual());
 });
 
 export default router;
