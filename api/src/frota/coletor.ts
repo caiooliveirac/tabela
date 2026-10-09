@@ -24,7 +24,7 @@ import { textoAviso, textoBalanco, textoCobranca, type DadosAviso } from "./avis
 import { editarChat, enviarChat, frotaChatId, notifyAdmin, reguladoresChatId } from "../lib/telegram.js";
 import { medicosPorBase, mesaAgora } from "./plantoes.js";
 import {
-    diagnosticoOcorrencias, ocorrenciaDe, receberOcorrencias, situacoesRecebidas, vigiarMapa, type esquemaOcorrencias,
+    diagnosticoOcorrencias, lembreteFonteCaiu, ocorrenciaDe, receberOcorrencias, situacoesRecebidas, vigiarMapa, type esquemaOcorrencias,
 } from "./ocorrencias.js";
 import {
     avancarQuedas, bateriaBaixa, instaveisAgora, plantaoDe, ranking, resumoDevido,
@@ -425,6 +425,9 @@ async function ciclo(): Promise<void> {
         // Ponte do mapa de equipes muda (ou de volta): só o admin, no privado.
         const mapa = vigiarMapa(agora);
         if (mapa && AVISOS) await notifyAdmin(mapa).catch((e) => registrarErro("aviso do mapa de equipes", e));
+        // Fonte caída: lembra o GRUPO a cada 5 min para reabrir o lançador.
+        const fonte = lembreteFonteCaiu(agora);
+        if (fonte && AVISOS) await mandar(fonte).catch((e) => registrarErro("lembrete fonte caiu", e));
     } catch (e) {
         erro = (e as Error).message;
         await registrarErro("coleta", e);

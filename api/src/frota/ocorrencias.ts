@@ -147,6 +147,36 @@ export function vigiarMapa(agora: Date): string | null {
     return null;
 }
 
+// ── Fonte caiu: lembrete REPETIDO no grupo (não só o admin) ──────
+// Quando o coletor fica mudo, o chefe de plantão precisa reabrir o lançador na
+// máquina da Central. Lembra o grupo a cada LEMBRETE_GRUPO_MIN até voltar.
+export const FONTE_CAIU_MIN = 5; // mudo por tanto tempo = fonte caiu
+export const LEMBRETE_GRUPO_MIN = 5; // repete o alerta no grupo a cada tanto
+let lembreteGrupoEm: Date | null = null;
+
+export const TEXTO_FONTE_CAIU =
+    "🔌 <b>Fonte de dados caiu</b> — o bot parou de receber o mapa de equipes.\n" +
+    "Avisem ao chefe de plantão agora para abrir o arquivo que está na área de " +
+    "trabalho dele — <b>iniciar-oculto</b>. É só clicar lá que o bot volta a fazer os alertas.";
+
+/**
+ * Texto para o GRUPO enquanto a fonte está caída, a cada LEMBRETE_GRUPO_MIN.
+ * `null` fora disso. Nunca recebeu desde o boot: não alarma (igual vigiarMapa).
+ */
+export function lembreteFonteCaiu(agora: Date): string | null {
+    if (!recebido) return null;
+    const mudoMs = agora.getTime() - recebido.em.getTime();
+    if (mudoMs < FONTE_CAIU_MIN * 60_000) {
+        lembreteGrupoEm = null; // voltou: zera para alarmar de novo na próxima queda
+        return null;
+    }
+    if (lembreteGrupoEm && agora.getTime() - lembreteGrupoEm.getTime() < LEMBRETE_GRUPO_MIN * 60_000) {
+        return null;
+    }
+    lembreteGrupoEm = agora;
+    return TEXTO_FONTE_CAIU;
+}
+
 export function diagnosticoOcorrencias(agora = Date.now()) {
     return {
         ligado: Boolean(process.env.MAPA_EQUIPES_TOKEN),

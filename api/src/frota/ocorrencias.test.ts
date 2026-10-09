@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { CATALOGO } from "./catalogo.js";
-import { instanteMapa, ocorrenciaDe, porCodigo, receberOcorrencias, vigiarMapa } from "./ocorrencias.js";
+import { instanteMapa, lembreteFonteCaiu, ocorrenciaDe, porCodigo, receberOcorrencias, vigiarMapa } from "./ocorrencias.js";
 import { linhaOcorrencia, textoAviso } from "./aviso.js";
 
 const t = (hhmm: string) => new Date(`2026-10-07T${hhmm}:00-03:00`);
@@ -62,4 +62,16 @@ test("ponte muda há 10 min avisa o admin uma vez; na volta, outra", () => {
     receberOcorrencias(envio, CATALOGO, t("17:45"));
     assert.match(vigiarMapa(t("17:46"))!, /voltou<\/b> às 17:45 — 45 min sem dados/);
     assert.equal(vigiarMapa(t("17:48")), null);
+});
+
+test("fonte caída: lembra o grupo a cada 5 min até voltar", () => {
+    const t0 = new Date("2026-10-07T20:00:00-03:00");
+    const em = (min: number) => new Date(t0.getTime() + min * 60_000);
+    receberOcorrencias({ equipes: [] }, CATALOGO, t0);
+    assert.equal(lembreteFonteCaiu(em(4)), null); // ainda não caiu (< 5 min)
+    assert.ok(lembreteFonteCaiu(em(5))?.includes("iniciar-oculto")); // 1º alerta
+    assert.equal(lembreteFonteCaiu(em(6)), null); // dentro dos 5 min do último
+    assert.ok(lembreteFonteCaiu(em(10))?.includes("iniciar-oculto")); // repete
+    receberOcorrencias({ equipes: [] }, CATALOGO, em(11)); // voltou
+    assert.equal(lembreteFonteCaiu(em(11)), null);
 });
