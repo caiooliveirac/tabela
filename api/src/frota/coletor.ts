@@ -20,7 +20,7 @@ import {
     ALERTA_MIN, APRENDE_RAIO_M, aprenderPontos, avancarPermanencias, distanciaM, duracaoMin, ehMoto,
     type Evidencia, type Fechamento, type Permanencia,
 } from "./regras.js";
-import { textoAviso, textoBalanco, textoCobranca, type DadosAviso } from "./aviso.js";
+import { baseOcupada, textoAviso, textoBalanco, textoBaseOcupada, textoCobranca, type DadosAviso } from "./aviso.js";
 import { editarChat, enviarChat, frotaChatId, notifyAdmin, reguladoresChatId } from "../lib/telegram.js";
 import { medicosPorBase, mesaAgora } from "./plantoes.js";
 import {
@@ -205,6 +205,15 @@ async function criarTabelas(): Promise<void> {
             ADD COLUMN IF NOT EXISTS livre_coletas integer NOT NULL DEFAULT 0,
             ADD COLUMN IF NOT EXISTS oc_protocolo varchar(30),
             ADD COLUMN IF NOT EXISTS oc_mr varchar(120)`);
+    // "Na base, mas ainda em ocorrência" já avisado — um por viatura e
+    // ocorrência, e não repete a cada deploy.
+    await db.execute(sql`
+        CREATE TABLE IF NOT EXISTS frota_base_ocupada (
+            chave      varchar(60) NOT NULL,
+            protocolo  varchar(30) NOT NULL DEFAULT '',
+            avisado_em timestamptz NOT NULL DEFAULT now(),
+            PRIMARY KEY (chave, protocolo)
+        )`);
     await db.execute(sql`
         CREATE TABLE IF NOT EXISTS frota_estado (
             chave         varchar(40) PRIMARY KEY,
@@ -419,6 +428,7 @@ async function ciclo(): Promise<void> {
         erro = null;
         // Telegram fora do ar não é falha de coleta.
         await avisar(r.fechadas, agora).catch((e) => registrarErro("aviso", e));
+        await avisarBaseOcupada(agora).catch((e) => registrarErro("aviso base ocupada", e));
         await gravarMedicos().catch((e) => registrarErro("médico da parada", e));
         await gravarOcorrenciaDasParadas(agora).catch((e) => registrarErro("ocorrência da parada", e));
         await avisarSinal(agora).catch((e) => registrarErro("aviso de sinal", e));
@@ -475,6 +485,38 @@ async function mandar(html: string, respondeA?: number | null, chat = frotaChatI
  * 40 min e é editada a cada coleta. Na saída, a mensagem é editada e
  * RESPONDIDA ("saiu às…") — edição não notifica ninguém, resposta sim.
  */
+/** Desde quando cada viatura está na área da própria base (base fora de hospital não tem permanência gravada). */
+const naBaseDesde = new Map<string, Date>();
+/** Cache de "chave|protocolo" já avisado (a tabela frota_base_ocupada é a verdade). */
+const baseOcupadaAvisada = new Set<string>();
+
+/** Na própria base há 40+ min e o mapa de equipes ainda a dá em ocorrência: aviso especial, uma vez. */
+async function avisarBaseOcupada(agora: Date): Promise<void> {
+    if (!AVISOS) return;
+    const naBaseAgora = new Set<string>();
+    for (const v of painelAtual(agora).viaturas) {
+        if (v.situacao !== "mapa" || v.foraDoCatalogo) continue;
+        if (!(v.naBase || v.noHospital?.naBase)) continue;
+        naBaseAgora.add(v.chave);
+        // Base dentro de hospital/UPA: a permanência tem a entrada real (sobrevive ao deploy).
+        const desde = v.noHospital?.naBase ? new Date(v.noHospital.entrada) : (naBaseDesde.get(v.chave) ?? agora);
+        naBaseDesde.set(v.chave, desde);
+        const b = baseOcupada(v, desde, agora, ALERTA_MIN);
+        if (!b) continue;
+        const protocolo = b.ocorrencia.protocolo ?? "";
+        const k = `${v.chave}|${protocolo}`;
+        if (baseOcupadaAvisada.has(k)) continue;
+        const [ja] = await consultar(sql`SELECT 1 AS x FROM frota_base_ocupada WHERE chave = ${v.chave} AND protocolo = ${protocolo}`);
+        if (!ja) {
+            if (!(await mandar(textoBaseOcupada(b)))) continue; // falhou: tenta na próxima coleta
+            await db.execute(sql`INSERT INTO frota_base_ocupada (chave, protocolo) VALUES (${v.chave}, ${protocolo}) ON CONFLICT DO NOTHING`);
+        }
+        baseOcupadaAvisada.add(k);
+    }
+    // Saiu da base (ou sumiu do mapa): o cronômetro recomeça na próxima chegada.
+    for (const c of naBaseDesde.keys()) if (!naBaseAgora.has(c)) naBaseDesde.delete(c);
+}
+
 async function avisar(fechadas: Fechamento[], agora: Date): Promise<void> {
     if (!AVISOS) return;
     for (const p of abertas.values()) {

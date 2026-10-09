@@ -6,7 +6,7 @@
 // Desligar sem deploy: FROTA_AVISOS_TELEGRAM=0 no .env.
 // ═══════════════════════════════════════════════════════════════
 import { escapeHtml } from "../lib/telegram.js";
-import type { SituacaoOcorrencia } from "./ocorrencias.js";
+import type { Ocorrencia, SituacaoOcorrencia } from "./ocorrencias.js";
 
 export interface DadosAviso {
     nome: string;
@@ -99,6 +99,67 @@ export function textoAviso(d: DadosAviso, e: EstadoAviso, agora?: Date): string 
         `⚪ ${quem} n${a} ${onde}: sem sinal desde ${hhmm(d.ultimaVez)} — ` +
         `pelo menos <b>${min(d.entrada, d.ultimaVez)} min</b> parada (entrou ${hhmm(d.entrada)})` +
         editado
+    );
+}
+
+// ── Na própria base, mas ainda em ocorrência ──
+// Parada na base não conta para os 40 min do hospital. Mas, se o mapa de
+// equipes ainda a dá em ocorrência (ou ela apertou retorno à base) e ela está
+// ali há 40 min, ou a ocorrência já acabou e falta fechar, ou — base dentro de
+// UPA/hospital — ela está esperando acolhimento ali mesmo. Um aviso por
+// viatura e ocorrência.
+
+export interface BaseOcupada {
+    nome: string;
+    base: string | null;
+    /** Base dentro de hospital/UPA: o nome dele (o acolhimento pode ser ali). */
+    hospitalNome: string | null;
+    minutos: number;
+    ocorrencia: Ocorrencia;
+}
+
+/** Na área da própria base há `alertaMin`+ e o mapa ainda dá ocorrência (inclui o retorno apertado). */
+export function baseOcupada(
+    v: {
+        nome: string;
+        base: string | null;
+        naBase: boolean;
+        noHospital: { naBase: boolean; hospitalNome: string } | null;
+        ocorrencia: SituacaoOcorrencia | null;
+    },
+    desde: Date,
+    agora: Date,
+    alertaMin: number,
+): BaseOcupada | null {
+    if (!(v.naBase || v.noHospital?.naBase)) return null;
+    const o = v.ocorrencia?.ocorrencia;
+    if (!o) return null;
+    // Conta do mais tardio entre chegar na base e abrir a ocorrência: quem
+    // estava na base e acabou de ser despachado ainda está se aprontando.
+    const abertura = o.abertura ? new Date(o.abertura) : null;
+    const inicio = abertura && abertura > desde ? abertura : desde;
+    const minutos = min(inicio, agora);
+    if (minutos < alertaMin) return null;
+    return { nome: v.nome, base: v.base, hospitalNome: v.noHospital?.naBase ? v.noHospital.hospitalNome : null, minutos, ocorrencia: o };
+}
+
+export function textoBaseOcupada(d: BaseOcupada): string {
+    const o = d.ocorrencia;
+    const retorno = /DISPON[IÍ]VEL|RETORNO/i.test(o.status ?? "");
+    const onde = d.hospitalNome
+        ? `na própria base, dentro d${artigo(d.hospitalNome)} <b>${escapeHtml(d.hospitalNome)}</b>,`
+        : `na área da própria base${d.base ? ` (${escapeHtml(d.base)})` : ""}`;
+    const status = o.status
+        ? `${escapeHtml(o.status.toLowerCase())}${o.statusEm ? ` às ${hhmm(new Date(o.statusEm))}` : ""}`
+        : "sem status no mapa";
+    return (
+        `🚨🏠 <b>${escapeHtml(d.nome)} está na base, mas ainda EM OCORRÊNCIA!</b>\n` +
+        `Está ${onde} há <b>${d.minutos} min</b>` +
+        `${o.protocolo ? ` · ocorrência <b>${escapeHtml(o.protocolo)}</b>` : ""}` +
+        `${o.medico ? ` · MR <b>${escapeHtml(nomeProprio(o.medico))}</b>` : ""}\n` +
+        `${retorno ? "↩ Apertou retorno à base" : "📍 Último status"}: ${status}\n` +
+        `👉 Já encerrou e falta fechar no sistema${d.hospitalNome ? ", ou está com dificuldade de acolhimento aí" : ""}?\n` +
+        `<a href="${PAINEL}">ver no painel</a>`
     );
 }
 

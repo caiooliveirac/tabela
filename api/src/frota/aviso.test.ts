@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { textoCobranca } from "./aviso.js";
+import { baseOcupada, textoBaseOcupada, textoCobranca } from "./aviso.js";
 
 const t = (hhmm: string) => new Date(`2026-10-01T${hhmm}:00-03:00`);
 const d = { nome: "SM01", hospitalNome: "HGE", entrada: t("14:00") };
@@ -56,4 +56,34 @@ test("balanço: diurno às 19h, plantão limpo, e sem convite quando o Acolhimen
         { agora: t("19:00"), conferido: false, alertaMin: 40 },
     );
     assert.doesNotMatch(s, /Acolhimentos/);
+});
+
+test("na base mas em ocorrência: só depois de 40 min, contando da chegada ou da abertura", () => {
+    const t = (hhmm: string) => new Date(`2026-10-09T${hhmm}:00-03:00`);
+    const o = {
+        protocolo: "0617", medico: "FULANA DE TAL", status: "DISPONÍVEL / RETORNO À BASE", statusEm: t("15:58").toISOString(),
+        abertura: t("14:07").toISOString(), risco: "Amarelo", regulacaoSecundaria: false,
+        endereco: null, bairro: null, queixa: null, hma: null,
+    };
+    const v = {
+        nome: "PP21", base: "PERIPERI", naBase: false,
+        noHospital: { naBase: true, hospitalNome: "UPA Adroaldo Albergaria" },
+        ocorrencia: { ocorrencia: o },
+    };
+    assert.equal(baseOcupada(v, t("15:56"), t("16:30"), 40), null); // 34 min
+    const b = baseOcupada(v, t("15:56"), t("16:36"), 40)!;
+    assert.equal(b.minutos, 40);
+    const txt = textoBaseOcupada(b);
+    assert.match(txt, /🚨🏠 <b>PP21 está na base, mas ainda EM OCORRÊNCIA!<\/b>/);
+    assert.match(txt, /dentro da <b>UPA Adroaldo Albergaria<\/b>/);
+    assert.match(txt, /ocorrência <b>0617<\/b> · MR <b>Fulana De Tal<\/b>/);
+    assert.match(txt, /↩ Apertou retorno à base: disponível \/ retorno à base às 15:58/);
+    assert.match(txt, /dificuldade de acolhimento/);
+    // Livre ou fora da base: nada.
+    assert.equal(baseOcupada({ ...v, ocorrencia: { ocorrencia: null } }, t("15:00"), t("17:00"), 40), null);
+    assert.equal(baseOcupada({ ...v, noHospital: null }, t("15:00"), t("17:00"), 40), null);
+    // Estava na base desde cedo e foi despachada às 16:00: conta da abertura.
+    const nova = { ...v, ocorrencia: { ocorrencia: { ...o, status: "DESIGNADA", abertura: t("16:00").toISOString() } } };
+    assert.equal(baseOcupada(nova, t("10:00"), t("16:30"), 40), null);
+    assert.equal(baseOcupada(nova, t("10:00"), t("16:40"), 40)!.minutos, 40);
 });
