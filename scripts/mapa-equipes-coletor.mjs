@@ -5,8 +5,9 @@
 // Tabela não o alcança. Este script roda numa máquina de dentro da rede, lê o
 // JSON a cada 30 s e manda a POST /tabela/api/frota/ocorrencias SÓ o que o
 // painel precisa: equipe, médico regulador, status, horários, risco, endereço,
-// bairro e queixa. NÃO saem daqui: nome, idade, sexo, telefone e solicitante
-// (paciente); HMA (história clínica); e o protocolo do caso.
+// bairro, queixa e os 4 últimos dígitos do protocolo (chave do histórico, não
+// identifica o caso). NÃO saem daqui: nome, idade, sexo, telefone e solicitante
+// (paciente); HMA (história clínica); o protocolo completo.
 //
 // Numeral 77+ (OC 78, 79…) é de fora da gestão e nem trafega.
 //
@@ -51,6 +52,8 @@ async function ciclo() {
         return {
             equipe: e.equipe,
             ocorrencia: d && {
+                // Só os 4 últimos dígitos: chave do histórico, sem identificar o caso.
+                protocolo: (String(d.protocolo ?? "").match(/\d/g) || []).join("").slice(-4) || null,
                 medico: d.medico,
                 status: d.status_deslocamento?.status,
                 statusEm: d.status_deslocamento?.data,
