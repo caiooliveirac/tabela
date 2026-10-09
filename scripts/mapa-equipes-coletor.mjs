@@ -4,9 +4,11 @@
 // O mapa (dashmapa) só responde dentro da rede da SMS/VPN; o servidor da
 // Tabela não o alcança. Este script roda numa máquina de dentro da rede, lê o
 // JSON a cada 30 s e manda a POST /tabela/api/frota/ocorrencias SÓ o que o
-// painel precisa: equipe, status, horários, risco, endereço, bairro e queixa.
-// NÃO saem daqui: nome, idade, sexo, telefone e solicitante (paciente); HMA
-// (história clínica); e a identificação do caso — protocolo e médico regulador.
+// painel precisa: equipe, médico regulador, status, horários, risco, endereço,
+// bairro e queixa. NÃO saem daqui: nome, idade, sexo, telefone e solicitante
+// (paciente); HMA (história clínica); e o protocolo do caso.
+//
+// Numeral 77+ (OC 78, 79…) é de fora da gestão e nem trafega.
 //
 // O corpo vai comprimido (gzip, Content-Encoding): o express descomprime
 // sozinho. Campos repetidos (status, risco, datas) encolhem ~5x no fio.
@@ -40,11 +42,16 @@ async function ciclo() {
         throw new Error(`mapa: ${e.message}`);
     });
     if (!res.ok) throw new Error(`mapa: HTTP ${res.status}`);
-    const equipes = (await res.json()).map((e) => {
+    const equipes = (await res.json()).filter((e) => {
+        // Numeral 77+ (OC 78, 79…) não é da nossa gestão — nem trafega.
+        const n = Number((String(e.equipe).match(/\d+/) || [])[0]);
+        return !(Number.isFinite(n) && n >= 77);
+    }).map((e) => {
         const d = e.dados;
         return {
             equipe: e.equipe,
             ocorrencia: d && {
+                medico: d.medico,
                 status: d.status_deslocamento?.status,
                 statusEm: d.status_deslocamento?.data,
                 abertura: d.horario_abertura,
