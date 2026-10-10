@@ -126,6 +126,25 @@ const PLANILHA: readonly ViaturaCatalogo[] = [
     { codigo: "VC82", tipo: "USB", turno: "24h", status: "ATIVA", base: "VERA CRUZ" },
 ];
 
+/**
+ * Motolâncias: fora do catálogo (não entram em parada, aviso nem escala), mas
+ * têm base e podem ser desativadas pelo código — é por ele que o QRF, o Quadro
+ * e o Huddle as reconhecem. A base é a da USA com que cada uma roda (MT06 com a
+ * PM40, MT07 com a BR60, MT08 com a PR03, MT09 com a CN10), informada pela
+ * coordenação em 10/10/2026.
+ */
+export const MOTOS: Readonly<Record<string, string>> = {
+    MT06: "PAU MIÚDO",
+    MT07: "BOCA DO RIO ROSA GARCIA",
+    MT08: "FTC",
+    MT09: "5º CENTRO",
+};
+/** "MT 09" (nome no SAMU+) → "MT09", se for uma das motolâncias conhecidas. */
+export const codigoDaMoto = (nome: string): string | null => {
+    const codigo = nome.replace(/\s/g, "").toUpperCase();
+    return codigo in MOTOS ? codigo : null;
+};
+
 export const CATALOGO: readonly ViaturaCatalogo[] = PLANILHA.filter((c) => numeroNoLimite(c.codigo));
 
 /**

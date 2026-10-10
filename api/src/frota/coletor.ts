@@ -14,7 +14,7 @@
 // ═══════════════════════════════════════════════════════════════
 import { sql } from "drizzle-orm";
 import { db } from "../index.js";
-import { CATALOGO, DESATIVADAS_ATE_SEGUNDA_ORDEM, numeroNoLimite } from "./catalogo.js";
+import { CATALOGO, DESATIVADAS_ATE_SEGUNDA_ORDEM, MOTOS, numeroNoLimite } from "./catalogo.js";
 import { LOCAIS_FROTA, type HospitalFrota, type PontoAprendido } from "./hospitais.js";
 import {
     ALERTA_MIN, APRENDE_RAIO_M, aprenderPontos, avancarPermanencias, distanciaM, duracaoMin, ehMoto,
@@ -973,7 +973,7 @@ function desativacaoDe(r: Linha): Desativacao {
 
 /** Avisa o grupo da frota: é por ele que todos sabem por que os avisos da viatura pararam (ou voltaram). */
 async function avisarDesativacao(d: Desativacao): Promise<void> {
-    const tipo = CATALOGO.find((c) => c.codigo === d.codigo)?.tipo ?? null;
+    const tipo = CATALOGO.find((c) => c.codigo === d.codigo)?.tipo ?? (d.codigo in MOTOS ? "MOTO" : null);
     await mandar(textoDesativacao(d, tipo)).catch((e) => registrarErro("aviso Telegram", e));
 }
 
@@ -1024,7 +1024,8 @@ async function espelharMesa(agora: Date): Promise<void> {
 
 export async function desativarViatura(dados: z.infer<typeof esquemaDesativar>): Promise<Desativacao> {
     if (!TOKEN) throw new ErroDesativacao(503, "Frota desligada neste servidor");
-    const c = CATALOGO.find((v) => v.codigo === dados.codigo);
+    // Motolância não está no catálogo, mas pode ser desativada pelo código (catalogo.ts, MOTOS).
+    const c = CATALOGO.find((v) => v.codigo === dados.codigo) ?? (dados.codigo in MOTOS ? { codigo: dados.codigo } : undefined);
     if (!c) throw new ErroDesativacao(400, `${dados.codigo} não está no catálogo da frota`);
     if (DESATIVADAS_ATE_SEGUNDA_ORDEM.has(c.codigo)) throw new ErroDesativacao(409, `${c.codigo} já está desativada até segunda ordem`);
     if (desativacoes.has(c.codigo)) throw new ErroDesativacao(409, `${c.codigo} já está desativada — reative antes de informar de novo`);
