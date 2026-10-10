@@ -78,7 +78,7 @@ Frota a outra rota da API precisa entrar lá.
   usar override de porta. No LAB do servidor o 5433 é do próprio LAB.
 - `docker-compose.yml.bak-*` no LIVE são backups intencionais (untracked).
 - **Login único**: `mnrs.com.br/tabela/` (tela, `/api/*`, `/ws`) exige o login do
-  portal (`auth_request` no nginx do HOST → porteiro do kairos; bloco em
+  portal (`auth_request` no nginx do HOST → porteiro, repo `mnrs-portal`; bloco em
   `nginx-host.conf`, estudo em `docs/login-unico.md`). Chamada de serviço usa
   `http://127.0.0.1:3001/tabela/api`, nunca a URL pública. O LAB não tem portão.
   Merge na `main` já faz deploy no LIVE (`deploy.yml` → magalu).
