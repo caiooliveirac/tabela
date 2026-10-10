@@ -2,7 +2,7 @@
 // Monta a resposta de GET /tabela/api/frota a partir do que o coletor tem
 // em memória. Pura: mesma entrada, mesma saída.
 // ═══════════════════════════════════════════════════════════════
-import { COORDENADAS_BASES, numeroNoLimite, type ViaturaCatalogo } from "./catalogo.js";
+import { codigoDaMoto, COORDENADAS_BASES, MOTOS, numeroNoLimite, type ViaturaCatalogo } from "./catalogo.js";
 import { motivoPainel, type Desativacao } from "./desativacoes.js";
 import type { HospitalFrota } from "./hospitais.js";
 import type { SituacaoOcorrencia } from "./ocorrencias.js";
@@ -227,12 +227,19 @@ export function montarPainel(entrada: {
             continue;
         }
         const nome = r.dispositivo?.nome ?? `Equipe ${r.posicao.idEquipe}`;
+        // Motolância conhecida ganha código e base (segue fora do catálogo: sem parada nem aviso).
+        const moto = ehMoto(nome) ? codigoDaMoto(nome) : null;
         viaturas.push(
             montar(r.chave, {
-                codigo: null, nome, tipo: ehMoto(nome) ? "MOTO" : null,
-                base: null, turno: null, foraDoCatalogo: true,
+                codigo: moto, nome, tipo: ehMoto(nome) ? "MOTO" : null,
+                base: moto ? MOTOS[moto] : null, turno: null, foraDoCatalogo: true,
             }, null),
         );
+    }
+    // Motolância desativada e sem sinal: aparece mesmo assim, para Quadro, Huddle e QRF saberem.
+    for (const [codigo, base] of Object.entries(MOTOS)) {
+        if (!entrada.desativacoes?.has(codigo) || viaturas.some((v) => v.codigo === codigo)) continue;
+        viaturas.push(montar(`moto:${codigo}`, { codigo, nome: codigo, tipo: "MOTO", base, turno: null, foraDoCatalogo: true }, null));
     }
 
     return {
