@@ -32,7 +32,7 @@ test("numeral até 74: o resto é dado lixo, no catálogo e no nome do SAMU+", (
     assert.ok(numeroNoLimite("PB 60 [A]"));
     assert.ok(numeroNoLimite("CC74"));
     assert.ok(!numeroNoLimite("MT 76 (SF)"));
-    assert.ok(numeroNoLimite("LFEX"));
+    assert.ok(!numeroNoLimite("LFEX 01 (A)"));
     assert.ok(!CATALOGO.some((c) => c.codigo === "CD99"));
 
     const posicoes = lerPosicoes([

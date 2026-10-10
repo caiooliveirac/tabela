@@ -20,10 +20,10 @@ const desloca = (p: { lat: number; lng: number }, norte: number, leste = 0) => (
 });
 const local = (id: string) => LOCAIS_FROTA.find((h) => h.id === id)!;
 
-test("catálogo: 63 viaturas até o numeral 74, código e número únicos, desativadas existem", () => {
-    assert.equal(CATALOGO.length, 63);
-    assert.equal(new Set(CATALOGO.map((c) => c.codigo)).size, 63);
-    // Acima de 74 (RMS): dado lixo, fora (decisão de 29/09/2026). LFEX (sem numeral) fica.
+test("catálogo: 62 viaturas até o numeral 74, código e número únicos, desativadas existem", () => {
+    assert.equal(CATALOGO.length, 62);
+    assert.equal(new Set(CATALOGO.map((c) => c.codigo)).size, 62);
+    // Acima de 74 (RMS): dado lixo, fora (decisão de 29/09/2026). LFEX não existe.
     for (const c of CATALOGO) assert.ok(Number(c.codigo.replace(/\D/g, "")) <= 74, c.codigo);
     const numeros = CATALOGO.map((c) => c.codigo.replace(/\D/g, "")).filter(Boolean);
     assert.equal(new Set(numeros).size, numeros.length);
@@ -90,7 +90,7 @@ test("vínculo: exato primeiro; número só para quem sobrou; moto e evento de f
             { unidadeSamu: 1, nome: "CB 02 (A)" },
             { unidadeSamu: 2, nome: "FV 02" },          // Festival da Virada: 02 já é da CB02
             { unidadeSamu: 3, nome: "PB 60 [A]" },      // remanejada: número 60 é a BR60
-            { unidadeSamu: 4, nome: "LFEX 01 (A)" },    // código sem número no catálogo
+            { unidadeSamu: 4, nome: "LFEX 01 (A)" },    // não existe: nem pelo número 1 (SM01)
             { unidadeSamu: 5, nome: "MT 07" },
             { unidadeSamu: 6, nome: "PR 03 (A)" },
             { unidadeSamu: 7, nome: "FV 03" },
@@ -100,7 +100,7 @@ test("vínculo: exato primeiro; número só para quem sobrou; moto e evento de f
     assert.deepEqual(v.get(1), { codigo: "CB02", nomeDifere: false });
     assert.equal(v.get(2), undefined);
     assert.deepEqual(v.get(3), { codigo: "BR60", nomeDifere: true });
-    assert.deepEqual(v.get(4), { codigo: "LFEX", nomeDifere: false });
+    assert.equal(v.get(4), undefined);
     assert.equal(v.get(5), undefined);
     assert.deepEqual(v.get(6), { codigo: "PR03", nomeDifere: false });
     assert.equal(v.get(7), undefined);
@@ -319,8 +319,8 @@ test("situação: desativada vence; transmitindo aparece; SD/10h de noite é for
     const dia = t("12:00");
     const noite = new Date("2026-09-29T22:00:00-03:00");
     assert.equal(situacao({ codigo: "PB67", turno: "24h", status: "ATIVA" }, 2, d, dia).situacao, "desativada");
-    assert.equal(situacao({ codigo: "PM42", turno: "24h", status: "DESATIVADA 24H" }, 5, d, dia).situacao, "mapa");
-    assert.equal(situacao({ codigo: "PM42", turno: "24h", status: "DESATIVADA 24H" }, null, d, dia).situacao, "desativada");
+    assert.equal(situacao({ codigo: "PM44", turno: "10h", status: "DESATIVADA 24H" }, 5, d, dia).situacao, "mapa");
+    assert.equal(situacao({ codigo: "PM44", turno: "10h", status: "DESATIVADA 24H" }, null, d, dia).situacao, "desativada");
     assert.equal(situacao({ codigo: "CN12", turno: "10h", status: "ATIVA" }, null, d, noite).situacao, "fora-do-turno");
     assert.equal(situacao({ codigo: "CN12", turno: "10h", status: "ATIVA" }, null, d, dia).situacao, "sem-sinal");
     assert.equal(situacao({ codigo: "CN10", turno: "24h", status: "ATIVA" }, 90, d, noite).situacao, "sem-sinal");

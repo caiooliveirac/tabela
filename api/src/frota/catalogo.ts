@@ -31,12 +31,13 @@ export const DESATIVADAS_ATE_SEGUNDA_ORDEM: ReadonlySet<string> = new Set([
  * Saubara, São Francisco do Conde, Simões Filho, Vera Cruz) nunca teve
  * conexão com o SAMU+: dado lixo, fora de toda conta e tela (decisão de
  * 29/09/2026). Vale para o catálogo e para o nome no SAMU+ ("MT 76 (SF)").
- * LFEX fica: no SAMU+ é "LFEX 01 (A)" — fora do catálogo, pelo número 1
- * tomaria o lugar da SM01 no vínculo.
+ * LFEX ("LFEX 01 (A)" no SAMU+) não existe nem existirá (decisão de
+ * 10/10/2026): mesmo lixo, e `vincular` não deixa o número 1 tomar a SM01.
  */
 export const NUMERO_MAX = 74;
 
 export function numeroNoLimite(nome: string): boolean {
+    if (/^\s*LFEX/i.test(nome)) return false;
     const m = /\d+/.exec(nome);
     return m === null || Number(m[0]) <= NUMERO_MAX;
 }
@@ -73,7 +74,7 @@ const PLANILHA: readonly ViaturaCatalogo[] = [
     { codigo: "PM04", tipo: "USA", turno: "24h", status: "ATIVA", base: "PAU MIÚDO" },
     { codigo: "PM40", tipo: "USA", turno: "24h", status: "ATIVA", base: "PAU MIÚDO" },
     { codigo: "PM41", tipo: "USB", turno: "24h", status: "ATIVA", base: "PAU MIÚDO" },
-    { codigo: "PM42", tipo: "USB", turno: "24h", status: "DESATIVADA 24H", base: "PAU MIÚDO" },
+    { codigo: "PM42", tipo: "USB", turno: "24h", status: "ATIVA", base: "PAU MIÚDO" },
     { codigo: "PM43", tipo: "USB", turno: "24h", status: "ATIVA", base: "PAU MIÚDO" },
     { codigo: "PM44", tipo: "USB", turno: "10h", status: "DESATIVADA 24H", base: "PAU MIÚDO" },
     { codigo: "PM45", tipo: "USB", turno: "24h", status: "ATIVA", base: "PAU MIÚDO" },
@@ -110,7 +111,6 @@ const PLANILHA: readonly ViaturaCatalogo[] = [
     { codigo: "LF90", tipo: "USA", turno: "24h", status: "ATIVA", base: "LAURO DE FREITAS" },
     { codigo: "LF91", tipo: "USB", turno: "24h", status: "ATIVA", base: "LAURO DE FREITAS" },
     { codigo: "LF92", tipo: "USB", turno: "24h", status: "ATIVA", base: "LAURO DE FREITAS" },
-    { codigo: "LFEX", tipo: "USA", turno: "24h", status: "DESATIVADA 24H", base: "LAURO DE FREITAS" },
     { codigo: "MD84", tipo: "USB", turno: "24h", status: "ATIVA", base: "MADRE DE DEUS" },
     { codigo: "MD85", tipo: "USA", turno: "24h", status: "ATIVA", base: "MADRE DE DEUS" },
     { codigo: "SA86", tipo: "USB", turno: "24h", status: "ATIVA", base: "SANTO AMARO" },

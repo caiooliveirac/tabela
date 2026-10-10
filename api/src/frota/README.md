@@ -18,8 +18,8 @@ vínculo sai da página de status; se ela sair do ar, vale o último salvo em
 
 - **Numeral acima de 74 = dado lixo** (RMS, nunca teve conexão com o SAMU+):
   fora do catálogo, do painel, da linha do tempo e dos avisos; vale também
-  para o nome no SAMU+ ("MT 76 (SF)"). LFEX fica — sem ele, "LFEX 01" tomaria
-  a SM01 pelo número (`catalogo.ts`, `NUMERO_MAX`).
+  para o nome no SAMU+ ("MT 76 (SF)"). LFEX não existe: mesmo lixo, e "LFEX 01"
+  não toma a SM01 pelo número (`catalogo.ts`, `NUMERO_MAX`).
 - **Nome no SAMU+ → código do catálogo:** primeiro o código exato
   (`CB 02 (A)` → CB02); depois, para quem sobrou, o número (`PB 60 [A]` →
   BR60, viatura remanejada). Motos (`MT`) e unidades de evento (`FV 02`) ficam

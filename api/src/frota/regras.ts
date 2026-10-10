@@ -2,7 +2,7 @@
 // Regras da frota — funções puras, sem rede nem banco (testadas em
 // regras.test.ts). O coletor chama; a rota só serializa.
 // ═══════════════════════════════════════════════════════════════
-import type { ViaturaCatalogo } from "./catalogo.js";
+import { numeroNoLimite, type ViaturaCatalogo } from "./catalogo.js";
 import type { HospitalFrota, PontoAprendido } from "./hospitais.js";
 
 /** Entra no hospital a 150 m do prédio. */
@@ -77,8 +77,8 @@ export function hospitalNoRaio(
 
 // ── Vínculo: nome no SAMU+ → código do catálogo ────────────────
 //
-// O SAMU+ escreve "CB 02 (A)", "PB 60 [A]", "LFEX 01 (A)", "MT 07". O
-// catálogo tem CB02, BR60, LFEX. O número da viatura é único no catálogo,
+// O SAMU+ escreve "CB 02 (A)", "PB 60 [A]", "MT 07". O
+// catálogo tem CB02, BR60. O número da viatura é único no catálogo,
 // mas o prefixo do SAMU+ às vezes é de outra base (viatura remanejada) e há
 // unidades de evento com número repetido ("FV 02", Festival da Virada).
 // Por isso duas passadas: primeiro o código exato; depois, só para quem
@@ -114,7 +114,7 @@ export function vincular(
     const tomados = new Set<string>();
 
     for (const u of unidades) {
-        const l = lerNome(u.nome);
+        const l = numeroNoLimite(u.nome) ? lerNome(u.nome) : null;
         if (!l) continue;
         const exato = l.numero
             ? porCodigo.get(l.prefixo + l.numero.padStart(2, "0")) ?? porCodigo.get(l.prefixo)
@@ -126,7 +126,7 @@ export function vincular(
     }
     for (const u of unidades) {
         if (saida.has(u.unidadeSamu)) continue;
-        const l = lerNome(u.nome);
+        const l = numeroNoLimite(u.nome) ? lerNome(u.nome) : null;
         if (!l?.numero || l.prefixo === "MT") continue;
         const c = porNumero.get(l.numero);
         if (c && !tomados.has(c.codigo)) {
