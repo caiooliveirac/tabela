@@ -53,6 +53,7 @@ export const ORIGENS = {
     quadro: "Quadro Informativo",
     relatorio: "Relatório da chefia",
     mesa: "Mesa operacional",
+    qrf: "QRF",
 } as const;
 export type Origem = keyof typeof ORIGENS;
 
