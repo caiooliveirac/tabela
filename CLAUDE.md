@@ -24,14 +24,38 @@ Procedimentos completos: `~/labctl/README.md` no servidor magalu.
   (somente leitura) para o container LAB.
 - **STATUS**: `ssh magalu labctl status tabela`.
 - **Toda tarefa termina no LIVE** (desde 29/09/2026): terminou uma mudança,
-  merge/push na `main` sem perguntar — já deploya no LIVE (`deploy.yml`). Não
-  deployar só quando o usuário disser ("não sobe", "só local", "testa no LAB"). `ssh magalu labctl promote tabela`
-  (compose build + health em `/tabela/`, rollback automático) só se o CI falhar.
+  merge/push na `main` sem perguntar — o servidor promove sozinho em ~1–3 min
+  (ver "Deploy de qualquer aparelho"). Não deployar só quando o usuário disser
+  ("não sobe", "só local", "testa no LAB"). `ssh magalu labctl promote tabela`
+  (compose build + health em `/tabela/`, rollback automático) só se o
+  auto-promote falhar.
 - **ROLLBACK**: `ssh magalu labctl rollback tabela` (rebuild do commit anterior).
 - **CANARY**: PIN da chefia / papéis internos no LIVE já promovido (cron semanal
   `scripts/chefia-pin.sh rotate` roda no LIVE, segunda 07:00).
 - **Exigem aprovação explícita**: migration destrutiva, escrita manual no banco
   `tabela`, qualquer coisa que faça o `tabela-notifier` mandar mensagem real.
+
+## Deploy de qualquer aparelho (desde 11/10/2026)
+
+O Caio desenvolve ora do Windows, ora do Mac, ora do celular. O deploy não pode
+depender de qual máquina está ligada: quem deploya é o **próprio servidor**.
+Um timer do systemd no magalu (`auto-promote.timer` → `~/labctl/auto-promote.sh`,
+lista em `~/labctl/auto-promote.apps`) confere a `main` a cada minuto e roda
+`labctl promote tabela` (build + health, rollback automático). **Merge/push na
+`main` = LIVE em ~1–3 min**, sem workflow, sem runner e sem SSH.
+Um commit que falhou não é tentado de novo: corrigir com commit novo ou
+`ssh magalu labctl promote tabela`. Log: `ssh magalu journalctl -u auto-promote -n 50`.
+Não existe mais `.github/workflows/deploy.yml`: o job rodava num runner no Mac
+e parava sempre que o Mac dormia. Depois do promote roda `migrate.js`
+(`POST_PROMOTE_CMD` em `~/labctl/apps/tabela.conf`), como o workflow fazia.
+
+Não pedir confirmação para merge/deploy: mandou, roda (as exceções de sempre
+continuam — migration destrutiva, escrita manual no banco).
+
+Se precisar agir à mão, `ssh magalu` funciona de qualquer aparelho no tailnet
+(a porta 22 só aceita as redes de trabalho e o tailnet; a VM do GitHub não
+entra). Conferir: `ssh magalu labctl status tabela` · histórico:
+`ssh magalu labctl history tabela`.
 
 ## Dois bots de Telegram — não confundir
 
@@ -81,7 +105,7 @@ Frota a outra rota da API precisa entrar lá.
   portal (`auth_request` no nginx do HOST → porteiro, repo `mnrs-portal`; bloco em
   `nginx-host.conf`, estudo em `docs/login-unico.md`). Chamada de serviço usa
   `http://127.0.0.1:3001/tabela/api`, nunca a URL pública. O LAB não tem portão.
-  Merge na `main` já faz deploy no LIVE (`deploy.yml` → magalu).
+  Merge na `main` já faz deploy no LIVE (auto-promote no magalu).
 - Aba Destino: mapa Google só com `GOOGLE_MAPS_BROWSER_KEY` no `.env` (chave
   de navegador, restrita por referrer — NÃO é a `GOOGLE_MAPS_API_KEY` do
   `gerar-locais.py`); sem ela cai no Leaflet. Ver `docs/encaminhamento-modulo.md`.

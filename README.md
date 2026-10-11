@@ -147,20 +147,19 @@ sudo nano /etc/nginx/sites-available/default
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-### CI/CD (GitHub Actions)
+### Deploy automático (sem GitHub Actions)
 
-O workflow `.github/workflows/deploy.yml` faz deploy automático a cada push na `main`:
+Push/merge na `main` vai ao ar sozinho, de qualquer aparelho: o próprio servidor
+confere a `main` a cada minuto (timer `auto-promote`) e roda
+`labctl promote tabela`:
 
-1. SSH no servidor
-2. `git pull`
-3. `docker compose build && up -d`
-4. Healthcheck
+1. `git fetch` + avanço para o commit novo
+2. `docker compose build web api` e `up -d`
+3. Healthcheck em `/tabela/` — se falhar, rollback automático para o commit anterior
+4. `migrate.js`
 
-Secrets necessários no GitHub:
-
-- `EC2_HOST` — IP/hostname do servidor
-- `EC2_USER` — usuário SSH
-- `SSH_PRIVATE_KEY` — chave SSH privada
+Não há workflow de deploy nem secrets no GitHub. À mão, se precisar:
+`ssh magalu labctl promote tabela` · voltar: `ssh magalu labctl rollback tabela`.
 
 ---
 

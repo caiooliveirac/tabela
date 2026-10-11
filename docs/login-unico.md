@@ -115,9 +115,9 @@ portão (já falha hoje), mas o aviso de UPA restrita no WhatsApp segue mudo at�
 3. **`nginx-host.conf`**: é a fonte do bloco com o portão (como aplicar,
    testar e reverter no comentário do topo).
 
-**Atenção:** merge na `main` dispara `.github/workflows/deploy.yml`, que hoje
-faz `reset --hard` + `docker compose build/up` no magalu (o secret
-`EC2_HOST` aponta para lá). Merge = deploy no LIVE.
+**Atenção:** merge na `main` é promovido sozinho pelo servidor em ~1–3 min
+(`auto-promote` → `labctl promote tabela`: `docker compose build/up` + health,
+com rollback automático). Merge = deploy no LIVE.
 
 ## Riscos de uso
 
