@@ -45,8 +45,8 @@ export function numeroNoLimite(nome: string): boolean {
 /**
  * Plantão de 08h às 20h (e de 20h às 08h): roda as 24 h como as demais, mas
  * a equipe troca uma hora depois da virada geral (07h/19h). São as nove que a
- * planilha chamava de "10h" (decisão de 11/10/2026). O QRF guarda a mesma
- * lista em `PLANTAO_8_20` (qrf/lib/turno.ts): manter igual.
+ * planilha chamava de "10h" (decisão de 11/10/2026). QRF e Quadro sabem quem
+ * são pelo campo `turno` do painel: a lista mora só aqui.
  */
 export const TURNO_8_20 = "08h-20h";
 
