@@ -14,7 +14,7 @@
 // ═══════════════════════════════════════════════════════════════
 import { sql } from "drizzle-orm";
 import { db } from "../index.js";
-import { CATALOGO, DESATIVADAS_ATE_SEGUNDA_ORDEM, MOTOS, numeroNoLimite } from "./catalogo.js";
+import { atrasoDaViradaH, CATALOGO, DESATIVADAS_ATE_SEGUNDA_ORDEM, MOTOS, numeroNoLimite } from "./catalogo.js";
 import { LOCAIS_FROTA, type HospitalFrota, type PontoAprendido } from "./hospitais.js";
 import {
     ALERTA_MIN, APRENDE_RAIO_M, aprenderPontos, avancarPermanencias, distanciaM, duracaoMin, ehMoto,
@@ -977,10 +977,15 @@ async function avisarDesativacao(d: Desativacao): Promise<void> {
     await mandar(textoDesativacao(d, tipo)).catch((e) => registrarErro("aviso Telegram", e));
 }
 
-/** Encerra as desativações informadas em plantão que já virou (desativacoes.ts). */
+/**
+ * Encerra as desativações informadas em plantão que já virou (desativacoes.ts).
+ * A virada é a da própria viatura: 08h/20h nas de 08h–20h, 07h/19h nas demais.
+ */
 async function vencerDesativacoes(agora: Date): Promise<void> {
-    const plantao = plantaoDe(agora);
-    const velhas = [...desativacoes.values()].filter((d) => plantaoDe(new Date(d.desde)) !== plantao);
+    const velhas = [...desativacoes.values()].filter((d) => {
+        const atraso = atrasoDaViradaH(d.codigo);
+        return plantaoDe(new Date(d.desde), atraso) !== plantaoDe(agora, atraso);
+    });
     const encerradas: Desativacao[] = [];
     for (const d of velhas) {
         const [linha] = await consultar(sql`

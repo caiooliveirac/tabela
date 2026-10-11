@@ -145,7 +145,7 @@ export default function FrotaView({ painel, carregando, erro, foco, focar, opera
         <Numero valor={emAlerta} rotulo={`há ${L.alertaMin} min ou mais`} cor={emAlerta ? COR.alerta : "#cbd5e1"} detalhe="Retenção de maca" />
         <Numero valor={naBaseHospital} rotulo="na base (no hospital)" cor={COR.base} detalhe="Base colada no hospital ou dentro da UPA: sem alerta" />
         <Numero valor={grupos.semSinal.length} rotulo="sem sinal" cor={COR.atrasada} detalhe="Deviam estar na rua e não transmitem há mais de 1 h" />
-        <Numero valor={grupos.foraDoTurno.length} rotulo="fora do turno" cor="#cbd5e1" detalhe="SD e 10h, de noite" />
+        <Numero valor={grupos.foraDoTurno.length} rotulo="fora do turno" cor="#cbd5e1" detalhe="SD, de noite" />
         <Numero valor={grupos.desativadas.length} rotulo="desativadas" cor="#94a3b8" detalhe="Até segunda ordem ou informadas no painel" />
       </div>
 
@@ -286,7 +286,7 @@ export default function FrotaView({ painel, carregando, erro, foco, focar, opera
           <div>
             <Grupo
               titulo="Fora do turno agora"
-              nota="SD e 10h rodam das 7h às 19h."
+              nota="SD roda das 7h às 19h. As de 08h–20h rodam as 24 h e viram às 8h e às 20h."
               itens={grupos.foraDoTurno}
               extra={(v) => v.motivo ?? ""}
             />
