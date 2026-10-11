@@ -440,9 +440,8 @@ export function situacao(
             motivo: escaladaAgora(v, agora) ? null : "fora da escala oficial agora",
         };
     }
-    if (v.status === "DESATIVADA 24H" || (v.status === "DESATIVADA SD" && v.turno === "SD")) {
-        return { situacao: "desativada", motivo: "no cadastro oficial" };
-    }
+    // Sem sinal nunca desativa: desativada é só a lista até segunda ordem ou
+    // quem alguém informou no painel (vale até a virada). O resto é aviso.
     if (!escaladaAgora(v, agora)) {
         return {
             situacao: "fora-do-turno",

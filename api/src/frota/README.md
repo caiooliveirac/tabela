@@ -60,8 +60,8 @@ vínculo sai da página de status; se ela sair do ar, vale o último salvo em
 - **Situação de cada viatura:** `mapa` (posição da última hora) ·
   `sem-sinal` · `fora-do-turno` (SD e 10h entre 19h e 7h — o horário exato do
   10h é suposição) · `desativada` (lista `DESATIVADAS_ATE_SEGUNDA_ORDEM` ou
-  cadastro oficial). Quem transmite aparece, mesmo que a planilha diga que
-  está desativada.
+  informada no painel, até a virada). Ficar sem sinal não desativa ninguém:
+  vira `sem-sinal` e aviso no grupo; a providência é manual.
 
 ## Diagnóstico e vigia
 

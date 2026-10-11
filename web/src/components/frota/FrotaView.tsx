@@ -146,7 +146,7 @@ export default function FrotaView({ painel, carregando, erro, foco, focar, opera
         <Numero valor={naBaseHospital} rotulo="na base (no hospital)" cor={COR.base} detalhe="Base colada no hospital ou dentro da UPA: sem alerta" />
         <Numero valor={grupos.semSinal.length} rotulo="sem sinal" cor={COR.atrasada} detalhe="Deviam estar na rua e não transmitem há mais de 1 h" />
         <Numero valor={grupos.foraDoTurno.length} rotulo="fora do turno" cor="#cbd5e1" detalhe="SD e 10h, de noite" />
-        <Numero valor={grupos.desativadas.length} rotulo="desativadas" cor="#94a3b8" detalhe="Até segunda ordem, no cadastro oficial ou informadas no painel" />
+        <Numero valor={grupos.desativadas.length} rotulo="desativadas" cor="#94a3b8" detalhe="Até segunda ordem ou informadas no painel" />
       </div>
 
       <div className="flex items-center gap-x-4 gap-y-1 flex-wrap text-[11px] text-slate-500">
