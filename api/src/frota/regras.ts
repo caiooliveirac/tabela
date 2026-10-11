@@ -407,11 +407,11 @@ export function aprenderPontos(
 export type Situacao = "mapa" | "sem-sinal" | "fora-do-turno" | "desativada";
 
 /**
- * SD e 10h rodam de dia. O horário exato do 10h não está na planilha
- * (NÃO DETERMINADO); assume-se dentro de 07h–19h, a janela do SD.
+ * Só SD roda só de dia (07h–19h). As de 08h–20h rodam as 24 h: o que muda
+ * nelas é a hora da virada (catalogo.ts, `TURNO_8_20`).
  */
 export function noTurno(turno: string | null, agora: Date): boolean {
-    if (turno !== "SD" && turno !== "10h") return true;
+    if (turno !== "SD") return true;
     const hora = (agora.getUTCHours() + 24 - 3) % 24;
     return hora >= 7 && hora < 19;
 }
@@ -440,9 +440,8 @@ export function situacao(
             motivo: escaladaAgora(v, agora) ? null : "fora da escala oficial agora",
         };
     }
-    if (v.status === "DESATIVADA 24H" || (v.status === "DESATIVADA SD" && v.turno === "SD")) {
-        return { situacao: "desativada", motivo: "no cadastro oficial" };
-    }
+    // Sem sinal nunca desativa: desativada é só a lista até segunda ordem ou
+    // quem alguém informou no painel (vale até a virada). O resto é aviso.
     if (!escaladaAgora(v, agora)) {
         return {
             situacao: "fora-do-turno",

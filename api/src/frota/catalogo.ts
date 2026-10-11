@@ -10,7 +10,7 @@
 export interface ViaturaCatalogo {
     codigo: string;
     tipo: "USA" | "USB";
-    /** `24h`, `10h`, `SD`, `24H ÊNFASE PSIQUIATRIA`. */
+    /** `24h`, `08h-20h`, `SD`, `24H ÊNFASE PSIQUIATRIA`. */
     turno: string;
     /** `ATIVA`, `DESATIVADA SD`, `DESATIVADA 24H`. */
     status: string;
@@ -42,31 +42,39 @@ export function numeroNoLimite(nome: string): boolean {
     return m === null || Number(m[0]) <= NUMERO_MAX;
 }
 
+/**
+ * Plantão de 08h às 20h (e de 20h às 08h): roda as 24 h como as demais, mas
+ * a equipe troca uma hora depois da virada geral (07h/19h). São as nove que a
+ * planilha chamava de "10h" (decisão de 11/10/2026). QRF e Quadro sabem quem
+ * são pelo campo `turno` do painel: a lista mora só aqui.
+ */
+export const TURNO_8_20 = "08h-20h";
+
 const PLANILHA: readonly ViaturaCatalogo[] = [
     { codigo: "CN10", tipo: "USA", turno: "24h", status: "ATIVA", base: "5º CENTRO" },
     { codigo: "CN11", tipo: "USB", turno: "24h", status: "ATIVA", base: "5º CENTRO" },
-    { codigo: "CN12", tipo: "USB", turno: "10h", status: "ATIVA", base: "5º CENTRO" },
+    { codigo: "CN12", tipo: "USB", turno: "08h-20h", status: "ATIVA", base: "5º CENTRO" },
     { codigo: "CN13", tipo: "USB", turno: "24H ÊNFASE PSIQUIATRIA", status: "ATIVA", base: "5º CENTRO" },
     { codigo: "SM01", tipo: "USA", turno: "24h", status: "ATIVA", base: "SAN MARTIN" },
     { codigo: "SM17", tipo: "USB", turno: "24h", status: "ATIVA", base: "SAN MARTIN" },
     { codigo: "SM18", tipo: "USB", turno: "24h", status: "ATIVA", base: "SAN MARTIN" },
-    { codigo: "SM19", tipo: "USB", turno: "10h", status: "ATIVA", base: "SAN MARTIN" },
+    { codigo: "SM19", tipo: "USB", turno: "08h-20h", status: "ATIVA", base: "SAN MARTIN" },
     { codigo: "PP20", tipo: "USA", turno: "24h", status: "ATIVA", base: "PERIPERI" },
     { codigo: "PP21", tipo: "USB", turno: "24h", status: "ATIVA", base: "PERIPERI" },
-    { codigo: "PP22", tipo: "USB", turno: "10h", status: "ATIVA", base: "PERIPERI" },
+    { codigo: "PP22", tipo: "USB", turno: "08h-20h", status: "ATIVA", base: "PERIPERI" },
     { codigo: "PP23", tipo: "USB", turno: "24h", status: "ATIVA", base: "PERIPERI" },
     { codigo: "CB02", tipo: "USA", turno: "24h", status: "ATIVA", base: "UPA SANTO ANTÔNIO (CIDADE BAIXA)" },
     { codigo: "CB25", tipo: "USB", turno: "24h", status: "ATIVA", base: "UPA SANTO ANTÔNIO (CIDADE BAIXA)" },
     { codigo: "CB26", tipo: "USB", turno: "24h", status: "ATIVA", base: "UPA SANTO ANTÔNIO (CIDADE BAIXA)" },
     { codigo: "CB27", tipo: "USB", turno: "24h", status: "ATIVA", base: "UPA SANTO ANTÔNIO (CIDADE BAIXA)" },
-    { codigo: "CB28", tipo: "USB", turno: "10h", status: "ATIVA", base: "UPA SANTO ANTÔNIO (CIDADE BAIXA)" },
+    { codigo: "CB28", tipo: "USB", turno: "08h-20h", status: "ATIVA", base: "UPA SANTO ANTÔNIO (CIDADE BAIXA)" },
     { codigo: "IT30", tipo: "USA", turno: "24h", status: "ATIVA", base: "ITAPUÃ" },
     { codigo: "IT31", tipo: "USB", turno: "24h", status: "ATIVA", base: "ITAPUÃ" },
     { codigo: "IT32", tipo: "USB", turno: "24h", status: "ATIVA", base: "ITAPUÃ" },
     { codigo: "PR03", tipo: "USA", turno: "24h", status: "ATIVA", base: "FTC" },
     { codigo: "PR33", tipo: "USB", turno: "24h", status: "ATIVA", base: "FTC" },
     { codigo: "PR34", tipo: "USB", turno: "24h", status: "ATIVA", base: "FTC" },
-    { codigo: "PR35", tipo: "USB", turno: "10h", status: "ATIVA", base: "FTC" },
+    { codigo: "PR35", tipo: "USB", turno: "08h-20h", status: "ATIVA", base: "FTC" },
     { codigo: "PR36", tipo: "USB", turno: "SD", status: "DESATIVADA SD", base: "FTC" },
     { codigo: "JA37", tipo: "USB", turno: "24h", status: "ATIVA", base: "JORGE AMADO" },
     { codigo: "JA38", tipo: "USB", turno: "24h", status: "ATIVA", base: "JORGE AMADO" },
@@ -76,16 +84,16 @@ const PLANILHA: readonly ViaturaCatalogo[] = [
     { codigo: "PM41", tipo: "USB", turno: "24h", status: "ATIVA", base: "PAU MIÚDO" },
     { codigo: "PM42", tipo: "USB", turno: "24h", status: "ATIVA", base: "PAU MIÚDO" },
     { codigo: "PM43", tipo: "USB", turno: "24h", status: "ATIVA", base: "PAU MIÚDO" },
-    { codigo: "PM44", tipo: "USB", turno: "10h", status: "DESATIVADA 24H", base: "PAU MIÚDO" },
+    { codigo: "PM44", tipo: "USB", turno: "08h-20h", status: "ATIVA", base: "PAU MIÚDO" },
     { codigo: "PM45", tipo: "USB", turno: "24h", status: "ATIVA", base: "PAU MIÚDO" },
     { codigo: "PM46", tipo: "USB", turno: "24h", status: "ATIVA", base: "PAU MIÚDO" },
     { codigo: "PM47", tipo: "USB", turno: "24h", status: "ATIVA", base: "PAU MIÚDO" },
     { codigo: "PM48", tipo: "USB", turno: "SD", status: "ATIVA", base: "PAU MIÚDO" },
     { codigo: "PM49", tipo: "USB", turno: "24h", status: "ATIVA", base: "PAU MIÚDO" },
     { codigo: "CZ50", tipo: "USA", turno: "24h", status: "ATIVA", base: "CAJAZEIRAS" },
-    { codigo: "CZ51", tipo: "USB", turno: "24h", status: "DESATIVADA 24H", base: "CAJAZEIRAS" },
+    { codigo: "CZ51", tipo: "USB", turno: "SD", status: "ATIVA", base: "CAJAZEIRAS" },
     { codigo: "CZ52", tipo: "USB", turno: "24h", status: "ATIVA", base: "CAJAZEIRAS" },
-    { codigo: "CZ53", tipo: "USB", turno: "10h", status: "ATIVA", base: "CAJAZEIRAS" },
+    { codigo: "CZ53", tipo: "USB", turno: "08h-20h", status: "ATIVA", base: "CAJAZEIRAS" },
     { codigo: "SC54", tipo: "USB", turno: "24h", status: "ATIVA", base: "SÃO CRISTÓVÃO" },
     { codigo: "SC55", tipo: "USB", turno: "24h", status: "ATIVA", base: "SÃO CRISTÓVÃO" },
     { codigo: "VL56", tipo: "USB", turno: "24h", status: "ATIVA", base: "VALÉRIA" },
@@ -93,7 +101,7 @@ const PLANILHA: readonly ViaturaCatalogo[] = [
     { codigo: "BR05", tipo: "USA", turno: "24h", status: "ATIVA", base: "BOCA DO RIO ROSA GARCIA" },
     { codigo: "BR60", tipo: "USA", turno: "24h", status: "ATIVA", base: "BOCA DO RIO ROSA GARCIA" },
     { codigo: "BR61", tipo: "USB", turno: "24h", status: "ATIVA", base: "BOCA DO RIO ROSA GARCIA" },
-    { codigo: "BR62", tipo: "USB", turno: "10h", status: "ATIVA", base: "BOCA DO RIO ROSA GARCIA" },
+    { codigo: "BR62", tipo: "USB", turno: "08h-20h", status: "ATIVA", base: "BOCA DO RIO ROSA GARCIA" },
     { codigo: "BR63", tipo: "USB", turno: "24h", status: "ATIVA", base: "BOCA DO RIO ROSA GARCIA" },
     { codigo: "BR64", tipo: "USB", turno: "SD", status: "DESATIVADA SD", base: "BOCA DO RIO ROSA GARCIA" },
     { codigo: "BR65", tipo: "USB", turno: "24h", status: "ATIVA", base: "BOCA DO RIO 12º CENTRO" },
@@ -102,8 +110,8 @@ const PLANILHA: readonly ViaturaCatalogo[] = [
     { codigo: "PB68", tipo: "USB", turno: "24h", status: "ATIVA", base: "PITUBA ARENA" },
     { codigo: "CC70", tipo: "USA", turno: "24h", status: "ATIVA", base: "CAMPUS CABULA" },
     { codigo: "CC71", tipo: "USB", turno: "24h", status: "ATIVA", base: "CAMPUS CABULA" },
-    { codigo: "CC72", tipo: "USB", turno: "24h", status: "DESATIVADA 24H", base: "CAMPUS CABULA" },
-    { codigo: "CC73", tipo: "USB", turno: "10h", status: "ATIVA", base: "CAMPUS CABULA" },
+    { codigo: "CC72", tipo: "USB", turno: "SD", status: "ATIVA", base: "CAMPUS CABULA" },
+    { codigo: "CC73", tipo: "USB", turno: "08h-20h", status: "ATIVA", base: "CAMPUS CABULA" },
     { codigo: "CC74", tipo: "USB", turno: "24h", status: "ATIVA", base: "RODRIGO ARGOLO" },
     { codigo: "CD97", tipo: "USB", turno: "24h", status: "ATIVA", base: "CANDEIAS" },
     { codigo: "CD98", tipo: "USB", turno: "24h", status: "ATIVA", base: "CANDEIAS" },
@@ -146,6 +154,9 @@ export const codigoDaMoto = (nome: string): string | null => {
 };
 
 export const CATALOGO: readonly ViaturaCatalogo[] = PLANILHA.filter((c) => numeroNoLimite(c.codigo));
+
+/** Horas que a virada desta viatura atrasa em relação à geral: 1 nas de 08h–20h, 0 nas demais. */
+export const atrasoDaViradaH = (codigo: string): number => (CATALOGO.find((c) => c.codigo === codigo)?.turno === TURNO_8_20 ? 1 : 0);
 
 /**
  * Ponto das bases com coordenada EXATA — cópia de ChecagemdeBases

@@ -58,10 +58,10 @@ vínculo sai da página de status; se ela sair do ar, vale o último salvo em
 - **Alerta:** 40 min. Sem posição nova há 15 min o relógio congela; sem
   posição há 1 h a parada fecha como `sem-sinal`.
 - **Situação de cada viatura:** `mapa` (posição da última hora) ·
-  `sem-sinal` · `fora-do-turno` (SD e 10h entre 19h e 7h — o horário exato do
-  10h é suposição) · `desativada` (lista `DESATIVADAS_ATE_SEGUNDA_ORDEM` ou
-  cadastro oficial). Quem transmite aparece, mesmo que a planilha diga que
-  está desativada.
+  `sem-sinal` · `fora-do-turno` (SD entre 19h e 7h; as de 08h–20h rodam as
+  24 h) · `desativada` (lista `DESATIVADAS_ATE_SEGUNDA_ORDEM` ou
+  informada no painel, até a virada). Ficar sem sinal não desativa ninguém:
+  vira `sem-sinal` e aviso no grupo; a providência é manual.
 
 ## Diagnóstico e vigia
 
@@ -132,7 +132,8 @@ mecânica, oxigênio, maca, monitor, rádio; outro com observação), o nome do
 cabeçalho do painel e o posto. O portão do login único só diz "logado", não
 quem (docs/login-unico.md, fase 2) — por isso nome + posto.
 
-- Vale **até a virada do plantão** (07h/19h) de quem informou: o coletor
+- Vale **até a virada do plantão** da viatura (07h/19h; 08h/20h nas de
+  08h–20h, `TURNO_8_20` em `catalogo.ts`): o coletor
   encerra sozinho (`reativada_por = "virada do plantão"`) e manda um aviso só
   ao grupo; o que continuar fora, o plantão seguinte informa de novo.
 - Até alguém **reativar** (ou a virada), conta como desativada: some de todos os avisos

@@ -211,9 +211,12 @@ export function bateriaBaixa(v: ViaturaFrota, agora: Date): boolean {
     return minDesde(v.bateriaEm, agora) <= BATERIA_FRESCA_MIN;
 }
 
-/** Plantão de 12 h: "2026-09-29-D" (07–19) ou "2026-09-29-N" (19–07, data do início). */
-export function plantaoDe(agora: Date): string {
-    const bahia = new Date(agora.getTime() - 3 * 3_600_000);
+/**
+ * Plantão de 12 h: "2026-09-29-D" (07–19) ou "2026-09-29-N" (19–07, data do início).
+ * `atrasoH`: 1 para viatura de 08h–20h, cujo plantão vira uma hora depois.
+ */
+export function plantaoDe(agora: Date, atrasoH = 0): string {
+    const bahia = new Date(agora.getTime() - (3 + atrasoH) * 3_600_000);
     const h = bahia.getUTCHours();
     if (h >= 7 && h < 19) return `${bahia.toISOString().slice(0, 10)}-D`;
     const inicio = h < 7 ? new Date(bahia.getTime() - 24 * 3_600_000) : bahia;

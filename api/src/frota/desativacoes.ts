@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════
 // Desativação informada no painel da Frota: o rádio-operador, a chefia ou a
 // enfermagem avisa que a viatura saiu de operação (mecânica, falta de
-// condutor…). Até alguém reativar — ou até a virada do plantão (07h/19h) de
+// condutor…). Até alguém reativar — ou até a virada do plantão (07h/19h; 08h/20h nas de 08h–20h) de
 // quem informou —, ela conta como desativada: sai dos avisos (parada, sinal,
 // bateria) e do ranking, e aparece no resumo. Cada chefia responde pelo
 // próprio plantão: o que continuar fora, o plantão seguinte informa de novo.

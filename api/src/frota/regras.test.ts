@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { CATALOGO, COORDENADAS_BASES, DESATIVADAS_ATE_SEGUNDA_ORDEM } from "./catalogo.js";
+import { atrasoDaViradaH, CATALOGO, COORDENADAS_BASES, DESATIVADAS_ATE_SEGUNDA_ORDEM, TURNO_8_20 } from "./catalogo.js";
 import { HOSPITAIS_FROTA, LOCAIS_FROTA } from "./hospitais.js";
 import {
     aprenderPontos, avancarPermanencias, distanciaM, duracaoMin, hospitalNoRaio, instanteSamu,
@@ -28,6 +28,8 @@ test("catálogo: 62 viaturas até o numeral 74, código e número únicos, desat
     const numeros = CATALOGO.map((c) => c.codigo.replace(/\D/g, "")).filter(Boolean);
     assert.equal(new Set(numeros).size, numeros.length);
     for (const c of DESATIVADAS_ATE_SEGUNDA_ORDEM) assert.ok(CATALOGO.some((v) => v.codigo === c), c);
+    // Ninguém nasce desativada pelo catálogo: só a lista até segunda ordem ou quem for informada no painel.
+    for (const c of CATALOGO) if (!DESATIVADAS_ATE_SEGUNDA_ORDEM.has(c.codigo)) assert.equal(c.status, "ATIVA", c.codigo);
 });
 
 test("hospitais: os 11 do painel, todos na RMS", () => {
@@ -319,10 +321,22 @@ test("situação: desativada vence; transmitindo aparece; SD/10h de noite é for
     const dia = t("12:00");
     const noite = new Date("2026-09-29T22:00:00-03:00");
     assert.equal(situacao({ codigo: "PB67", turno: "24h", status: "ATIVA" }, 2, d, dia).situacao, "desativada");
-    assert.equal(situacao({ codigo: "PM44", turno: "10h", status: "DESATIVADA 24H" }, 5, d, dia).situacao, "mapa");
-    assert.equal(situacao({ codigo: "PM44", turno: "10h", status: "DESATIVADA 24H" }, null, d, dia).situacao, "desativada");
-    assert.equal(situacao({ codigo: "CN12", turno: "10h", status: "ATIVA" }, null, d, noite).situacao, "fora-do-turno");
-    assert.equal(situacao({ codigo: "CN12", turno: "10h", status: "ATIVA" }, null, d, dia).situacao, "sem-sinal");
+    // Sem sinal não desativa ninguém: fica sem-sinal (o aviso vai ao grupo) até alguém desativar no painel.
+    for (const codigo of ["PM44", "CZ51", "CC72"]) {
+        const v = CATALOGO.find((c) => c.codigo === codigo)!;
+        assert.equal(situacao(v, 5, d, dia).situacao, "mapa");
+        assert.equal(situacao(v, null, d, dia).situacao, "sem-sinal");
+        assert.equal(situacao(v, 600, d, dia).situacao, "sem-sinal");
+        // PM44 é de 08h–20h (roda as 24 h); CZ51 e CC72 são SD (só de dia).
+        assert.equal(situacao(v, null, d, noite).situacao, codigo === "PM44" ? "sem-sinal" : "fora-do-turno");
+    }
+    // As de 08h–20h rodam dia e noite: nunca ficam fora do turno.
+    const de8a20 = CATALOGO.filter((c) => c.turno === TURNO_8_20);
+    assert.deepEqual(de8a20.map((c) => c.codigo).sort(), ["BR62", "CB28", "CC73", "CN12", "CZ53", "PM44", "PP22", "PR35", "SM19"]);
+    for (const v of de8a20) for (const quando of [dia, noite]) assert.equal(situacao(v, null, d, quando).situacao, "sem-sinal");
+    assert.equal(atrasoDaViradaH("PM44"), 1);
+    assert.equal(atrasoDaViradaH("PM43"), 0);
+    assert.equal(atrasoDaViradaH("MT06"), 0);
     assert.equal(situacao({ codigo: "CN10", turno: "24h", status: "ATIVA" }, 90, d, noite).situacao, "sem-sinal");
 });
 

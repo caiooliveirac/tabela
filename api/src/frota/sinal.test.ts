@@ -146,6 +146,11 @@ test("plantão e resumo: 07–19 é D, 19–07 é N do dia em que começou; resu
     assert.equal(plantaoDe(t("06:59")), "2026-09-28-N");
     assert.equal(plantaoDe(t("07:00")), "2026-09-29-D");
     assert.equal(plantaoDe(t("19:00")), "2026-09-29-N");
+    // Viatura de 08h–20h: o plantão dela vira uma hora depois.
+    assert.equal(plantaoDe(t("07:59"), 1), "2026-09-28-N");
+    assert.equal(plantaoDe(t("08:00"), 1), "2026-09-29-D");
+    assert.equal(plantaoDe(t("19:59"), 1), "2026-09-29-D");
+    assert.equal(plantaoDe(t("20:00"), 1), "2026-09-29-N");
     assert.equal(resumoDevido(t("19:29")), null);
     assert.equal(resumoDevido(t("19:30")), "2026-09-29 19:30");
     assert.equal(resumoDevido(t("20:29")), "2026-09-29 19:30");
