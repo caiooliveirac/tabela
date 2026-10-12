@@ -87,6 +87,29 @@ do container some a cada deploy, isto não.
   A edição termina com "aviso das 14:18, atualizado às 14:34": o Telegram
   mostra no balão a hora do envio e não marca edição de bot.
 
+## Histórico em agregados (`historico.ts`, testado em `historico.test.ts`)
+
+`GET /tabela/api/frota/historico?dias=N` (1–60, padrão 14; dias de Salvador,
+o de hoje incluído). Quem lê é o **dash da gestão** (repo `dash`), pela porta
+local. Só contagem e minuto — nada de paciente, protocolo, endereço ou médico.
+
+- `retencao`: por dia e local, paradas de 10 min ou mais fora da própria base
+  (`visitas`), as de 40 min ou mais (`retidas`), minutos somados e o que
+  passou de 40 (`excedenteMin`). `faixas`: as mesmas por faixa de 3 h.
+- `uso`: por dia e viatura do catálogo, ocorrências e minutos em ocorrência
+  (mapa de equipes, sobreposição não conta em dobro), minutos em porta, em
+  parada de 40+ e fora de operação. `mapa`: horas do dia com dado do mapa de
+  equipes — dia com poucas horas não serve de base para "uso".
+- `fora`: minutos fora de operação por dia e motivo. `destino`: mediana e P90
+  do "chegada ao hospital" até a liberação.
+- `viaturas`: o catálogo sem as desativadas até segunda ordem (o denominador).
+- **Porta declarada** (`PORTAS` em `hospitais.ts`): a UPA Cabula aprendeu a
+  baia da emergência do HGRS como estacionamento dela (72 paradas na UPA contra
+  4 no hospital em 12 dias), e quem entra no HGESF pela praça trava no 16º
+  Centro. O histórico conta no hospital a parada cujo GPS ficou a até 40 m da
+  porta dele, sem reescrever o banco. A parada ao vivo ainda não muda.
+- **Não tem quilômetro rodado**: o coletor guarda só a última posição.
+
 ## Sinal, bateria e resumo (`sinal.ts`, testado em `sinal.test.ts`)
 
 Só entra viatura do catálogo, escalada agora e não desativada. Só caso

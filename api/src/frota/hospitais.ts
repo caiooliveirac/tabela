@@ -30,6 +30,12 @@ export interface HospitalFrota {
     lng: number;
     /** Estacionamentos aprendidos do GPS (`aprenderPontos`): contam como o pino. */
     pontos?: readonly PontoAprendido[];
+    /**
+     * Portas declaradas à mão (`PORTAS`): onde a ambulância de fato para.
+     * Por ora só o histórico (historico.ts) as usa, para contar no local certo
+     * a parada que travou no vizinho.
+     */
+    portas?: readonly { lat: number; lng: number }[];
 }
 
 const PONTOS_PROPRIOS: Record<string, { lat: number; lng: number }> = {
@@ -45,10 +51,31 @@ const PONTOS_PROPRIOS: Record<string, { lat: number; lng: number }> = {
     couto_maia: { lat: -12.8876931, lng: -38.4203797 },
 };
 
+/**
+ * Porta = onde a ambulância de fato para, quando o pino do prédio não basta
+ * para separar o hospital do vizinho. DADO medido no GPS (`estavel_lat/lng`
+ * de frota_permanencias, 29/09 a 11/10/2026), não geocodificado.
+ *
+ * • hgrs — a baia da emergência fica a ~85 m do pino do prédio e a ~165 m do
+ *   pino da UPA Cabula. Sem a porta, a UPA Cabula aprendeu a baia como
+ *   estacionamento dela em 01/10/2026 e passou a levar toda chegada ao HGRS:
+ *   72 paradas na UPA contra 4 no hospital em 12 dias, 44 delas de USA.
+ *   Os dois pontos são os dois estacionamentos que a UPA tinha aprendido.
+ * • hgesf — quem entra pela praça cruza primeiro o raio do 16º Centro e a
+ *   parada travava lá, mesmo estacionando no pino do HGESF (21 paradas).
+ */
+const PORTAS: Record<string, readonly { lat: number; lng: number }[]> = {
+    hgrs: [
+        { lat: -12.95609, lng: -38.45056 },
+        { lat: -12.95604, lng: -38.45115 },
+    ],
+    hgesf: [{ lat: -12.95875, lng: -38.48648 }],
+};
+
 export const HOSPITAIS_FROTA: readonly HospitalFrota[] = HOSPITALS.map((h) => {
     const p = PONTOS_PROPRIOS[h.id] ?? COORDENADAS_HOSPITAIS[h.id];
     if (!p) throw new Error(`hospital sem coordenada na frota: ${h.id}`);
-    return { id: h.id, nome: h.name, tipo: "hospital", lat: p.lat, lng: p.lng };
+    return { id: h.id, nome: h.name, tipo: "hospital", lat: p.lat, lng: p.lng, ...(PORTAS[h.id] ? { portas: PORTAS[h.id] } : {}) };
 });
 
 /** Todo ponto com raio: os hospitais e as UPAs (`upas.ts`). */

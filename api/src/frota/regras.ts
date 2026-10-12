@@ -57,6 +57,29 @@ export function distanciaLocal(p: { lat: number; lng: number }, h: HospitalFrota
     return d;
 }
 
+/** Quem parou a até isso de uma porta declarada é do local dela (= `APRENDE_RAIO_M`). */
+export const PORTA_RAIO_M = 40;
+
+/**
+ * De quem é a porta declarada (hospitais.ts, `PORTAS`) a até 40 m do ponto.
+ * Por ora só o histórico (historico.ts) usa: a parada ao vivo segue as
+ * regras de sempre.
+ */
+export function donoDaPorta(p: { lat: number; lng: number }, locais: readonly HospitalFrota[]): HospitalFrota | null {
+    let dono: HospitalFrota | null = null;
+    let menor = Infinity;
+    for (const h of locais) {
+        for (const q of h.portas ?? []) {
+            const d = distanciaM(p, q);
+            if (d <= PORTA_RAIO_M && d < menor) {
+                dono = h;
+                menor = d;
+            }
+        }
+    }
+    return dono;
+}
+
 /** Local mais perto dentro do raio. Raios que se cruzam: vence o ponto mais perto. */
 export function hospitalNoRaio(
     p: { lat: number; lng: number },

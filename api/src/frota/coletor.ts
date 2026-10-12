@@ -38,6 +38,7 @@ import {
     ErroDesativacao, MOTIVOS, ORIGENS, POSTOS, VIRADA, textoDesativacao, textoMotivo, textoVirada,
     type Desativacao, type Motivo, type Origem, type Posto, esquemaDesativar, esquemaMotivo,
 } from "./desativacoes.js";
+import { agregarHistorico, diaBahia, type Historico } from "./historico.js";
 import type { z } from "zod";
 
 const TOKEN = process.env.SAMUMAIS_TOKEN || "";
@@ -1156,4 +1157,61 @@ export function painelAtual(agora = new Date()): PainelFrota {
         ocorrenciaDe: (chave) => ocorrenciaDe(chave, agora),
         agora,
     });
+}
+
+/**
+ * Agregados dos últimos N dias (historico.ts) — retenção por local, uso por
+ * viatura, fora de operação. Lê o banco na hora; quem chama é o dash da
+ * gestão, de 10 em 10 min, pela porta local.
+ */
+export async function historicoFrota(dias: number, agora = new Date()): Promise<Historico & { ativo: boolean }> {
+    const de = new Date(Date.parse(`${diaBahia(new Date(agora.getTime() - (dias - 1) * 86_400_000))}T03:00:00Z`));
+    const ativas = CATALOGO.filter((c) => !DESATIVADAS_ATE_SEGUNDA_ORDEM.has(c.codigo));
+    if (!TOKEN) return { ativo: false, ...agregarHistorico({ paradas: [], ocorrencias: [], desativacoes: [] }, LOCAIS_FROTA, ativas, de, agora) };
+    const desde = de.toISOString();
+    const [paradas, ocorrencias, desativadas] = await Promise.all([
+        consultar(sql`
+            SELECT chave, hospital_id, entrada, COALESCE(saida, ultima_vez) AS fim, na_base,
+                   COALESCE(estavel_lat, lat) AS lat, COALESCE(estavel_lng, lng) AS lng
+            FROM frota_permanencias
+            WHERE entrada >= ${desde}`),
+        consultar(sql`
+            SELECT o.chave, o.primeira_vez, o.ultima_vez,
+                   (SELECT min(s.em) FROM frota_ocorrencia_status s
+                     WHERE s.ocorrencia_id = o.id AND s.status = 'CHEGADA AO HOSPITAL') AS chegada
+            FROM frota_ocorrencias o
+            WHERE o.ultima_vez >= ${desde}`),
+        consultar(sql`
+            SELECT codigo, desde, reativada_em, motivos
+            FROM frota_desativacoes
+            WHERE reativada_em IS NULL OR reativada_em >= ${desde}`),
+    ]);
+    const lixo = (chave: string) => !chave.startsWith("equipe:") && !numeroNoLimite(descreverChave(chave).nome);
+    const data = (v: unknown) => new Date(v as string);
+    const numero = (v: unknown) => (v == null ? null : Number(v));
+    return {
+        ativo: true,
+        ...agregarHistorico(
+            {
+                paradas: paradas
+                    .filter((r) => !lixo(String(r.chave)))
+                    .map((r) => ({
+                        chave: String(r.chave), hospitalId: String(r.hospital_id), entrada: data(r.entrada), fim: data(r.fim),
+                        naBase: Boolean(r.na_base), lat: numero(r.lat), lng: numero(r.lng),
+                    })),
+                ocorrencias: ocorrencias.map((r) => ({
+                    chave: String(r.chave), primeiraVez: data(r.primeira_vez), ultimaVez: data(r.ultima_vez),
+                    chegadaDestino: r.chegada ? data(r.chegada) : null,
+                })),
+                desativacoes: desativadas.map((r) => ({
+                    codigo: String(r.codigo), desde: data(r.desde), reativadaEm: r.reativada_em ? data(r.reativada_em) : null,
+                    motivos: Array.isArray(r.motivos) ? (r.motivos as string[]) : [],
+                })),
+            },
+            locais,
+            ativas,
+            de,
+            agora,
+        ),
+    };
 }

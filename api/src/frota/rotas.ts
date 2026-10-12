@@ -2,7 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import { Router, type Response } from "express";
 import { z } from "zod";
 import {
-    alertasRecentes, balancoPlantao, cobrancasPendentes, desativarViatura, diagnostico, informarMotivo, linhaDoTempo, listarDesativacoes, painelAtual, reativarViatura,
+    alertasRecentes, balancoPlantao, cobrancasPendentes, desativarViatura, diagnostico, historicoFrota, informarMotivo, linhaDoTempo, listarDesativacoes, painelAtual, reativarViatura,
     registrarOcorrencias,
 } from "./coletor.js";
 import { ErroDesativacao, esquemaDesativar, esquemaMotivo, esquemaReativar } from "./desativacoes.js";
@@ -121,6 +121,19 @@ router.get("/linha-do-tempo", async (req, res) => {
     } catch (e) {
         console.error("[frota] linha do tempo:", e);
         res.status(500).json({ error: "linha do tempo indisponível" });
+    }
+});
+
+// Agregados dos últimos N dias (1–60, padrão 14): retenção por local e dia,
+// uso por viatura, fora de operação. Quem lê é o dash da gestão, pela porta
+// local. Só contagem e minuto: nada de paciente, protocolo ou médico.
+router.get("/historico", async (req, res) => {
+    const dias = Math.min(60, Math.max(1, Number(req.query.dias) || 14));
+    try {
+        res.json(await historicoFrota(dias));
+    } catch (e) {
+        console.error("[frota] histórico:", e);
+        res.status(500).json({ error: "histórico indisponível" });
     }
 });
 
