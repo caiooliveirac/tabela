@@ -36,6 +36,16 @@ vínculo sai da página de status; se ela sair do ar, vale o último salvo em
   ali, segue; continuou, fecha na hora do pulo). Depois da chegada, sair para
   longe fecha na hora: lanchonete ou ocorrência perto, depois de liberar, não
   vira retenção (`seguir`).
+- **Porta declarada** (`PORTAS` em `hospitais.ts`): ponto medido no GPS onde a
+  ambulância de fato para, quando o pino do prédio não separa o hospital do
+  vizinho. Conta como o pino; ninguém aprende estacionamento a até 40 m dela;
+  e é a **única troca de local** de uma parada aberta: quem estaciona a até
+  40 m da porta (o `estavel` da chegada) é daquele local, mesmo tendo cruzado
+  antes o raio do vizinho. Hoje: a baia do HGRS (a UPA Cabula, a ~165 m, tinha
+  aprendido a baia e levava toda chegada ao hospital: 72 paradas contra 4 em
+  12 dias) e o pino do HGESF (quem entra pela praça cruza antes o 16º Centro).
+  O histórico (`/frota/historico`) aplica a mesma regra às paradas antigas na
+  leitura, sem reescrever o banco.
 - **Estacionamento aprendido** (`aprenderPontos`, a cada 30 min, paradas de
   10+ min dos últimos 30 dias fora da base): cada parada grava onde o GPS
   ficou parado mais tempo entre as paradas que começaram na chegada
@@ -103,11 +113,6 @@ local. Só contagem e minuto — nada de paciente, protocolo, endereço ou médi
 - `fora`: minutos fora de operação por dia e motivo. `destino`: mediana e P90
   do "chegada ao hospital" até a liberação.
 - `viaturas`: o catálogo sem as desativadas até segunda ordem (o denominador).
-- **Porta declarada** (`PORTAS` em `hospitais.ts`): a UPA Cabula aprendeu a
-  baia da emergência do HGRS como estacionamento dela (72 paradas na UPA contra
-  4 no hospital em 12 dias), e quem entra no HGESF pela praça trava no 16º
-  Centro. O histórico conta no hospital a parada cujo GPS ficou a até 40 m da
-  porta dele, sem reescrever o banco. A parada ao vivo ainda não muda.
 - **Não tem quilômetro rodado**: o coletor guarda só a última posição.
 
 ## Sinal, bateria e resumo (`sinal.ts`, testado em `sinal.test.ts`)

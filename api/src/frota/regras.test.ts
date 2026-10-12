@@ -428,3 +428,40 @@ test("acolhimentos: casa por viatura + hospital + sobreposição; sobra vira sol
     assert.equal(casadas.has(3), false);
     assert.deepEqual(soltas.map((x) => x.id), ["b"]);
 });
+
+test("porta declarada: a baia do HGRS é do HGRS, mesmo cruzando antes o raio da UPA Cabula", () => {
+    const baia = local("hgrs").portas![0];
+    const upa = local("upa_cabula");
+    assert.equal(hospitalNoRaio(baia, LOCAIS_FROTA)?.id, "hgrs");
+    let abertas = new Map<string, Permanencia>();
+    const passo = (hhmm: string, p: { lat: number; lng: number }) => {
+        const r = avancarPermanencias(abertas, [{ chave: "CC70", em: t(hhmm), ...p }], LOCAIS_FROTA, t(hhmm));
+        abertas = r.abertas;
+        return r;
+    };
+    assert.equal(passo("10:00", upa).novas[0].hospitalId, "upa_cabula", "a primeira posição caiu no raio da UPA");
+    assert.equal(passo("10:02", baia).alteradas[0].hospitalId, "upa_cabula", "uma posição só ainda não é parada");
+    const r = passo("10:04", desloca(baia, 5, 5));
+    assert.equal(r.fechadas.length + r.novas.length, 0, "a mesma parada, não outra");
+    assert.equal(r.alteradas[0].hospitalId, "hgrs");
+    for (const hhmm of ["10:20", "10:44"]) passo(hhmm, baia);
+    assert.equal(abertas.get("CC70")?.hospitalId, "hgrs");
+    assert.equal(abertas.get("CC70")?.entrada.toISOString(), t("10:00").toISOString());
+    assert.equal(abertas.get("CC70")?.alertaEm?.toISOString(), t("10:44").toISOString());
+});
+
+test("porta declarada: quem para de fato na UPA Cabula continua na UPA", () => {
+    const upa = local("upa_cabula");
+    let abertas = new Map<string, Permanencia>();
+    for (const hhmm of ["10:00", "10:02", "10:04", "10:30"]) {
+        abertas = avancarPermanencias(abertas, [{ chave: "CC71", em: t(hhmm), ...desloca(upa, -10, 5) }], LOCAIS_FROTA, t(hhmm)).abertas;
+    }
+    assert.equal(abertas.get("CC71")?.hospitalId, "upa_cabula");
+});
+
+test("aprende: ninguém aprende estacionamento em cima da porta declarada de outro", () => {
+    const baia = local("hgrs").portas![0];
+    const dias = ["2026-09-30", "2026-10-01", "2026-10-02"];
+    const ev = ["CC70", "CC71", "PR03", "SM01"].map((chave, i): Evidencia => ({ hospitalId: "upa_cabula", chave, dia: dias[i % 3], ...desloca(baia, i * 3, 4) }));
+    assert.equal(aprenderPontos(ev, LOCAIS_FROTA).get("upa_cabula"), undefined);
+});

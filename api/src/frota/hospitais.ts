@@ -31,9 +31,9 @@ export interface HospitalFrota {
     /** Estacionamentos aprendidos do GPS (`aprenderPontos`): contam como o pino. */
     pontos?: readonly PontoAprendido[];
     /**
-     * Portas declaradas à mão (`PORTAS`): onde a ambulância de fato para.
-     * Por ora só o histórico (historico.ts) as usa, para contar no local certo
-     * a parada que travou no vizinho.
+     * Portas declaradas à mão (`PORTAS`): contam como o pino, ninguém mais
+     * aprende estacionamento em cima delas e quem para nelas é deste local,
+     * mesmo tendo cruzado antes o raio do vizinho.
      */
     portas?: readonly { lat: number; lng: number }[];
 }

@@ -50,9 +50,10 @@ export function distanciaM(a: { lat: number; lng: number }, b: { lat: number; ln
     return 6_371_000 * 2 * Math.asin(Math.sqrt(h));
 }
 
-/** Distância ao ponto mais perto do local: o pino ou um estacionamento aprendido. */
+/** Distância ao ponto mais perto do local: o pino, uma porta declarada ou um estacionamento aprendido. */
 export function distanciaLocal(p: { lat: number; lng: number }, h: HospitalFrota): number {
     let d = distanciaM(p, h);
+    for (const q of h.portas ?? []) d = Math.min(d, distanciaM(p, q));
     for (const q of h.pontos ?? []) d = Math.min(d, distanciaM(p, q));
     return d;
 }
@@ -61,9 +62,8 @@ export function distanciaLocal(p: { lat: number; lng: number }, h: HospitalFrota
 export const PORTA_RAIO_M = 40;
 
 /**
- * De quem é a porta declarada (hospitais.ts, `PORTAS`) a até 40 m do ponto.
- * Por ora só o histórico (historico.ts) usa: a parada ao vivo segue as
- * regras de sempre.
+ * De quem é a porta declarada (hospitais.ts, `PORTAS`) a até 40 m do ponto:
+ * quem estaciona nela é desse local, tenha cruzado o raio de quem for antes.
  */
 export function donoDaPorta(p: { lat: number; lng: number }, locais: readonly HospitalFrota[]): HospitalFrota | null {
     let dono: HospitalFrota | null = null;
@@ -316,6 +316,10 @@ export function avancarPermanencias(
                     lng: l.lng,
                     fora: null,
                 };
+                // Única troca de local: parou na porta declarada de outro (a baia do
+                // HGRS, cruzando antes o raio da UPA Cabula). O `estavel` é da chegada.
+                const dono = nova.naBase || !nova.estavel ? null : donoDaPorta(nova.estavel, hospitais);
+                if (dono && dono.id !== nova.hospitalId) nova.hospitalId = dono.id;
                 if (!nova.naBase && !nova.alertaEm && duracaoMin(nova, agora) >= ALERTA_MIN) nova.alertaEm = agora;
                 proximas.set(l.chave, nova);
                 alteradas.push(nova);
@@ -411,13 +415,15 @@ export function aprenderPontos(
         achados.push(...meus.map((m) => ({ ...m, hospitalId: h.id })));
     }
     // Dois locais aprenderam o mesmo lugar: fica com quem tem mais viaturas
-    // (empate: nenhum). E nunca em cima do pino de outro local.
+    // (empate: nenhum). E nunca em cima do pino ou da porta declarada de outro local.
     const saida = new Map<string, PontoAprendido[]>();
     for (const a of achados) {
         const rival = achados.some(
             (o) => o.hospitalId !== a.hospitalId && distanciaM(a, o) <= 2 * APRENDE_RAIO_M && o.viaturas >= a.viaturas,
         );
-        const pinoAlheio = locais.some((h) => h.id !== a.hospitalId && distanciaM(a, h) <= APRENDE_RAIO_M);
+        const pinoAlheio = locais.some(
+            (h) => h.id !== a.hospitalId && (distanciaM(a, h) <= APRENDE_RAIO_M || (h.portas ?? []).some((q) => distanciaM(a, q) <= APRENDE_RAIO_M)),
+        );
         if (rival || pinoAlheio) continue;
         const { hospitalId, ...p } = a;
         saida.set(hospitalId, [...(saida.get(hospitalId) ?? []), p]);

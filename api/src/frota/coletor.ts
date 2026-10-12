@@ -411,7 +411,8 @@ async function ciclo(): Promise<void> {
             if (p.id === undefined) continue;
             await db.execute(sql`
                 UPDATE frota_permanencias
-                SET ultima_vez = ${p.ultimaVez.toISOString()}, alerta_em = ${p.alertaEm?.toISOString() ?? null},
+                SET hospital_id = ${p.hospitalId},
+                    ultima_vez = ${p.ultimaVez.toISOString()}, alerta_em = ${p.alertaEm?.toISOString() ?? null},
                     lat = ${p.lat ?? null}, lng = ${p.lng ?? null},
                     estavel_lat = ${p.estavel?.lat ?? null}, estavel_lng = ${p.estavel?.lng ?? null},
                     estavel_n = ${p.estavel?.n ?? 0}
