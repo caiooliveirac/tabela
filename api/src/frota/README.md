@@ -107,7 +107,9 @@ local. Só contagem e minuto — nada de paciente, protocolo, endereço ou médi
   baia da emergência do HGRS como estacionamento dela (72 paradas na UPA contra
   4 no hospital em 12 dias), e quem entra no HGESF pela praça trava no 16º
   Centro. O histórico conta no hospital a parada cujo GPS ficou a até 40 m da
-  porta dele, sem reescrever o banco. A parada ao vivo ainda não muda.
+  porta dele, sem reescrever o banco. Desde 13/10/2026 a parada ao vivo também
+  respeita a porta (chegada a até 40 m dela abre no dono) e um local não aprende
+  como estacionamento a porta declarada de outro.
 - **Não tem quilômetro rodado**: o coletor guarda só a última posição.
 
 ## Sinal, bateria e resumo (`sinal.ts`, testado em `sinal.test.ts`)

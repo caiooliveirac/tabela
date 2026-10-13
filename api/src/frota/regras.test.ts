@@ -428,3 +428,16 @@ test("acolhimentos: casa por viatura + hospital + sobreposição; sobra vira sol
     assert.equal(casadas.has(3), false);
     assert.deepEqual(soltas.map((x) => x.id), ["b"]);
 });
+
+test("porta declarada: chegada na baia do HGRS abre a parada no HGRS, não na UPA Cabula, e a UPA não aprende a baia", () => {
+    const baia = LOCAIS_FROTA.find((l) => l.id === "hgrs")!.portas![0];
+    const agora = new Date("2026-10-13T15:00:00Z");
+    // Sem a porta, a baia está a ~165 m da UPA e a ~85 m do HGRS: a UPA só ganharia se aprendesse o ponto.
+    const comUpa = LOCAIS_FROTA.map((l) => (l.id === "upa_cabula" ? { ...l, pontos: [{ ...baia, viaturas: 5 }] } : l));
+    const r = avancarPermanencias(new Map(), [{ chave: "CC70", em: agora, ...baia }], comUpa, agora);
+    assert.equal(r.novas[0].hospitalId, "hgrs");
+
+    const dias = ["2026-10-01", "2026-10-02", "2026-10-03"];
+    const evs: Evidencia[] = ["CC70", "CC71", "CB02"].map((c, i) => ({ hospitalId: "upa_cabula", chave: c, dia: dias[i], ...baia }));
+    assert.equal(aprenderPontos(evs, LOCAIS_FROTA).get("upa_cabula"), undefined);
+});

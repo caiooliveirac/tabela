@@ -329,7 +329,8 @@ export function avancarPermanencias(
             proximas.delete(l.chave);
             fechadas.push({ permanencia: atual, saida: atual.fora?.em ?? l.em, motivo: "saiu" });
         }
-        const h = hospitalNoRaio(l, hospitais);
+        // Porta declarada vence o pino mais perto (a baia do HGRS fica mais perto da UPA Cabula que do prédio).
+        const h = donoDaPorta(l, hospitais) ?? hospitalNoRaio(l, hospitais);
         if (h) {
             const p: Permanencia = {
                 chave: l.chave,
@@ -418,7 +419,9 @@ export function aprenderPontos(
             (o) => o.hospitalId !== a.hospitalId && distanciaM(a, o) <= 2 * APRENDE_RAIO_M && o.viaturas >= a.viaturas,
         );
         const pinoAlheio = locais.some((h) => h.id !== a.hospitalId && distanciaM(a, h) <= APRENDE_RAIO_M);
-        if (rival || pinoAlheio) continue;
+        // Porta declarada de outro local: não é estacionamento deste (UPA Cabula × baia do HGRS).
+        const portaAlheia = locais.some((h) => h.id !== a.hospitalId && (h.portas ?? []).some((q) => distanciaM(a, q) <= PORTA_RAIO_M));
+        if (rival || pinoAlheio || portaAlheia) continue;
         const { hospitalId, ...p } = a;
         saida.set(hospitalId, [...(saida.get(hospitalId) ?? []), p]);
     }
