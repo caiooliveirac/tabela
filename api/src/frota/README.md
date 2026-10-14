@@ -112,7 +112,8 @@ local. Só contagem e minuto — nada de paciente, protocolo, endereço ou médi
   como estacionamento a porta declarada de outro. A porta conta como o pino (150 m
   em volta dela, vence o ponto mais perto) e a parada que abriu no vizinho ao
   passar muda de dono quando a viatura estaciona mais perto de um local com
-  porta. O passado foi regravado por `scripts/corrigir-cabula-hgrs.sh`.
+  porta. A UPA Cabula tem `raio` próprio de 50 m
+  (`upas.ts`) e não aprende estacionamento: na dúvida, é HGRS. O passado foi regravado por `scripts/corrigir-cabula-hgrs.sh`.
 - **Não tem quilômetro rodado**: o coletor guarda só a última posição.
 
 ## Sinal, bateria e resumo (`sinal.ts`, testado em `sinal.test.ts`)

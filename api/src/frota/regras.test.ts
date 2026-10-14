@@ -446,8 +446,8 @@ test("área do HGRS: quem abre na UPA Cabula ao passar e estaciona perto da baia
     const upa = LOCAIS_FROTA.find((l) => l.id === "upa_cabula")!;
     const t0 = new Date("2026-10-13T15:00:00Z");
     const em = (min: number) => new Date(t0.getTime() + min * 60_000);
-    // 60 m ao sul da baia: fora dos 40 m da porta, mais perto dela que do pino da UPA.
-    const vaga = { lat: -12.95645, lng: -38.45135 };
+    // ~70 m do pino da UPA e ~100 m da baia: mais perto da UPA, mas fora dos 50 m dela.
+    const vaga = { lat: -12.95672, lng: -38.45135 };
     let r = avancarPermanencias(new Map(), [{ chave: "CC70", em: t0, lat: upa.lat, lng: upa.lng }], LOCAIS_FROTA, t0);
     assert.equal(r.novas[0].hospitalId, "upa_cabula");
     r = avancarPermanencias(r.abertas, [{ chave: "CC70", em: em(2), ...vaga }], LOCAIS_FROTA, em(2));

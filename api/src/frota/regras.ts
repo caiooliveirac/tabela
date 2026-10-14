@@ -86,7 +86,7 @@ export function hospitalNoRaio(
     let menor = Infinity;
     for (const h of hospitais) {
         const d = distanciaLocal(p, h);
-        if (d <= raio && d < menor) {
+        if (d <= (h.raio ?? raio) && d < menor) {
             melhor = h;
             menor = d;
         }
@@ -391,6 +391,7 @@ export function aprenderPontos(
 ): Map<string, PontoAprendido[]> {
     const achados: (PontoAprendido & { hospitalId: string })[] = [];
     for (const h of locais) {
+        if (h.raio) continue;
         let resto = evidencias.filter((e) => e.hospitalId === h.id && distanciaM(e, h) <= RAIO_BUSCA_M);
         const meus: PontoAprendido[] = [];
         while (resto.length && meus.length < APRENDE_MAX_POR_LOCAL) {

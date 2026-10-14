@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Move para o HGRS as paradas gravadas como upa_cabula cujo GPS ficou mais
-# perto do HGRS (pino ou porta, até 150 m) que do pino da UPA Cabula — a mesma
-# regra da parada ao vivo (distanciaLocal em api/src/frota/regras.ts).
+# Move para o HGRS as paradas gravadas como upa_cabula cujo GPS ficou a até
+# 150 m do HGRS (pino ou porta) e a mais de 50 m do pino da UPA Cabula — a
+# mesma regra da parada ao vivo (`raio` da UPA em api/src/frota/upas.ts).
 # Roda do Mac/qualquer aparelho no tailnet:
 #   scripts/corrigir-cabula-hgrs.sh           # só mostra o que mudaria
 #   scripts/corrigir-cabula-hgrs.sh aplicar   # faz o UPDATE (transação) e mostra o resultado
@@ -19,7 +19,7 @@ JOIN (VALUES ('hgrs', -12.955444::float8, -38.450595::float8), ('hgrs', -12.9560
              ('hgrs', -12.95604, -38.45115), ('upa', -12.957341, -38.4514592)) AS l(dono, lat, lng) ON q.la IS NOT NULL
 GROUP BY q.id
 HAVING min($DIST) FILTER (WHERE l.dono = 'hgrs') <= 150
-   AND min($DIST) FILTER (WHERE l.dono = 'hgrs') < min($DIST) FILTER (WHERE l.dono = 'upa')"
+   AND min($DIST) FILTER (WHERE l.dono = 'upa') > 50"
 
 echo "== Candidatas (por dia): upa_cabula -> hgrs =="
 "${PSQL[@]}" <<<"SELECT to_char(entrada AT TIME ZONE 'America/Bahia','YYYY-MM-DD') AS dia, count(*) AS paradas,

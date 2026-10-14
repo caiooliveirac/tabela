@@ -28,8 +28,9 @@ export const UPAS_FROTA: readonly HospitalFrota[] = [
     u("upa_valeria", "UPA Valéria", -12.8646079, -38.4372461),
     u("upa_san_martin", "UPA San Martin", -12.9469689, -38.4810893),
     u("ue_piraja", "UE Pirajá", -12.902364, -38.458973),
-    // ~230 m do HGRS: os raios se cruzam, vence o ponto mais perto.
-    u("upa_cabula", "UPA Cabula", -12.957341, -38.4514592),
+    // ~165 m da baia do HGRS, que recebe quase tudo (110 de 135 paradas em 14 dias
+    // caíam aqui). Só é UPA a até 50 m do pino; as paradas de fato nela ficaram a 25 m.
+    { ...u("upa_cabula", "UPA Cabula", -12.957341, -38.4514592), raio: 50 },
     u("upa_piraja_santo_inacio", "UPA Pirajá/Santo Inácio", -12.9265608, -38.4609509),
     u("pa_sao_marcos", "PA São Marcos", -12.9257108, -38.435796),
     u("upa_helio_machado", "UPA Hélio Machado", -12.9489895, -38.3663472),

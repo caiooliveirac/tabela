@@ -28,6 +28,12 @@ export interface HospitalFrota {
     tipo: "hospital" | "upa";
     lat: number;
     lng: number;
+    /**
+     * Raio próprio de entrada, no lugar dos 150 m. Local colado num vizinho
+     * maior (UPA Cabula × HGRS) só conta com a viatura em cima dele, e não
+     * aprende estacionamento.
+     */
+    raio?: number;
     /** Estacionamentos aprendidos do GPS (`aprenderPontos`): contam como o pino. */
     pontos?: readonly PontoAprendido[];
     /**
