@@ -50,21 +50,17 @@ export function distanciaM(a: { lat: number; lng: number }, b: { lat: number; ln
     return 6_371_000 * 2 * Math.asin(Math.sqrt(h));
 }
 
-/** Distância ao ponto mais perto do local: o pino ou um estacionamento aprendido. */
+/** Distância ao ponto mais perto do local: o pino, uma porta declarada ou um estacionamento aprendido. */
 export function distanciaLocal(p: { lat: number; lng: number }, h: HospitalFrota): number {
     let d = distanciaM(p, h);
-    for (const q of h.pontos ?? []) d = Math.min(d, distanciaM(p, q));
+    for (const q of [...(h.portas ?? []), ...(h.pontos ?? [])]) d = Math.min(d, distanciaM(p, q));
     return d;
 }
 
 /** Quem parou a até isso de uma porta declarada é do local dela (= `APRENDE_RAIO_M`). */
 export const PORTA_RAIO_M = 40;
 
-/**
- * De quem é a porta declarada (hospitais.ts, `PORTAS`) a até 40 m do ponto.
- * Por ora só o histórico (historico.ts) usa: a parada ao vivo segue as
- * regras de sempre.
- */
+/** De quem é a porta declarada (hospitais.ts, `PORTAS`) a até 40 m do ponto. */
 export function donoDaPorta(p: { lat: number; lng: number }, locais: readonly HospitalFrota[]): HospitalFrota | null {
     let dono: HospitalFrota | null = null;
     let menor = Infinity;
@@ -316,6 +312,12 @@ export function avancarPermanencias(
                     lng: l.lng,
                     fora: null,
                 };
+                // Abriu no vizinho ao passar e estacionou mais perto de um local com porta declarada: é dele
+                // (quem vai ao HGRS cruza antes o raio da UPA Cabula).
+                if (!nova.naBase && nova.corrida && nova.corrida.n >= 2) {
+                    const dono = hospitalNoRaio(nova.corrida, hospitais);
+                    if (dono?.portas && dono.id !== nova.hospitalId) nova.hospitalId = dono.id;
+                }
                 if (!nova.naBase && !nova.alertaEm && duracaoMin(nova, agora) >= ALERTA_MIN) nova.alertaEm = agora;
                 proximas.set(l.chave, nova);
                 alteradas.push(nova);

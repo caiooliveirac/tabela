@@ -441,3 +441,24 @@ test("porta declarada: chegada na baia do HGRS abre a parada no HGRS, não na UP
     const evs: Evidencia[] = ["CC70", "CC71", "CB02"].map((c, i) => ({ hospitalId: "upa_cabula", chave: c, dia: dias[i], ...baia }));
     assert.equal(aprenderPontos(evs, LOCAIS_FROTA).get("upa_cabula"), undefined);
 });
+
+test("área do HGRS: quem abre na UPA Cabula ao passar e estaciona perto da baia vira HGRS; quem para na UPA fica na UPA", () => {
+    const upa = LOCAIS_FROTA.find((l) => l.id === "upa_cabula")!;
+    const t0 = new Date("2026-10-13T15:00:00Z");
+    const em = (min: number) => new Date(t0.getTime() + min * 60_000);
+    // 60 m ao sul da baia: fora dos 40 m da porta, mais perto dela que do pino da UPA.
+    const vaga = { lat: -12.95645, lng: -38.45135 };
+    let r = avancarPermanencias(new Map(), [{ chave: "CC70", em: t0, lat: upa.lat, lng: upa.lng }], LOCAIS_FROTA, t0);
+    assert.equal(r.novas[0].hospitalId, "upa_cabula");
+    r = avancarPermanencias(r.abertas, [{ chave: "CC70", em: em(2), ...vaga }], LOCAIS_FROTA, em(2));
+    r = avancarPermanencias(r.abertas, [{ chave: "CC70", em: em(4), ...vaga }], LOCAIS_FROTA, em(4));
+    assert.equal(r.abertas.get("CC70")!.hospitalId, "hgrs");
+    assert.equal(r.abertas.get("CC70")!.entrada.getTime(), t0.getTime());
+
+    // Chegada direto na vaga abre no HGRS.
+    assert.equal(avancarPermanencias(new Map(), [{ chave: "CC71", em: t0, ...vaga }], LOCAIS_FROTA, t0).novas[0].hospitalId, "hgrs");
+
+    let u = avancarPermanencias(new Map(), [{ chave: "CC72", em: t0, lat: upa.lat, lng: upa.lng }], LOCAIS_FROTA, t0);
+    u = avancarPermanencias(u.abertas, [{ chave: "CC72", em: em(2), lat: upa.lat, lng: upa.lng }], LOCAIS_FROTA, em(2));
+    assert.equal(u.abertas.get("CC72")!.hospitalId, "upa_cabula");
+});

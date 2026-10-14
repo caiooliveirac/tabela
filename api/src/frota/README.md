@@ -109,7 +109,10 @@ local. Só contagem e minuto — nada de paciente, protocolo, endereço ou médi
   Centro. O histórico conta no hospital a parada cujo GPS ficou a até 40 m da
   porta dele, sem reescrever o banco. Desde 13/10/2026 a parada ao vivo também
   respeita a porta (chegada a até 40 m dela abre no dono) e um local não aprende
-  como estacionamento a porta declarada de outro.
+  como estacionamento a porta declarada de outro. A porta conta como o pino (150 m
+  em volta dela, vence o ponto mais perto) e a parada que abriu no vizinho ao
+  passar muda de dono quando a viatura estaciona mais perto de um local com
+  porta. O passado foi regravado por `scripts/corrigir-cabula-hgrs.sh`.
 - **Não tem quilômetro rodado**: o coletor guarda só a última posição.
 
 ## Sinal, bateria e resumo (`sinal.ts`, testado em `sinal.test.ts`)

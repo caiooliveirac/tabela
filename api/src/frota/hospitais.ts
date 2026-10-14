@@ -32,8 +32,8 @@ export interface HospitalFrota {
     pontos?: readonly PontoAprendido[];
     /**
      * Portas declaradas à mão (`PORTAS`): onde a ambulância de fato para.
-     * Por ora só o histórico (historico.ts) as usa, para contar no local certo
-     * a parada que travou no vizinho.
+     * Contam como o pino (raio de 150 m em volta de cada uma) e puxam para o
+     * local a parada que abriu no vizinho.
      */
     portas?: readonly { lat: number; lng: number }[];
 }
