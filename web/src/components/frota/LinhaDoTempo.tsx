@@ -60,19 +60,38 @@ function corDaBarra(min: number, alertaMin: number): string {
   return COR_BARRA.curta;
 }
 
-/** Faixas: item que começa antes do anterior terminar desce uma faixa. */
-function emFaixas(itens: Item[]): { item: Item; faixa: number }[] {
-  const fins: number[] = [];
-  return [...itens]
-    .sort((a, b) => Date.parse(a.entrada) - Date.parse(b.entrada))
-    .map((item) => {
-      const ini = Date.parse(item.entrada);
-      let faixa = fins.findIndex((f) => f <= ini);
-      if (faixa < 0) faixa = fins.length;
-      fins[faixa] = Date.parse(item.fim);
-      return { item, faixa };
-    });
+const viaturaDe = (i: Item) => (i.tipo === "parada" ? i.p.nome : i.n.unidade);
+
+/**
+ * Faixas em ordem de código (CB02, CB25, CB26…), e cada viatura fica sempre
+ * na mesma faixa: entra na primeira em que nenhuma parada dela cruza as que já
+ * estão lá. Quem só ficou na própria base vai para faixas próprias, no fim —
+ * o cinza não se mistura com as paradas que contam.
+ */
+function emFaixas(itens: Item[]): { barras: { item: Item; faixa: number }[]; faixas: number } {
+  const grupos = new Map<string, Item[]>();
+  for (const i of itens) grupos.set(viaturaDe(i), [...(grupos.get(viaturaDe(i)) ?? []), i]);
+  const soBase = (g: Item[]) => g.every((i) => i.tipo === "parada" && i.p.naBase);
+  const porCodigo = (a: string, b: string) => a.localeCompare(b, "pt-BR", { numeric: true });
+  const barras: { item: Item; faixa: number }[] = [];
+  let base = 0;
+  for (const bloco of [false, true]) {
+    const faixas: [number, number][][] = [];
+    const nomes = [...grupos.keys()].filter((n) => soBase(grupos.get(n)!) === bloco).sort(porCodigo);
+    for (const nome of nomes) {
+      const iv = grupos.get(nome)!.map((i) => [Date.parse(i.entrada), Date.parse(i.fim)] as [number, number]);
+      let k = faixas.findIndex((f) => iv.every(([a, b]) => f.every(([c, d]) => b <= c || a >= d)));
+      if (k < 0) k = faixas.push([]) - 1;
+      faixas[k].push(...iv);
+      for (const item of grupos.get(nome)!) barras.push({ item, faixa: base + k });
+    }
+    base += faixas.length;
+  }
+  return { barras, faixas: base };
 }
+
+/** Cabe o texto na barra? Plano de ~900 px, ~6 px por caractere a 10 px. */
+const cabe = (larguraPct: number, texto: string) => (larguraPct / 100) * 900 >= texto.length * 6 + 8;
 
 function notificado(n: NotificacaoAcolhimento): string {
   const partes = [
@@ -143,11 +162,11 @@ export default function LinhaDoTempo({ onHospital }: { onHospital?: (id: string)
       const doHospital = itens.filter((i) => (i.tipo === "parada" ? i.p.hospitalId : i.n.hospitalId) === h.id);
       const paradas = data.paradas.filter((p) => p.hospitalId === h.id && !p.naBase);
       if (h.tipo === "upa" && !doHospital.length) return [];
-      const barras = emFaixas(doHospital);
+      const { barras, faixas } = emFaixas(doHospital);
       return {
         ...h,
         barras,
-        faixas: Math.max(1, ...barras.map((b) => b.faixa + 1)),
+        faixas: Math.max(1, faixas),
         maior: Math.max(0, ...paradas.map((p) => p.minutos)),
         longas: paradas.filter((p) => p.minutos >= data.alertaMin).length,
         semNotificacao: paradas.filter((p) => p.semNotificacao).length,
@@ -180,25 +199,25 @@ export default function LinhaDoTempo({ onHospital }: { onHospital?: (id: string)
             </button>
           ))}
         </div>
-        <div className="flex items-center rounded-lg border border-slate-300 bg-white overflow-hidden">
+        <div className="flex items-center rounded-lg border border-blue-700 bg-white overflow-hidden shadow-sm">
+          <button
+            onClick={() => abrirRelatorio(opcoesPlantao[plantao] ?? opcoesPlantao[0])}
+            className="py-[6px] px-3 text-[13px] font-extrabold text-white bg-blue-700 border-none cursor-pointer hover:bg-blue-800"
+          >
+            📊 Relatório do plantão
+          </button>
           <select
             value={plantao}
             onChange={(e) => setPlantao(Number(e.target.value))}
-            className="py-[3px] pl-2 pr-1 text-xs font-bold text-slate-700 bg-transparent border-none outline-none cursor-pointer"
-            title="Plantão do relatório"
+            className="py-[6px] pl-2 pr-1 text-xs font-bold text-slate-700 bg-transparent border-none outline-none cursor-pointer"
+            title="Qual plantão"
           >
             {opcoesPlantao.map((p, i) => (
               <option key={p.ini} value={i}>
-                {i === 0 ? `Plantão atual (${p.curto})` : p.curto}
+                {i === 0 ? `atual (${p.curto})` : p.curto}
               </option>
             ))}
           </select>
-          <button
-            onClick={() => abrirRelatorio(opcoesPlantao[plantao] ?? opcoesPlantao[0])}
-            className="py-[3px] px-3 text-xs font-bold text-white bg-blue-700 border-none cursor-pointer hover:bg-blue-800"
-          >
-            📊 Relatório
-          </button>
         </div>
       </div>
 
@@ -270,7 +289,7 @@ export default function LinhaDoTempo({ onHospital }: { onHospital?: (id: string)
                               outline: contorno, outlineOffset: 1, fontSize: 10, lineHeight: `${FAIXA_PX - 10}px`,
                             }}
                           >
-                            <span className="px-[4px]">{item.n.unidade} 📋 sem GPS</span>
+                            {cabe(fim - ini, `${item.n.unidade} 📋`) && <span className="px-[4px]">{item.n.unidade} 📋{cabe(fim - ini, `${item.n.unidade} 📋 sem GPS`) ? " sem GPS" : ""}</span>}
                           </button>
                         );
                       }
@@ -297,10 +316,12 @@ export default function LinhaDoTempo({ onHospital }: { onHospital?: (id: string)
                             {!p.naBase && p.minutos > data.alertaMin && (
                               <span className="absolute top-0 bottom-0 w-[2px] bg-white/80" style={{ left: `${(data.alertaMin / p.minutos) * 100}%` }} />
                             )}
-                            <span className="relative px-[4px]">
-                              {p.nome} {p.naBase ? "base " : ""}{p.minutos}′{p.aberta ? " ▸" : ""}
-                              {n ? " 📋" : p.semNotificacao ? " · sem notificação" : ""}
-                            </span>
+                            {(() => {
+                              // O que couber, nesta ordem: tudo · código e tempo · só o código.
+                              const tempo = `${p.nome} ${p.minutos}′${p.aberta ? " ▸" : ""}${n ? " 📋" : ""}`;
+                              const texto = [p.semNotificacao ? `${tempo} · sem notificação` : "", tempo, p.nome].find((t) => t && cabe(fim - ini, t));
+                              return texto && <span className="relative px-[4px]">{texto}</span>;
+                            })()}
                           </button>
                           {n && (n.chegada || n.passagem) && (
                             <div
