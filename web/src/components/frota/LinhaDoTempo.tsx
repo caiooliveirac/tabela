@@ -17,7 +17,27 @@ import { useMemo, useState } from "react";
 import type { LinhaDoTempoFrota, NotificacaoAcolhimento, ParadaHistorico } from "../../lib/types";
 import { useLinhaDoTempoFrota } from "../../hooks/useFrota";
 import { artigo, hora } from "./formato";
-import { baixarRelatorio, relatorioParadasCsv } from "./relatorio";
+import { api } from "../../api/client";
+import { horasPara, plantoes, relatorioHtml, type Plantao } from "./relatorio";
+
+/**
+ * Abre o relatório numa aba nova. A aba abre já no clique (senão o navegador
+ * bloqueia o pop-up) e recebe a página quando os dados chegam.
+ */
+async function abrirRelatorio(p: Plantao) {
+  const aba = window.open("", "_blank");
+  aba?.document.write('<p style="font:15px system-ui;padding:32px;color:#475569">Gerando o relatório do plantão…</p>');
+  try {
+    const agora = Date.now();
+    const data = await api.getLinhaDoTempoFrota(horasPara(p, agora));
+    const url = URL.createObjectURL(new Blob([relatorioHtml(data, p, agora)], { type: "text/html;charset=utf-8" }));
+    if (aba) aba.location.href = url;
+    else window.location.href = url;
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  } catch (e) {
+    aba?.document.write(`<p style="font:15px system-ui;padding:0 32px;color:#b91c1c">Não deu para gerar: ${(e as Error).message}</p>`);
+  }
+}
 
 const JANELAS = [6, 12, 24] as const;
 const FAIXA_PX = 24;
@@ -87,6 +107,9 @@ export default function LinhaDoTempo({ onHospital }: { onHospital?: (id: string)
   const [horas, setHoras] = useState<number>(() => Number(localStorage.getItem("tabela:frotaHoras")) || 12);
   const { data, isLoading } = useLinhaDoTempoFrota(horas);
   const [sel, setSel] = useState<string | null>(null);
+  const [plantao, setPlantao] = useState(0);
+  // Recalcula na virada: a lista muda às 07h e às 19h.
+  const opcoesPlantao = useMemo(() => plantoes(), [data?.ate]);
 
   const escolherHoras = (h: number) => {
     setHoras(h);
@@ -157,13 +180,26 @@ export default function LinhaDoTempo({ onHospital }: { onHospital?: (id: string)
             </button>
           ))}
         </div>
-        <button
-          onClick={() => data && baixarRelatorio(`frota-hospitais-${horas}h.csv`, relatorioParadasCsv(data))}
-          disabled={!data}
-          className="py-[3px] px-3 rounded-lg border border-slate-300 bg-white text-xs font-bold text-slate-700 cursor-pointer hover:border-blue-600 disabled:opacity-40 disabled:cursor-default"
-        >
-          ⬇ Relatório (CSV)
-        </button>
+        <div className="flex items-center rounded-lg border border-slate-300 bg-white overflow-hidden">
+          <select
+            value={plantao}
+            onChange={(e) => setPlantao(Number(e.target.value))}
+            className="py-[3px] pl-2 pr-1 text-xs font-bold text-slate-700 bg-transparent border-none outline-none cursor-pointer"
+            title="Plantão do relatório"
+          >
+            {opcoesPlantao.map((p, i) => (
+              <option key={p.ini} value={i}>
+                {i === 0 ? `Plantão atual (${p.curto})` : p.curto}
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={() => abrirRelatorio(opcoesPlantao[plantao] ?? opcoesPlantao[0])}
+            className="py-[3px] px-3 text-xs font-bold text-white bg-blue-700 border-none cursor-pointer hover:bg-blue-800"
+          >
+            📊 Relatório
+          </button>
+        </div>
       </div>
 
       {data?.acolhimentos.erro && (
