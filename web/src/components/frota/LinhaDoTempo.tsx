@@ -17,6 +17,7 @@ import { useMemo, useState } from "react";
 import type { LinhaDoTempoFrota, NotificacaoAcolhimento, ParadaHistorico } from "../../lib/types";
 import { useLinhaDoTempoFrota } from "../../hooks/useFrota";
 import { artigo, hora } from "./formato";
+import { baixarRelatorio, relatorioParadasCsv } from "./relatorio";
 
 const JANELAS = [6, 12, 24] as const;
 const FAIXA_PX = 24;
@@ -156,6 +157,13 @@ export default function LinhaDoTempo({ onHospital }: { onHospital?: (id: string)
             </button>
           ))}
         </div>
+        <button
+          onClick={() => data && baixarRelatorio(`frota-hospitais-${horas}h.csv`, relatorioParadasCsv(data))}
+          disabled={!data}
+          className="py-[3px] px-3 rounded-lg border border-slate-300 bg-white text-xs font-bold text-slate-700 cursor-pointer hover:border-blue-600 disabled:opacity-40 disabled:cursor-default"
+        >
+          ⬇ Relatório (CSV)
+        </button>
       </div>
 
       {data?.acolhimentos.erro && (
