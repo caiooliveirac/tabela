@@ -1,9 +1,9 @@
 // ═══════════════════════════════════════════════════════════════
 // Aba Frota — onde está cada viatura e quem está parado em hospital.
 //
-// Leitura de cima para baixo: números do momento → mapa com os raios ao
-// lado de "quem está em hospital agora" → quem NÃO está no mapa e por quê
-// (sem sinal, fora do turno, desativada) → como a regra funciona.
+// O mapa é a primeira coisa da aba (números do momento ficam por cima dele).
+// Abaixo: quem está em hospital agora → linha do tempo → fora de operação
+// (informar/reativar) → quem NÃO está no mapa e por quê → como a regra funciona.
 // Os dados vêm de GET /tabela/api/frota (api/src/frota/README.md).
 // ═══════════════════════════════════════════════════════════════
 import { lazy, Suspense, useMemo, useState } from "react";
@@ -25,18 +25,6 @@ interface Props {
   focar: (f: Omit<Foco, "vez">) => void;
   /** Nome do cabeçalho do painel: quem informa a desativação. */
   operador: string;
-}
-
-function Numero({ valor, rotulo, cor, detalhe }: { valor: number; rotulo: string; cor: string; detalhe: string }) {
-  return (
-    <div className="flex-1 min-w-[120px] bg-white rounded-[10px] border border-slate-200 px-3 py-2" title={detalhe}>
-      <div className="flex items-center gap-[6px]">
-        <span className="w-[9px] h-[9px] rounded-full shrink-0" style={{ backgroundColor: cor }} />
-        <span className="text-[22px] font-black text-slate-900 leading-none tabular-nums">{valor}</span>
-      </div>
-      <div className="text-[11px] font-bold text-slate-500 mt-1">{rotulo}</div>
-    </div>
-  );
 }
 
 function Linha({ v, extra }: { v: ViaturaFrota; extra: string }) {
@@ -116,7 +104,6 @@ export default function FrotaView({ painel, carregando, erro, foco, focar, opera
 
   const L = painel.limites;
   const emHospital = grupos.noMapa.filter((v) => v.noHospital && !v.noHospital.naBase).length;
-  const naBaseHospital = grupos.noMapa.filter((v) => v.noHospital?.naBase).length;
   const emAlerta = grupos.noMapa.filter((v) => v.noHospital?.alerta).length;
   const posicaoHa = (v: ViaturaFrota) => (v.posicao ? `última posição há ${duracao(v.posicao.idadeMin)}` : "");
   // Mapa de equipes da regulação (coletor na Central). Sem ele, nada aparece.
@@ -127,64 +114,11 @@ export default function FrotaView({ painel, carregando, erro, foco, focar, opera
 
   return (
     <div className="flex flex-col gap-4">
-      {/* ── O momento, em números ── */}
-      <div className="flex gap-2 flex-wrap">
-        <Numero valor={grupos.noMapa.length} rotulo="no mapa" cor={COR.recente} detalhe="Posição da última hora" />
-        {comMapaEquipes && (
-          <>
-            <Numero valor={emOcorrencia} rotulo="em ocorrência" cor={COR.ocorrencia} detalhe="Pelo mapa de equipes da regulação — inclui as paradas no endereço da própria base" />
-            <Numero
-              valor={livres.length}
-              rotulo={`livres · ${livresNaBase} na base`}
-              cor={COR.livre}
-              detalhe="Sem ocorrência no mapa de equipes. Na base = disponível de fato"
-            />
-          </>
-        )}
-        <Numero valor={emHospital} rotulo="paradas em hospital/UPA" cor={COR.hospital} detalhe={`Dentro de ${L.raioM} m de um hospital ou UPA`} />
-        <Numero valor={emAlerta} rotulo={`há ${L.alertaMin} min ou mais`} cor={emAlerta ? COR.alerta : "#cbd5e1"} detalhe="Retenção de maca" />
-        <Numero valor={naBaseHospital} rotulo="na base (no hospital)" cor={COR.base} detalhe="Base colada no hospital ou dentro da UPA: sem alerta" />
-        <Numero valor={grupos.semSinal.length} rotulo="sem sinal" cor={COR.atrasada} detalhe="Deviam estar na rua e não transmitem há mais de 1 h" />
-        <Numero valor={grupos.foraDoTurno.length} rotulo="fora do turno" cor="#cbd5e1" detalhe="SD, de noite" />
-        <Numero valor={grupos.desativadas.length} rotulo="desativadas" cor="#94a3b8" detalhe="Até segunda ordem ou informadas no painel" />
-      </div>
-
-      <div className="flex items-center gap-x-4 gap-y-1 flex-wrap text-[11px] text-slate-500">
-        <span className="flex items-center gap-1">
-          <span className="inline-block w-[10px] h-[10px] rounded-[3px]" style={{ background: COR.recente }} /> posição até {L.recenteMin} min
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="inline-block w-[10px] h-[10px] rounded-[3px]" style={{ background: COR.atrasada }} /> {L.recenteMin}–{L.mapaMin} min
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="inline-block w-[12px] h-[12px] rounded-full border-2" style={{ borderColor: COR.hospital, background: "#1d4ed81a" }} /> raio de {L.raioM} m com viatura dentro
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="inline-block w-[12px] h-[12px] rounded-full border-2" style={{ borderColor: COR.alerta, background: "#dc26262e" }} /> alguém parado há {L.alertaMin} min ou mais
-        </span>
-        {comMapaEquipes && (
-          <>
-            <span className="flex items-center gap-1">
-              <span className="inline-block w-[12px] h-[10px] rounded-[3px] bg-slate-400" style={{ borderLeft: `4px solid ${COR.alerta}` }} /> 🚑 em ocorrência (faixa = cor do risco)
-            </span>
-            <span>✓ livre</span>
-            <span>↩ encerrando</span>
-          </>
-        )}
-        <span className="ml-auto">
-          SAMU+ lido {ha(painel.coletadoEm)}
-          {painel.vinculosEm ? ` · nomes ${ha(painel.vinculosEm)}` : ""}
-        </span>
-      </div>
-
       {painel.erro && (
         <div className="bg-amber-50 border border-amber-300 rounded-[10px] p-3 text-[13px] font-semibold text-amber-900">
           ⚠️ A última leitura do SAMU+ falhou ({painel.erro}). Mostrando a anterior, de {ha(painel.coletadoEm)}.
         </div>
       )}
-
-      {/* ── Viatura fora de operação informada pelo rádio, chefia ou enfermagem ── */}
-      <DesativacoesFrota painel={painel} operador={operador} />
 
       {/* ── Mapa em tela cheia de largura, com a situação por cima ── */}
       <div id="frota-mapa">
@@ -208,7 +142,7 @@ export default function FrotaView({ painel, carregando, erro, foco, focar, opera
                 ...(comMapaEquipes
                   ? [
                       { n: emOcorrencia, t: "em ocorrência", c: COR.ocorrencia },
-                      { n: livres.length, t: "livres", c: COR.livre },
+                      { n: livres.length, t: `livres · ${livresNaBase} na base`, c: COR.livre },
                     ]
                   : []),
                 { n: emHospital, t: "em hospital/UPA", c: COR.hospital },
@@ -238,6 +172,34 @@ export default function FrotaView({ painel, carregando, erro, foco, focar, opera
         )}
       </div>
 
+      <div className="-mt-2 flex items-center gap-x-4 gap-y-1 flex-wrap text-[11px] text-slate-500">
+        <span className="flex items-center gap-1">
+          <span className="inline-block w-[10px] h-[10px] rounded-[3px]" style={{ background: COR.recente }} /> posição até {L.recenteMin} min
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="inline-block w-[10px] h-[10px] rounded-[3px]" style={{ background: COR.atrasada }} /> {L.recenteMin}–{L.mapaMin} min
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="inline-block w-[12px] h-[12px] rounded-full border-2" style={{ borderColor: COR.hospital, background: "#1d4ed81a" }} /> raio de {L.raioM} m com viatura dentro
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="inline-block w-[12px] h-[12px] rounded-full border-2" style={{ borderColor: COR.alerta, background: "#dc26262e" }} /> alguém parado há {L.alertaMin} min ou mais
+        </span>
+        {comMapaEquipes && (
+          <>
+            <span className="flex items-center gap-1">
+              <span className="inline-block w-[12px] h-[10px] rounded-[3px] bg-slate-400" style={{ borderLeft: `4px solid ${COR.alerta}` }} /> 🚑 em ocorrência (faixa = cor do risco)
+            </span>
+            <span>✓ livre</span>
+            <span>↩ encerrando</span>
+          </>
+        )}
+        <span className="ml-auto">
+          SAMU+ lido {ha(painel.coletadoEm)}
+          {painel.vinculosEm ? ` · nomes ${ha(painel.vinculosEm)}` : ""}
+        </span>
+      </div>
+
       {/* ── Quem está em hospital agora, e desde quando ── */}
       <TabelaHospitais
         painel={painel}
@@ -256,6 +218,9 @@ export default function FrotaView({ painel, carregando, erro, foco, focar, opera
           focar({ lat: h.lat, lng: h.lng, zoom: 17 });
         }}
       />
+
+      {/* ── Viatura fora de operação informada pelo rádio, chefia ou enfermagem ── */}
+      <DesativacoesFrota painel={painel} operador={operador} />
 
       {/* ── Quem não está no mapa, e por quê ── */}
       <div className="bg-white rounded-[10px] border border-slate-200 p-4">
