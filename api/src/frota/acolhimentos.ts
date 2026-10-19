@@ -44,16 +44,27 @@ let memo: { chave: string; em: number; dados: Acolhimento[] } | null = null;
 export async function buscarAcolhimentos(desde: Date, ate: Date): Promise<Acolhimento[]> {
     const chave = `${desde.toISOString().slice(0, 16)}|${ate.toISOString().slice(0, 16)}`;
     if (memo && memo.chave === chave && Date.now() - memo.em < MEMO_MS) return memo.dados;
+    // O serviço aceita no máximo 7 dias por chamada: período maior vai em pedaços.
+    const porId = new Map<string, Acolhimento>();
+    for (let ini = desde.getTime(); ini < ate.getTime(); ini += PEDACO_MS) {
+        const fim = Math.min(ate.getTime(), ini + PEDACO_MS);
+        for (const o of await buscarPedaco(new Date(ini), new Date(fim))) porId.set(o.id, o);
+    }
+    const dados = [...porId.values()].filter((o) => o.status !== "cancelled");
+    memo = { chave, em: Date.now(), dados };
+    return dados;
+}
+
+const PEDACO_MS = 6 * 86_400_000;
+
+async function buscarPedaco(desde: Date, ate: Date): Promise<Acolhimento[]> {
     const q = new URLSearchParams({ desde: desde.toISOString(), ate: ate.toISOString() });
     const res = await fetch(`${URL_BASE}/api/servico/acolhimentos?${q}`, {
         headers: { Authorization: `Bearer ${TOKEN}`, Accept: "application/json" },
         signal: AbortSignal.timeout(10_000),
     });
     if (!res.ok) throw new Error(`acolhimentos: HTTP ${res.status}`);
-    const corpo = (await res.json()) as { ocorrencias?: Acolhimento[] };
-    const dados = (corpo.ocorrencias ?? []).filter((o) => o.status !== "cancelled");
-    memo = { chave, em: Date.now(), dados };
-    return dados;
+    return ((await res.json()) as { ocorrencias?: Acolhimento[] }).ocorrencias ?? [];
 }
 
 /** Janela da notificação: da chegada à liberação (sem liberação: até agora, no máximo 2 h). */

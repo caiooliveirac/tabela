@@ -2,7 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import { Router, type Response } from "express";
 import { z } from "zod";
 import {
-    alertasRecentes, balancoPlantao, cobrancasPendentes, desativarViatura, diagnostico, historicoFrota, informarMotivo, linhaDoTempo, listarDesativacoes, painelAtual, reativarViatura,
+    adesaoDenuncias, alertasRecentes, balancoPlantao, cobrancasPendentes, desativarViatura, diagnostico, historicoFrota, informarMotivo, linhaDoTempo, listarDesativacoes, painelAtual, reativarViatura,
     registrarOcorrencias,
 } from "./coletor.js";
 import { ErroDesativacao, esquemaDesativar, esquemaMotivo, esquemaReativar } from "./desativacoes.js";
@@ -157,6 +157,19 @@ router.get("/balanco", async (_req, res) => {
     } catch (e) {
         console.error("[frota] balanço:", (e as Error).message);
         res.status(503).json({ error: "balanço indisponível" });
+    }
+});
+
+// Adesão à denúncia (1–31 dias, padrão 14): USA retida 40+ min, registrada ou
+// não no Acolhimentos, com o médico. Quem lê é o painel do Acolhimentos (gestão),
+// pela porta local. 503 quando o Acolhimentos não responde.
+router.get("/adesao", async (req, res) => {
+    const dias = Math.min(31, Math.max(1, Number(req.query.dias) || 14));
+    try {
+        res.json(await adesaoDenuncias(dias));
+    } catch (e) {
+        console.error("[frota] adesão:", (e as Error).message);
+        res.status(503).json({ error: "adesão indisponível" });
     }
 });
 

@@ -954,6 +954,30 @@ export async function balancoPlantao(agora = new Date()): Promise<{ texto: strin
     };
 }
 
+/**
+ * Adesão à denúncia, para a gestão cobrar: cada USA que o GPS viu 40+ min
+ * parada em hospital (não UPA, não a própria base) com chegada nos últimos
+ * `dias`, registrada ou não no Acolhimentos, com o médico da hora da retenção.
+ * Quem lê é o painel do Acolhimentos (perfis de gestão), pela porta local.
+ * Acolhimentos fora do ar: erro — sem prova, ninguém aparece como faltoso.
+ */
+export async function adesaoDenuncias(dias: number): Promise<{
+    desde: string; ate: string; alertaMin: number;
+    retidas: { id: number; codigo: string; hospital: string; entrada: string; minutos: number; aberta: boolean; medico: string | null; registrada: boolean }[];
+}> {
+    if (!acolhimentosLigado()) throw new Error("Acolhimentos desligado (sem ACOLHIMENTOS_TOKEN)");
+    const t = await linhaDoTempo(dias * 24);
+    if (t.acolhimentos.erro) throw new Error(t.acolhimentos.erro);
+    const nomes = new Map(t.hospitais.filter((h) => h.tipo === "hospital").map((h) => [h.id, h.nome]));
+    const retidas = t.paradas
+        .filter((p) => p.tipo === "USA" && !p.naBase && nomes.has(p.hospitalId) && p.minutos >= ALERTA_MIN && p.entrada >= t.desde)
+        .map((p) => ({
+            id: p.id, codigo: p.nome, hospital: nomes.get(p.hospitalId)!, entrada: p.entrada, minutos: p.minutos,
+            aberta: p.aberta, medico: p.medico, registrada: p.acolhimento != null,
+        }));
+    return { desde: t.desde, ate: t.ate, alertaMin: ALERTA_MIN, retidas };
+}
+
 // ── Desativação informada no painel (desativacoes.ts) ───────────
 
 function desativacaoDe(r: Linha): Desativacao {
