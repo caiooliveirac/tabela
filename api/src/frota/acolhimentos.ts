@@ -67,6 +67,19 @@ async function buscarPedaco(desde: Date, ate: Date): Promise<Acolhimento[]> {
     return ((await res.json()) as { ocorrencias?: Acolhimento[] }).ocorrencias ?? [];
 }
 
+/**
+ * Início da busca no Acolhimentos para cruzar as paradas de uma janela que
+ * começa em `desde`. O serviço filtra pela chegada: a parada aberta mais antiga
+ * (fora da base) puxa o início para trás — senão a USA presa há mais tempo que
+ * a janela perde a notificação que a equipe já fez e o médico é cobrado.
+ * Quem chegou até 2 h antes ainda pode estar dentro (notificação sem liberação).
+ */
+export function inicioBusca(desde: Date, paradas: readonly { entrada: string; aberta: boolean; naBase: boolean }[]): Date {
+    let ini = desde.getTime();
+    for (const p of paradas) if (p.aberta && !p.naBase) ini = Math.min(ini, Date.parse(p.entrada));
+    return new Date(ini - ABERTA_MAX_MS);
+}
+
 /** Janela da notificação: da chegada à liberação (sem liberação: até agora, no máximo 2 h). */
 export function janela(a: Pick<Acolhimento, "chegada" | "passagem" | "liberada">, agora: number): [number, number] | null {
     const ini = a.chegada ?? a.passagem;

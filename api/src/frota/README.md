@@ -237,7 +237,10 @@ do GPS com a notificação da mesma viatura no mesmo hospital cujo intervalo
 (chegada → liberação) se sobrepõe, com 15 min de folga. Na linha do tempo:
 faixa cinza = notificado (tique na passagem), faixa roxa = maca retida,
 barra vazada = notificação sem parada no GPS, "sem notificação" = USA 40+ min
-sem registro. O Acolhimentos só cobre USA.
+sem registro. O Acolhimentos só cobre USA. O serviço filtra pela chegada, então
+a busca começa 2 h antes da parada aberta mais antiga fora da base
+(`inicioBusca`), não só antes da janela pedida: senão a USA presa há mais de
+3 h perde a notificação já feita e a cobrança sai para quem registrou.
 
 ## Cobrança da denúncia no grupo SAMU-Salvador (`cobrancasPendentes`)
 

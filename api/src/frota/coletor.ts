@@ -31,7 +31,7 @@ import {
     textoBateria, textoFimQueda, textoFrota, textoInstavel, textoQueda, textoResumo, textoSurto,
     INSTAVEL_JANELA_MIN, type Queda, type QuedaRecente,
 } from "./sinal.js";
-import { ABERTA_MAX_MS, acolhimentosLigado, buscarAcolhimentos, cruzar, janela, type Acolhimento } from "./acolhimentos.js";
+import { acolhimentosLigado, buscarAcolhimentos, cruzar, inicioBusca, janela, type Acolhimento } from "./acolhimentos.js";
 import { buscarDispositivos, buscarPosicoes, type DispositivoSamu, type PosicaoSamu } from "./samumais.js";
 import { leiturasParaPermanencia, montarPainel, resolverPosicoes, type PainelFrota } from "./painel.js";
 import {
@@ -875,8 +875,8 @@ export async function linhaDoTempo(horas: number): Promise<{
 
     if (!acolhimentosLigado()) return { ...base, paradas, acolhimentos: semCruzamento };
     try {
-        // Quem chegou até 2 h antes da janela ainda pode estar dentro dela.
-        const lidos = await buscarAcolhimentos(new Date(desde.getTime() - ABERTA_MAX_MS), agora);
+        // O serviço filtra pela chegada: a busca começa antes da parada aberta mais antiga.
+        const lidos = await buscarAcolhimentos(inicioBusca(desde, paradas), agora);
         const { casadas, soltas } = cruzar(paradas, lidos, agora.getTime());
         // O Acolhimentos só registra hospital: parada em UPA nunca é "sem notificação".
         const upas = new Set(LOCAIS_FROTA.filter((h) => h.tipo === "upa").map((h) => h.id));
