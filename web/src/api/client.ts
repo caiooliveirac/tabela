@@ -27,22 +27,21 @@ import type {
   DesativarViaturaPayload,
   WsEvent,
 } from "../lib/types";
+import { semSessao, transitorio } from "./resposta";
+
+export { semSessao };
 
 const API_BASE =
   import.meta.env.VITE_API_URL || `${window.location.origin}/tabela/api`;
 
 // ── Sessão do portal (login único, ADR 0013 do kairos) ──
 // O nginx do host confere o cookie mnrs_sso antes de /tabela/. Sem sessão, a
-// API responde 401 (e a página, 302 para o portal). Recarregar leva ao login;
-// se já recarregou há menos de 30 s, é laço: para e mostra o aviso.
+// API responde 401 (e a página, 302 para o portal) — critério em ./resposta.ts.
+// Recarregar leva ao login; se já recarregou há menos de 30 s, é laço: para e
+// mostra o aviso.
 const LOGIN_URL = "https://mnrs.com.br/?proximo=tabela";
 const RELOAD_KEY = "tabela:sessao-reload";
 const RELOAD_JANELA_MS = 30_000;
-
-export function semSessao(res: Response): boolean {
-  if (res.status === 401 || res.redirected) return true;
-  return (res.headers.get("content-type") ?? "").includes("text/html");
-}
 
 function avisoSessao(): void {
   if (document.getElementById("tabela-sessao-aviso")) return;
@@ -74,6 +73,31 @@ export function sessaoExpirada(): void {
     // sem sessionStorage não há trava contra laço: só avisa
   }
   avisoSessao();
+}
+
+// ── Sistema atualizando (deploy / restart: 502, 503, 504) ──
+// Não é sessão (S2OUT-61): aviso discreto que some na próxima resposta boa
+// (o React Query tenta de novo sozinho) ou em 30 s.
+const AVISO_TRANSITORIO_ID = "tabela-transitorio-aviso";
+let avisoTransitorioTimer: ReturnType<typeof setTimeout> | null = null;
+function avisoTransitorio(): void {
+  let el = document.getElementById(AVISO_TRANSITORIO_ID);
+  if (!el) {
+    el = document.createElement("div");
+    el.id = AVISO_TRANSITORIO_ID;
+    el.setAttribute("role", "status");
+    el.style.cssText =
+      "position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:9998;" +
+      "padding:8px 14px;border-radius:8px;background:#92400e;color:#fff;" +
+      "font:600 14px system-ui,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.25)";
+    el.textContent = "Sistema atualizando — reconectando…";
+    document.body.appendChild(el);
+  }
+  if (avisoTransitorioTimer) clearTimeout(avisoTransitorioTimer);
+  avisoTransitorioTimer = setTimeout(esconderAvisoTransitorio, 30_000);
+}
+function esconderAvisoTransitorio(): void {
+  document.getElementById(AVISO_TRANSITORIO_ID)?.remove();
 }
 
 // ── Fora do plantão (portão de turno do plantoes, via porteiro) ──
@@ -122,6 +146,12 @@ async function request<T>(
     sessaoExpirada();
     throw new Error("Sessão expirada");
   }
+
+  if (transitorio(res)) {
+    avisoTransitorio();
+    throw new Error("Sistema atualizando — tente de novo em instantes");
+  }
+  esconderAvisoTransitorio();
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: res.statusText }));
