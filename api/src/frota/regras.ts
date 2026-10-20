@@ -2,7 +2,7 @@
 // Regras da frota — funções puras, sem rede nem banco (testadas em
 // regras.test.ts). O coletor chama; a rota só serializa.
 // ═══════════════════════════════════════════════════════════════
-import { numeroNoLimite, type ViaturaCatalogo } from "./catalogo.js";
+import { numeroNoLimite, PATIOS_COMUNS, type ViaturaCatalogo } from "./catalogo.js";
 import type { HospitalFrota, PontoAprendido } from "./hospitais.js";
 
 /** Entra no hospital a 150 m do prédio. */
@@ -173,6 +173,20 @@ export function naBase(l: Pick<Leitura, "lat" | "lng" | "base">): boolean {
     return Boolean(l.base && distanciaM(l, l.base) <= RAIO_M);
 }
 
+/** Pátio comum (catalogo.ts, `PATIOS_COMUNS`): base de qualquer viatura a até 40 m. */
+export const PATIO_RAIO_M = 40;
+
+/**
+ * Distância "de base": à própria base, ou a um pátio comum contado como se o
+ * pátio tivesse raio de 40 m — entra a 40 m e sai a 90 m (a mesma folga de
+ * 50 m da base, 150 → 200).
+ */
+export function distanciaBase(l: Pick<Leitura, "lat" | "lng" | "base">, patios = PATIOS_COMUNS): number {
+    let d = l.base ? distanciaM(l, l.base) : Infinity;
+    for (const q of patios) d = Math.min(d, distanciaM(l, q) + RAIO_M - PATIO_RAIO_M);
+    return d;
+}
+
 export interface Permanencia {
     id?: number;
     chave: string;
@@ -182,7 +196,7 @@ export interface Permanencia {
     alertaEm: Date | null;
     /**
      * Parada na própria base, que fica no hospital (Pau Miúdo ao lado do
-     * HGESF/Mário Leal, Cajazeiras no Municipal). Aparece na tabela e na linha
+     * HGESF e do 16º Centro, Cajazeiras no Municipal), ou num pátio comum. Aparece na tabela e na linha
      * do tempo com a hora de entrada, mas não conta para o alerta de 40 min.
      */
     naBase: boolean;
@@ -283,6 +297,12 @@ export function avancarPermanencias(
     leituras: readonly Leitura[],
     hospitais: readonly HospitalFrota[],
     agora: Date,
+    /**
+     * O mapa de equipes diz que a viatura está livre (sem ocorrência aberta):
+     * parada sem paciente não é retenção, não alerta. Sem saber (mapa mudo,
+     * viatura fora dele), alerta como sempre.
+     */
+    livre: (chave: string) => boolean = () => false,
 ): {
     abertas: Map<string, Permanencia>;
     novas: Permanencia[];
@@ -299,7 +319,7 @@ export function avancarPermanencias(
         // Posição velha não abre nem confirma nada.
         if (agora.getTime() - l.em.getTime() > SEM_SINAL_FECHA_MIN * MIN) continue;
         const atual = proximas.get(l.chave);
-        const dBase = l.base ? distanciaM(l, l.base) : Infinity;
+        const dBase = distanciaBase(l);
         if (atual) {
             if (l.em.getTime() <= (atual.fora?.em ?? atual.ultimaVez).getTime()) continue;
             const s = seguir(atual, l, porId.get(atual.hospitalId), dBase);
@@ -318,7 +338,7 @@ export function avancarPermanencias(
                     const dono = hospitalNoRaio(nova.corrida, hospitais);
                     if (dono?.portas && dono.id !== nova.hospitalId) nova.hospitalId = dono.id;
                 }
-                if (!nova.naBase && !nova.alertaEm && duracaoMin(nova, agora) >= ALERTA_MIN) nova.alertaEm = agora;
+                if (!nova.naBase && !nova.alertaEm && duracaoMin(nova, agora) >= ALERTA_MIN && !livre(l.chave)) nova.alertaEm = agora;
                 proximas.set(l.chave, nova);
                 alteradas.push(nova);
                 continue;

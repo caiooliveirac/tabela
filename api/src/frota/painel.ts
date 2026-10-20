@@ -203,7 +203,8 @@ export function montarPainel(entrada: {
                           entrada: p.entrada.toISOString(),
                           ultimaVez: p.ultimaVez.toISOString(),
                           minutos,
-                          alerta: !p.naBase && minutos >= ALERTA_MIN,
+                          // alertaEm: 40 min e viatura em ocorrência (ou mapa de equipes mudo) — regras.ts.
+                          alerta: !p.naBase && p.alertaEm != null,
                           naBase: p.naBase,
                           distanciaM:
                               r && r.posicao.lat !== null && r.posicao.lng !== null && porHospital.has(p.hospitalId)

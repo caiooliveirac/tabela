@@ -14,10 +14,10 @@
 // ═══════════════════════════════════════════════════════════════
 import { sql } from "drizzle-orm";
 import { db } from "../index.js";
-import { atrasoDaViradaH, CATALOGO, DESATIVADAS_ATE_SEGUNDA_ORDEM, MOTOS, numeroNoLimite } from "./catalogo.js";
-import { LOCAIS_FROTA, type HospitalFrota, type PontoAprendido } from "./hospitais.js";
+import { atrasoDaViradaH, CATALOGO, COORDENADAS_BASES, DESATIVADAS_ATE_SEGUNDA_ORDEM, MOTOS, numeroNoLimite } from "./catalogo.js";
+import { LOCAIS_FROTA, NO_ACOLHIMENTOS, type HospitalFrota, type PontoAprendido } from "./hospitais.js";
 import {
-    ALERTA_MIN, APRENDE_RAIO_M, aprenderPontos, avancarPermanencias, distanciaM, duracaoMin, ehMoto,
+    ALERTA_MIN, APRENDE_RAIO_M, aprenderPontos, avancarPermanencias, distanciaM, duracaoMin, ehMoto, RAIO_SAIDA_M,
     type Evidencia, type Fechamento, type Permanencia,
 } from "./regras.js";
 import { baseOcupada, textoAviso, textoBalanco, textoBaseOcupada, textoCobranca, type DadosAviso } from "./aviso.js";
@@ -395,6 +395,7 @@ async function ciclo(): Promise<void> {
             leiturasParaPermanencia(resolvidas, desativadas, CATALOGO),
             locais,
             agora,
+            (chave) => ocorrenciaDe(chave, agora)?.ocorrencia === null,
         );
         for (const p of abertas.values()) {
             if (desativadas.has(p.chave)) r.fechadas.push({ permanencia: p, saida: null, motivo: "desativada" });
@@ -497,7 +498,9 @@ async function avisarBaseOcupada(agora: Date): Promise<void> {
     const naBaseAgora = new Set<string>();
     for (const v of painelAtual(agora).viaturas) {
         if (v.situacao !== "mapa" || v.foraDoCatalogo) continue;
-        if (!(v.naBase || v.noHospital?.naBase)) continue;
+        // Só a PRÓPRIA base: o pátio comum do Pau Miúdo (catalogo.ts) não é base da BR60.
+        const pontoBase = v.base ? COORDENADAS_BASES[v.base] : undefined;
+        if (!v.naBase && !(v.noHospital?.naBase && pontoBase && v.posicao && distanciaM(v.posicao, pontoBase) <= RAIO_SAIDA_M)) continue;
         naBaseAgora.add(v.chave);
         // Base dentro de hospital/UPA: a permanência tem a entrada real (sobrevive ao deploy).
         const desde = v.noHospital?.naBase ? new Date(v.noHospital.entrada) : (naBaseDesde.get(v.chave) ?? agora);
@@ -846,7 +849,9 @@ export async function linhaDoTempo(horas: number): Promise<{
         ORDER BY entrada`);
     // Numeral acima de 74: dado lixo (catalogo.ts, NUMERO_MAX). "Equipe N" não é numeral de viatura.
     const lixo = (r: Linha) => !String(r.chave).startsWith("equipe:") && !numeroNoLimite(descreverChave(String(r.chave)).nome);
-    const paradas = linhas.filter((r) => !lixo(r)).map((r): ParadaHistorico => {
+    // Local que saiu da frota (Mário Leal, hospitais.ts): as paradas antigas saem junto.
+    const naFrota = new Set(LOCAIS_FROTA.map((h) => h.id));
+    const paradas = linhas.filter((r) => !lixo(r) && naFrota.has(String(r.hospital_id))).map((r): ParadaHistorico => {
         const entrada = new Date(r.entrada as string);
         const ultimaVez = new Date(r.ultima_vez as string);
         const aberta = r.motivo_fim == null;
@@ -878,12 +883,12 @@ export async function linhaDoTempo(horas: number): Promise<{
         // O serviço filtra pela chegada: a busca começa antes da parada aberta mais antiga.
         const lidos = await buscarAcolhimentos(inicioBusca(desde, paradas), agora);
         const { casadas, soltas } = cruzar(paradas, lidos, agora.getTime());
-        // O Acolhimentos só registra hospital: parada em UPA nunca é "sem notificação".
-        const upas = new Set(LOCAIS_FROTA.filter((h) => h.tipo === "upa").map((h) => h.id));
+        // O Acolhimentos só registra os hospitais do painel: UPA e Aristides Maltez nunca são "sem notificação".
+        // Parada que não alertou (viatura livre no mapa de equipes) não é retenção.
         for (const p of paradas) {
             const a = casadas.get(p.id);
             p.acolhimento = a ? resumo(a, agora.getTime()) : null;
-            p.semNotificacao = !a && !p.naBase && !upas.has(p.hospitalId) && p.tipo === "USA" && p.minutos >= ALERTA_MIN;
+            p.semNotificacao = !a && !p.naBase && NO_ACOLHIMENTOS.has(p.hospitalId) && p.tipo === "USA" && p.alertou;
         }
         return {
             ...base,
@@ -941,7 +946,7 @@ export async function balancoPlantao(agora = new Date()): Promise<{ texto: strin
     const t = await linhaDoTempo(12);
     const nomes = new Map(t.hospitais.filter((h) => h.tipo === "hospital").map((h) => [h.id, h.nome]));
     const retidas = t.paradas
-        .filter((p) => !p.naBase && nomes.has(p.hospitalId) && p.minutos >= ALERTA_MIN)
+        .filter((p) => !p.naBase && nomes.has(p.hospitalId) && p.alertou)
         .map((p) => ({
             codigo: p.nome, tipo: p.tipo, hospital: nomes.get(p.hospitalId)!, minutos: p.minutos,
             presa: p.aberta, semRegistro: p.semNotificacao, medico: p.medico,
@@ -970,7 +975,7 @@ export async function adesaoDenuncias(dias: number): Promise<{
     if (t.acolhimentos.erro) throw new Error(t.acolhimentos.erro);
     const nomes = new Map(t.hospitais.filter((h) => h.tipo === "hospital").map((h) => [h.id, h.nome]));
     const retidas = t.paradas
-        .filter((p) => p.tipo === "USA" && !p.naBase && nomes.has(p.hospitalId) && p.minutos >= ALERTA_MIN && p.entrada >= t.desde)
+        .filter((p) => p.tipo === "USA" && !p.naBase && NO_ACOLHIMENTOS.has(p.hospitalId) && p.alertou && p.entrada >= t.desde)
         .map((p) => ({
             id: p.id, codigo: p.nome, hospital: nomes.get(p.hospitalId)!, entrada: p.entrada, minutos: p.minutos,
             aberta: p.aberta, medico: p.medico, registrada: p.acolhimento != null,
@@ -1218,7 +1223,7 @@ export async function historicoFrota(dias: number, agora = new Date()): Promise<
         ...agregarHistorico(
             {
                 paradas: paradas
-                    .filter((r) => !lixo(String(r.chave)))
+                    .filter((r) => !lixo(String(r.chave)) && locais.some((h) => h.id === String(r.hospital_id)))
                     .map((r) => ({
                         chave: String(r.chave), hospitalId: String(r.hospital_id), entrada: data(r.entrada), fim: data(r.fim),
                         naBase: Boolean(r.na_base), lat: numero(r.lat), lng: numero(r.lng),

@@ -186,3 +186,19 @@ export const COORDENADAS_BASES: Readonly<Record<string, { lat: number; lng: numb
     VALÉRIA: { lat: -12.8646079, lng: -38.4372461 },
     "BOCA DO RIO 12º CENTRO": { lat: -12.9735423, lng: -38.4320045 },
 };
+
+/**
+ * Pátio onde viatura de QUALQUER base para: conta como base para todas
+ * (cinza, sem alerta). DADO medido no GPS (`estavel_lat/lng` de
+ * frota_permanencias, 21/09 a 20/10/2026), não geocodificado.
+ *
+ * • Pau Miúdo — dois pátios: 33 m da base (1092 paradas, 818 das viaturas do
+ *   Pau Miúdo) e 82 m (o que era atribuído ao Mário Leal). Viatura de outra
+ *   base ali caía no 16º Centro Imbassahy (PA Maria Conceição, 77 m e 124 m
+ *   do pino) e alertava. A vaga do PA (24 m do pino dele) e a porta do HGESF
+ *   ficam a 54 m e 156 m: fora do raio do pátio (`PATIO_RAIO_M`).
+ */
+export const PATIOS_COMUNS: readonly { lat: number; lng: number }[] = [
+    { lat: -12.95877, lng: -38.48792 },
+    { lat: -12.95842, lng: -38.48822 },
+];
