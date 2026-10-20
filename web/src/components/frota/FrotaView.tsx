@@ -293,10 +293,15 @@ export default function FrotaView({ painel, carregando, erro, foco, focar, opera
             lugar (40 m) longe do pino, esse lugar ganha um círculo e passa a valer como o próprio hospital ou UPA.
           </li>
           <li>
-            As bases do Pau Miúdo e de Cajazeiras ficam coladas no HGESF, no Mário Leal e no Municipal; várias outras
+            As bases do Pau Miúdo e de Cajazeiras ficam coladas no HGESF, no 16º Centro e no Municipal; várias outras
             funcionam dentro de UPA (San Martin, Periperi, Santo Antônio, São Cristóvão…). Viatura parada na própria
             base aparece na tabela em cinza, como "base no hospital", com a hora de entrada — mas não conta
-            para o alerta.
+            para o alerta. O pátio do Pau Miúdo vale como base para viatura de qualquer base. O Mário Leal saiu
+            da frota.
+          </li>
+          <li>
+            Viatura livre no mapa de equipes (sem ocorrência aberta) não alerta: parada sem paciente não é retenção
+            — aparece como "livre · sem aviso".
           </li>
           <li>
             Aos {L.alertaMin} min o círculo fica vermelho e abre um aviso em qualquer aba do painel. "Ciente" fecha o

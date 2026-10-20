@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { atrasoDaViradaH, CATALOGO, COORDENADAS_BASES, DESATIVADAS_ATE_SEGUNDA_ORDEM, TURNO_8_20 } from "./catalogo.js";
-import { HOSPITAIS_FROTA, LOCAIS_FROTA } from "./hospitais.js";
+import { atrasoDaViradaH, CATALOGO, COORDENADAS_BASES, DESATIVADAS_ATE_SEGUNDA_ORDEM, PATIOS_COMUNS, TURNO_8_20 } from "./catalogo.js";
+import { HOSPITAIS_FROTA, LOCAIS_FROTA, NO_ACOLHIMENTOS } from "./hospitais.js";
 import {
     aprenderPontos, avancarPermanencias, distanciaM, duracaoMin, hospitalNoRaio, instanteSamu,
     situacao, vincular, type Evidencia, type Permanencia,
@@ -32,8 +32,11 @@ test("catálogo: 62 viaturas até o numeral 74, código e número únicos, desat
     for (const c of CATALOGO) if (!DESATIVADAS_ATE_SEGUNDA_ORDEM.has(c.codigo)) assert.equal(c.status, "ATIVA", c.codigo);
 });
 
-test("hospitais: os 11 do painel, todos na RMS", () => {
+test("hospitais: os do painel sem o Mário Leal, mais o Aristides Maltez (fora do Acolhimentos), todos na RMS", () => {
     assert.equal(HOSPITAIS_FROTA.length, 11);
+    assert.ok(!LOCAIS_FROTA.some((h) => h.id === "mario_leal"));
+    assert.equal(local("aristides_maltez").tipo, "hospital");
+    assert.ok(!NO_ACOLHIMENTOS.has("aristides_maltez") && NO_ACOLHIMENTOS.has("hgrs"));
     for (const h of HOSPITAIS_FROTA) {
         assert.ok(h.lat > -13.1 && h.lat < -12.7 && h.lng > -38.6 && h.lng < -38.2, h.id);
     }
@@ -80,10 +83,10 @@ test("data_evento do SAMU+ é hora de Salvador", () => {
 test("raio: 150 m entra, 160 m não; raios cruzados ficam com o mais perto", () => {
     assert.equal(hospitalNoRaio(aoNorte(140), HOSPITAIS_FROTA)?.id, "hge");
     assert.equal(hospitalNoRaio(aoNorte(160), HOSPITAIS_FROTA), null);
-    const hgesf = HOSPITAIS_FROTA.find((h) => h.id === "hgesf")!;
-    const mario = HOSPITAIS_FROTA.find((h) => h.id === "mario_leal")!;
-    assert.ok(distanciaM(hgesf, mario) < 300, "HGESF e Mário Leal têm raios que se cruzam");
-    assert.equal(hospitalNoRaio({ lat: hgesf.lat, lng: hgesf.lng }, HOSPITAIS_FROTA)?.id, "hgesf");
+    const hgesf = local("hgesf");
+    const cs = local("cs_imbassahy");
+    assert.ok(distanciaM(hgesf, cs) < 300, "HGESF e 16º Centro têm raios que se cruzam");
+    assert.equal(hospitalNoRaio({ lat: hgesf.lat, lng: hgesf.lng }, LOCAIS_FROTA)?.id, "hgesf");
 });
 
 test("vínculo: exato primeiro; número só para quem sobrou; moto e evento de fora", () => {
@@ -147,16 +150,15 @@ test("sem sinal: relógio congela aos 15 min e fecha após 1 h", () => {
 });
 
 test("base no hospital: abre parada marcada naBase, sem alerta; viatura de outra base conta", () => {
-    const mario = HOSPITAIS_FROTA.find((h) => h.id === "mario_leal")!;
-    const basePM = { lat: -12.959059, lng: -38.487838 };
-    const ponto = { lat: (mario.lat + basePM.lat) / 2, lng: (mario.lng + basePM.lng) / 2 };
+    const baseCZ = COORDENADAS_BASES["CAJAZEIRAS"];
+    const ponto = desloca(baseCZ, 10); // a base fica a 60 m do Municipal
     const outraBase = { lat: -12.935104, lng: -38.506528 };
     let abertas = new Map<string, Permanencia>();
     for (const hhmm of ["10:00", "10:30", "11:00"]) {
         const r = avancarPermanencias(
             abertas,
             [
-                { chave: "PM45", em: t(hhmm), ...ponto, base: basePM },
+                { chave: "CZ50", em: t(hhmm), ...ponto, base: baseCZ },
                 { chave: "CB26", em: t(hhmm), ...ponto, base: outraBase },
             ],
             HOSPITAIS_FROTA,
@@ -164,8 +166,9 @@ test("base no hospital: abre parada marcada naBase, sem alerta; viatura de outra
         );
         abertas = r.abertas;
     }
-    assert.equal(abertas.get("PM45")?.naBase, true);
-    assert.equal(abertas.get("PM45")?.alertaEm, null, "base não alerta, nem com 60 min");
+    assert.equal(abertas.get("CZ50")?.hospitalId, "municipal");
+    assert.equal(abertas.get("CZ50")?.naBase, true);
+    assert.equal(abertas.get("CZ50")?.alertaEm, null, "base não alerta, nem com 60 min");
     assert.equal(abertas.get("CB26")?.naBase, false);
     assert.equal(abertas.get("CB26")?.alertaEm?.toISOString(), t("11:00").toISOString());
 });
@@ -307,8 +310,44 @@ test("aprende: vaga do HGESF perto do 16º Centro vence; pino de outro local, nu
     assert.ok(distanciaM(vaga, hgesf) > distanciaM(vaga, cs));
     assert.equal(hospitalNoRaio(vaga, comPontos)?.id, "hgesf");
 
-    const noPinoDoMario = ["CB26", "CB27", "CB28"].map((c, i) => ev("hgesf", c, dias[i], local("mario_leal")));
-    assert.equal(aprenderPontos(noPinoDoMario, LOCAIS_FROTA).size, 0);
+    const noPinoDoCs = ["CB26", "CB27", "CB28"].map((c, i) => ev("hgesf", c, dias[i], local("cs_imbassahy")));
+    assert.equal(aprenderPontos(noPinoDoCs, LOCAIS_FROTA).size, 0);
+});
+
+/** Três leituras paradas no mesmo ponto: 10:00, 10:30, 10:46 — 46 min, como a BR60 em 20/10/2026. */
+function parada(ponto: { lat: number; lng: number }, chave: string, base: { lat: number; lng: number } | null, livre?: (hhmm: string) => boolean) {
+    let abertas = new Map<string, Permanencia>();
+    for (const hhmm of ["10:00", "10:30", "10:46"]) {
+        const r = avancarPermanencias(abertas, [{ chave, em: t(hhmm), ...ponto, base }], LOCAIS_FROTA, t(hhmm), livre && (() => livre(hhmm)));
+        abertas = r.abertas;
+    }
+    return abertas.get(chave);
+}
+
+test("pátio comum do Pau Miúdo: base para viatura de qualquer base; a vaga do 16º Centro e a porta do HGESF, não", () => {
+    const boca = COORDENADAS_BASES["BOCA DO RIO ROSA GARCIA"];
+    for (const patio of PATIOS_COMUNS) {
+        const p = parada(desloca(patio, 15), "BR60", boca);
+        assert.equal(p?.naBase, true, "no pátio é base");
+        assert.equal(p?.alertaEm, null);
+    }
+    // Vaga do 16º Centro (PA Maria Conceição), 24 m do pino, e a porta do HGESF: retenção de verdade.
+    const vagaCs = { lat: -12.95892, lng: -38.48745 };
+    assert.equal(parada(vagaCs, "BR60", boca)?.hospitalId, "cs_imbassahy");
+    assert.equal(parada(vagaCs, "BR60", boca)?.naBase, false);
+    assert.ok(parada(vagaCs, "BR60", boca)?.alertaEm);
+    const portaHgesf = local("hgesf").portas![0];
+    assert.equal(parada(portaHgesf, "BR60", boca)?.hospitalId, "hgesf");
+    assert.ok(parada(portaHgesf, "BR60", boca)?.alertaEm);
+});
+
+test("sem ocorrência aberta no mapa de equipes, sem alerta; ganhou ocorrência ainda parada, alerta", () => {
+    const boca = COORDENADAS_BASES["BOCA DO RIO ROSA GARCIA"];
+    const hgrs = local("hgrs");
+    assert.equal(parada(hgrs, "BR60", boca, () => true)?.alertaEm, null, "livre a parada toda");
+    assert.ok(parada(hgrs, "BR60", boca, () => false)?.alertaEm, "em ocorrência");
+    assert.ok(parada(hgrs, "BR60", boca)?.alertaEm, "mapa mudo: alerta como sempre");
+    assert.equal(parada(hgrs, "BR60", boca, (h) => h !== "10:46")?.alertaEm?.toISOString(), t("10:46").toISOString());
 });
 
 test("posição velha não abre permanência", () => {

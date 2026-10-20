@@ -1,10 +1,10 @@
 // ═══════════════════════════════════════════════════════════════
-// Os 11 hospitais do painel, com o ponto do PRÉDIO — é em volta dele que o
+// Os hospitais do painel (menos o Mário Leal), com o ponto do PRÉDIO — é em volta dele que o
 // raio de 150 m decide se a ambulância "está no hospital".
 //
 // Seis vêm de COORDENADAS_HOSPITAIS (Destino, geocodificadas em 23/08/2026).
 // Os outros cinco foram resolvidos em 29/09/2026 para esta tela:
-//   • menandro, juliano_moreira, mario_leal, couto_maia — Geocoding, ROOFTOP
+//   • menandro, juliano_moreira, couto_maia — Geocoding, ROOFTOP
 //     com tipo `hospital` (o prédio, não a rua);
 //   • eladio — Places (Text Search). O ponto do Destino é o meio da rua
 //     (GEOMETRIC_CENTER, ~150 m de erro): serve para ordenar por tempo de
@@ -51,8 +51,6 @@ const PONTOS_PROPRIOS: Record<string, { lat: number; lng: number }> = {
     menandro: { lat: -12.881229, lng: -38.314589 },
     // Av. Edgard Santos, s/n — Narandiba.
     juliano_moreira: { lat: -12.9525721, lng: -38.4497659 },
-    // R. Conde de Porto Alegre, 11 — IAPI.
-    mario_leal: { lat: -12.9577518, lng: -38.4883325 },
     // R. Cel. Azevedo — Cajazeiras (vizinho do Eládio, ~280 m).
     couto_maia: { lat: -12.8876931, lng: -38.4203797 },
 };
@@ -78,11 +76,35 @@ const PORTAS: Record<string, readonly { lat: number; lng: number }[]> = {
     hgesf: [{ lat: -12.95875, lng: -38.48648 }],
 };
 
-export const HOSPITAIS_FROTA: readonly HospitalFrota[] = HOSPITALS.map((h) => {
-    const p = PONTOS_PROPRIOS[h.id] ?? COORDENADAS_HOSPITAIS[h.id];
-    if (!p) throw new Error(`hospital sem coordenada na frota: ${h.id}`);
-    return { id: h.id, nome: h.name, tipo: "hospital", lat: p.lat, lng: p.lng, ...(PORTAS[h.id] ? { portas: PORTAS[h.id] } : {}) };
-});
+/**
+ * Fora da frota (20/10/2026): o Mário Leal fica a 120 m do pátio da base do
+ * Pau Miúdo, onde viatura de toda base para sem paciente — 46 min da BR60
+ * "no Mário Leal" sem ocorrência no mapa viraram aviso. O pátio agora é base
+ * comum (`PATIOS_COMUNS` em catalogo.ts).
+ */
+const FORA_DA_FROTA = new Set(["mario_leal"]);
+
+/**
+ * Hospitais fora do painel, só para a frota ver a chegada. Não estão no
+ * Acolhimentos: nunca "sem notificação" (`NO_ACOLHIMENTOS`).
+ * • aristides_maltez — Av. Dom João VI, Brotas (OpenStreetMap, amenity
+ *   hospital, 20/10/2026). A BR60 levou paciente para lá e não abriu parada.
+ */
+const HOSPITAIS_SO_FROTA: readonly HospitalFrota[] = [
+    { id: "aristides_maltez", nome: "Aristides Maltez", tipo: "hospital", lat: -12.9904725, lng: -38.4860105 },
+];
+
+export const HOSPITAIS_FROTA: readonly HospitalFrota[] = [
+    ...HOSPITALS.filter((h) => !FORA_DA_FROTA.has(h.id)).map((h): HospitalFrota => {
+        const p = PONTOS_PROPRIOS[h.id] ?? COORDENADAS_HOSPITAIS[h.id];
+        if (!p) throw new Error(`hospital sem coordenada na frota: ${h.id}`);
+        return { id: h.id, nome: h.name, tipo: "hospital", lat: p.lat, lng: p.lng, ...(PORTAS[h.id] ? { portas: PORTAS[h.id] } : {}) };
+    }),
+    ...HOSPITAIS_SO_FROTA,
+];
+
+/** Hospitais que o Acolhimentos registra (os do painel): só neles cabe "sem notificação". */
+export const NO_ACOLHIMENTOS: ReadonlySet<string> = new Set(HOSPITALS.map((h) => h.id));
 
 /** Todo ponto com raio: os hospitais e as UPAs (`upas.ts`). */
 export const LOCAIS_FROTA: readonly HospitalFrota[] = [...HOSPITAIS_FROTA, ...UPAS_FROTA];

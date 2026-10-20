@@ -3,7 +3,7 @@
 // hospital ou UPA, com a hora em que entrou e há quanto tempo está lá.
 //
 // Primeiro as que contam para a retenção (mais antigas no topo), depois as
-// que estão na própria base — Pau Miúdo, junto do HGESF/Mário Leal, e
+// que estão na própria base — Pau Miúdo, junto do HGESF/16º Centro, e
 // Cajazeiras, no Municipal — em cinza: a hora de entrada aparece, mas não
 // geram alerta. Clicar na linha leva o mapa até a viatura.
 // ═══════════════════════════════════════════════════════════════
@@ -32,7 +32,9 @@ function Situacao({ v, alertaMin }: { v: ViaturaFrota; alertaMin: number }) {
           : [COR.vazio, "base no hospital"]
     : n.alerta
       ? [COR.alerta, `⚠ ${alertaMin} min ou mais`]
-      : n.minutos >= alertaMin - 10
+      : n.minutos >= alertaMin
+        ? [COR.livre, "livre · sem aviso"] // sem ocorrência no mapa de equipes: não é retenção
+        : n.minutos >= alertaMin - 10
         ? [COR.atrasada, `perto dos ${alertaMin}`]
         : [COR.hospital, "no hospital"];
   return (

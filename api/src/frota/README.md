@@ -55,8 +55,24 @@ vínculo sai da página de status; se ela sair do ar, vale o último salvo em
   é registrada com `na_base = true`: aparece em cinza na tabela e na linha do
   tempo, com hora de entrada, mas sem alerta nem Telegram. Base ↔ hospital
   troca de parada com a mesma histerese (150 m entra, 200 m sai).
-- **Alerta:** 40 min. Sem posição nova há 15 min o relógio congela; sem
-  posição há 1 h a parada fecha como `sem-sinal`.
+- **Alerta:** 40 min **e viatura em ocorrência** no mapa de equipes
+  (`ocorrencias.ts`). Livre no mapa (sem ocorrência aberta) não alerta:
+  parada sem paciente não é retenção — painel mostra "livre · sem aviso" e
+  ela fica fora de cobrança, balanço e adesão. Não depende de a equipe apertar
+  "chegada": ganhou ocorrência ainda parada, alerta na hora. Mapa mudo ou
+  viatura fora dele: alerta como sempre. Sem posição nova há 15 min o relógio
+  congela; sem posição há 1 h a parada fecha como `sem-sinal`.
+- **Mário Leal fora da frota** (20/10/2026): fica a 120 m do pátio da base do
+  Pau Miúdo; a BR60 parou 46 min no pátio, livre, e virou aviso "no Mário
+  Leal". Paradas antigas dele saem da linha do tempo e do histórico.
+- **Pátio comum** (`PATIOS_COMUNS` em `catalogo.ts`): os dois pátios da base
+  do Pau Miúdo (medidos no GPS) valem como base para viatura de **qualquer**
+  base — entra a 40 m, sai a 90 m. Sem isso, viatura de fora parada ali caía
+  no 16º Centro Imbassahy (PA Maria Conceição) — 274 paradas em 30 dias. A
+  vaga do PA (24 m do pino) e a porta do HGESF ficam fora. "Base ocupada"
+  continua só para a própria base.
+- **Aristides Maltez**: hospital fora do painel, só na frota (chegada vira
+  parada). Fora do Acolhimentos (`NO_ACOLHIMENTOS`): nunca "sem notificação".
 - **Situação de cada viatura:** `mapa` (posição da última hora) ·
   `sem-sinal` · `fora-do-turno` (SD entre 19h e 7h; as de 08h–20h rodam as
   24 h) · `desativada` (lista `DESATIVADAS_ATE_SEGUNDA_ORDEM` ou
