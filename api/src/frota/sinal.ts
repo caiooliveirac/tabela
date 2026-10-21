@@ -9,7 +9,6 @@
 // ═══════════════════════════════════════════════════════════════
 import { escapeHtml } from "../lib/telegram.js";
 import { hhmm } from "./aviso.js";
-import { ALERTA_MIN } from "./regras.js";
 import type { ViaturaFrota } from "./painel.js";
 import { rotuloMotivos } from "./desativacoes.js";
 
@@ -369,7 +368,8 @@ export function ranking(
             partes.push(`📵 sem sinal há <b>${duracao(s!)}</b> (desde ${hhmm(new Date(v.posicao!.em))})${c ? ` · ${c}` : ""}`);
         }
         const h = v.noHospital;
-        if (h && !h.naBase && h.minutos >= ALERTA_MIN) {
+        // Mesmo critério do painel (noHospital.alerta): livre parada há 40+ min não conta.
+        if (h?.alerta) {
             tempo = Math.max(tempo, h.minutos);
             partes.push(`⏱ <b>${duracao(h.minutos)}</b> n${/^(UPA|UE)\b/.test(h.hospitalNome) ? "a" : "o"} ${escapeHtml(h.hospitalNome)}`);
         }
@@ -439,7 +439,7 @@ export function textoResumo(
             return s !== null && s >= SEM_SINAL_MIN && !cronica(s);
         })
         .sort((a, b) => a.posicao!.em.localeCompare(b.posicao!.em));
-    const paradas = el.filter((v) => v.noHospital && !v.noHospital.naBase && v.noHospital.minutos >= ALERTA_MIN);
+    const paradas = el.filter((v) => v.noHospital?.alerta);
     const baterias = el.filter(
         (v) => v.bateria !== null && v.bateria < BATERIA_MIN && !carregando(v) && minDesde(v.bateriaEm, agora) <= BATERIA_VALE_MIN,
     );

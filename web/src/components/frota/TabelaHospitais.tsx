@@ -121,7 +121,7 @@ export default function TabelaHospitais({ painel, noMapa, onVer }: Props) {
                   ? COR.base
                   : destaque
                     ? n.minutos >= L.alertaMin ? COR.alerta : COR.ocorrencia
-                    : corDaParada(n.minutos, L.alertaMin);
+                    : corDaParada(n, L.alertaMin);
                 const h = n.id != null ? acolhimentoPorId.get(n.id) : undefined;
                 return (
                   <tr

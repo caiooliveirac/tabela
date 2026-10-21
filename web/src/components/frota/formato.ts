@@ -71,10 +71,14 @@ export function corDaIdade(idadeMin: number, recenteMin: number): string {
   return idadeMin <= recenteMin ? COR.recente : COR.atrasada;
 }
 
-/** Barra da parada: azul até 30 min, âmbar chegando, vermelho no limite. */
-export function corDaParada(minutos: number, alertaMin: number): string {
-  if (minutos >= alertaMin) return COR.alerta;
-  if (minutos >= alertaMin - 10) return COR.atrasada;
+/**
+ * Barra da parada: azul até 30 min, âmbar chegando, vermelho só com alerta
+ * (`noHospital.alerta`, regra da api). Passou do limite livre: verde, sem aviso.
+ */
+export function corDaParada(n: { minutos: number; alerta: boolean }, alertaMin: number): string {
+  if (n.alerta) return COR.alerta;
+  if (n.minutos >= alertaMin) return COR.livre;
+  if (n.minutos >= alertaMin - 10) return COR.atrasada;
   return COR.hospital;
 }
 
