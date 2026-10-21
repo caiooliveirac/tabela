@@ -159,9 +159,9 @@ test("plantão e resumo: 07–19 é D, 19–07 é N do dia em que começou; resu
 });
 
 test("ranking: tempo fora de ação manda, USA pesa 1,5×, crônica fica fora", () => {
-    const parada = (min: number) => ({
+    const parada = (min: number, alerta = min >= 40) => ({
         id: 1, hospitalId: "hge", hospitalNome: "HGE", entrada: antes(min).toISOString(), ultimaVez: antes(1).toISOString(),
-        minutos: min, alerta: true, naBase: false, distanciaM: 20,
+        minutos: min, alerta, naBase: false, distanciaM: 20,
     });
     const r = ranking(
         [
@@ -171,6 +171,7 @@ test("ranking: tempo fora de ação manda, USA pesa 1,5×, crônica fica fora", 
             vt("PM45", 1, { noHospital: parada(70) }),        // parada 70
             vt("IT30", 1, { tipo: "USA", bateria: 5, bateriaEm: antes(20).toISOString() }), // 2 × 15 × 1,5 = 45
             vt("CB28", 1, { noHospital: parada(30) }),        // parada abaixo de 40: nada
+            vt("CB29", 1, { noHospital: parada(90, false) }), // livre há 90 min (sem alerta no painel): nada
             vt("BR05", 30 * 60),                              // crônica
             vt("CN10", null),                                 // nunca apareceu: crônica
             vt("CN12", 30, { situacao: "fora-do-turno" }),    // fora da conta
@@ -180,8 +181,8 @@ test("ranking: tempo fora de ação manda, USA pesa 1,5×, crônica fica fora", 
     );
     assert.deepEqual(r.itens.map((i) => i.chave), ["PM45", "CB27", "PP20", "IT30"]);
     assert.deepEqual(r.cronicas, ["CB25 12:00", "BR05 28/09 10:00", "CN10 nunca"]);
-    assert.equal(r.escaladas, 8);
-    assert.equal(r.transmitindo, 3);
+    assert.equal(r.escaladas, 9);
+    assert.equal(r.transmitindo, 4);
     const texto = textoFrota(r, AGORA);
     assert.match(texto, /1\. <b>PM45<\/b> \(USB\) — ⏱ <b>1h10<\/b> no HGE/);
     assert.match(texto, /⚫ 3 sem transmitir há 3 h\+ \(fora do ranking\): CB25 12:00, BR05 28\/09 10:00, CN10 nunca/);
@@ -212,6 +213,16 @@ test("resumo do plantão: seções só com o que tem, crônicas numa linha", () 
     assert.match(texto, /⚫ <b>Sem transmitir há 3 h\+<\/b> \(1\): BR05 28\/09 10:00/);
     assert.doesNotMatch(texto, /Bateria|Paradas/);
     assert.ok(elegivel(vt("CB27")));
+});
+
+test("resumo do plantão: parada só com alerta do painel; livre há 40+ min fica fora", () => {
+    const parada = (alerta: boolean) => ({
+        id: 1, hospitalId: "hge", hospitalNome: "HGE", entrada: antes(70).toISOString(), ultimaVez: antes(1).toISOString(),
+        minutos: 70, alerta, naBase: false, distanciaM: 20,
+    });
+    const texto = textoResumo([vt("PM45", 1, { noHospital: parada(true) }), vt("CB29", 1, { noHospital: parada(false) })], new Map(), AGORA);
+    assert.match(texto, /⏱ <b>Paradas de 40\+ min agora<\/b> \(1\)\n• <b>PM45<\/b>/);
+    assert.doesNotMatch(texto, /CB29/);
 });
 
 test("cortar: respeita o limite do Telegram inteiro por linha", () => {
