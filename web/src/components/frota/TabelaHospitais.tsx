@@ -10,7 +10,7 @@
 import { useMemo } from "react";
 import type { PainelFrota, ViaturaFrota } from "../../lib/types";
 import { useLinhaDoTempoFrota } from "../../hooks/useFrota";
-import { COR, corDaParada, duracao, estadoOcorrencia, hora } from "./formato";
+import { COR, corDaParada, duracao, estadoOcorrencia, hora, textoResponsavel } from "./formato";
 
 interface Props {
   painel: PainelFrota;
@@ -138,6 +138,11 @@ export default function TabelaHospitais({ painel, noMapa, onVer }: Props) {
                       <span className="font-black">{v.nome}</span>
                       {v.tipo && <span className="text-slate-400 font-semibold"> {v.tipo}</span>}
                       {v.base && <div className="text-[11px] text-slate-400 truncate max-w-[180px]">{v.base}</div>}
+                      {v.responsavel && (
+                        <div className="text-[11px] font-semibold text-slate-600 truncate max-w-[200px]" title="De quem cobrar: médico da USA, técnico(a) da USB">
+                          👤 {textoResponsavel(v.responsavel)}
+                        </div>
+                      )}
                     </td>
                     <td className="py-2 pr-3 whitespace-nowrap">
                       <span className="font-bold">{n.hospitalNome}</span>

@@ -57,6 +57,12 @@ services:
       # Cobrança da denúncia (GET /frota/cobrancas, o Tom entrega no WhatsApp):
       # nome do médico da USA pelo Plantões (token = ESCALA_SSO_TOKEN do plantoes).
       PLANTOES_TOKEN: ${PLANTOES_TOKEN:-}
+      # Responsável de cada viatura na aba Frota: técnico(a) da USB (e o médico
+      # da USA quando a Mesa ainda não tem chegada) pela escala do escalas-e-trocas
+      # (GET /api/servicos/relatorio/turno). Token = ESPERADOS_TOKEN do escala.
+      # Vazio = USB sem nome; a USA segue com o médico da Mesa.
+      ESCALA_URL: ${ESCALA_URL:-https://escala.mnrs.com.br}
+      ESCALA_TOKEN: ${ESCALA_TOKEN:-}
       # Ocorrência e MR de cada equipe (POST /frota/ocorrencias, enviado pelo
       # scripts/mapa-equipes-coletor.mjs de dentro da rede da SMS). Vazio = desligado.
       MAPA_EQUIPES_TOKEN: ${MAPA_EQUIPES_TOKEN:-}

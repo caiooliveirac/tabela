@@ -415,6 +415,8 @@ export interface ViaturaFrota {
   velocidade: number | null;
   /** Desativada no painel (rádio, chefe, enfermagem). */
   desativacao?: DesativacaoFrota | null;
+  /** De quem cobrar: médico da USA (Mesa ou escala), técnico(a) da USB (escala). null = sem fonte. */
+  responsavel?: { nome: string; funcao: "médico" | "técnico"; fonte: "mesa" | "escala" } | null;
   /** Pelo mapa de equipes: em ocorrência (com o MR) ou livre. null = sem informação. */
   ocorrencia?: {
     ocorrencia: {

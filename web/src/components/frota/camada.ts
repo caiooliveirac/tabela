@@ -14,7 +14,7 @@
 // ═══════════════════════════════════════════════════════════════
 import type { HospitalPonto, PainelFrota, ViaturaFrota } from "../../lib/types";
 import {
-  COR, artigo, corDaIdade, corRisco, duracao, estaNaBase, estadoOcorrencia, frase, hora, nomeProprio,
+  COR, artigo, corDaIdade, corRisco, duracao, estaNaBase, estadoOcorrencia, frase, hora, nomeProprio, textoResponsavel,
   type EstadoOcorrencia,
 } from "./formato";
 
@@ -97,6 +97,7 @@ function balaoViatura(v: ViaturaFrota): string {
   const p = v.posicao!;
   const linhas = [
     `<b>${esc(v.nome)}</b>${v.tipo ? ` · ${v.tipo}` : ""}${v.base ? ` · ${esc(v.base)}` : ""}`,
+    ...(v.responsavel ? [`👤 <b>${esc(textoResponsavel(v.responsavel)!)}</b>`] : []),
     `Posição de ${hora(p.em)} (há ${duracao(p.idadeMin)})` +
       (v.velocidade != null ? ` · ${v.velocidade} km/h` : "") +
       (v.bateria != null ? ` · bateria ${v.bateria}%` : ""),

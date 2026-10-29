@@ -51,6 +51,13 @@ export function corRisco(risco: string | null | undefined): string {
   return RISCO[(risco ?? "").trim().toLowerCase()] ?? COR.ocorrencia;
 }
 
+/** "Dr(a). Fulano" / "Téc. Beltrana", com "(escalado)" quando a Mesa ainda não tem chegada. */
+export function textoResponsavel(r: ViaturaFrota["responsavel"]): string | null {
+  if (!r) return null;
+  const quem = r.funcao === "médico" ? "Médico(a)" : "Técnico(a)";
+  return `${quem} ${nomeProprio(r.nome)}${r.fonte === "escala" ? " (escala)" : ""}`;
+}
+
 /** "BRUNA MICHELI ALVES" → "Bruna Micheli Alves". */
 export function nomeProprio(s: string): string {
   return s.toLowerCase().replace(/(^|\s)\p{L}/gu, (c) => c.toUpperCase());

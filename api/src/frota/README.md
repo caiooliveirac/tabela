@@ -323,3 +323,21 @@ retenção (`frota_permanencias.medico`, gravado desde 01/10/2026). Quem lê é 
 painel do Acolhimentos (perfis ADMIN/COORD), pela porta local. O serviço do
 Acolhimentos aceita 7 dias por chamada: `buscarAcolhimentos` pede em pedaços
 de 6. Acolhimentos fora do ar: 503.
+
+## Responsável de cada viatura (`responsavel`, desde 29/10/2026)
+
+Para o coordenador saber de quem cobrar, cada viatura do painel traz
+`responsavel: { nome, funcao, fonte }` (`equipe.ts`, pura em `responsavelDe`):
+
+- **USA**: o médico com chegada na Mesa do Plantões (`fonte: "mesa"`, mesma
+  leitura de `plantoes.ts`); sem chegada ainda, o médico que a escala espera
+  (`fonte: "escala"`).
+- **USB**: o técnico(a) de enfermagem que a escala espera no posto
+  (`fonte: "escala"`). Condutor nunca entra.
+- Escala = `GET {ESCALA_URL}/api/servicos/relatorio/turno` do escalas-e-trocas
+  (posto "SM-01" → "SM01"), token `ESCALA_TOKEN` = `ESPERADOS_TOKEN` de lá,
+  memória de 5 min, lida a cada coleta. Sem token ou fora do ar: USB sem nome,
+  USA só com a Mesa. Motolância e fora do catálogo: `null`.
+
+Aparece no balão do mapa e na tabela "Ambulâncias em hospital ou UPA agora";
+o Workspace (samu-workspace) mostra na lista e no detalhe da aba Frota.

@@ -23,6 +23,7 @@ import {
 import { baseOcupada, textoAviso, textoBalanco, textoBaseOcupada, textoCobranca, type DadosAviso } from "./aviso.js";
 import { editarChat, enviarChat, frotaChatId, notifyAdmin, reguladoresChatId } from "../lib/telegram.js";
 import { medicosPorBase, mesaAgora } from "./plantoes.js";
+import { atualizarEquipe, responsavelAgora } from "./equipe.js";
 import {
     diagnosticoOcorrencias, lembreteFonteCaiu, ocorrenciaDe, receberOcorrencias, situacoesRecebidas, vigiarMapa, type esquemaOcorrencias,
 } from "./ocorrencias.js";
@@ -387,6 +388,7 @@ async function ciclo(): Promise<void> {
         const agora = new Date();
         await vencerDesativacoes(agora).catch((e) => registrarErro("virada das desativações", e));
         await espelharMesa(agora).catch((e) => registrarErro("desativações da Mesa", e));
+        await atualizarEquipe().catch((e) => registrarErro("responsável das viaturas", e));
         const resolvidas = resolverPosicoes(posicoes, dispositivos, CATALOGO);
         // Desativada no painel com parada aberta: a parada fecha agora (e o aviso dela).
         const desativadas = desativadasAgora();
@@ -1184,6 +1186,7 @@ export function painelAtual(agora = new Date()): PainelFrota {
         dispositivos,
         abertas,
         ocorrenciaDe: (chave) => ocorrenciaDe(chave, agora),
+        responsavelDe: responsavelAgora,
         agora,
     });
 }
