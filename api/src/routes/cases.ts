@@ -1,5 +1,5 @@
 import { Router, type Request, type Response } from "express";
-import { eq, desc, and, gte, lte } from "drizzle-orm";
+import { eq, desc, and, gte, lte, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../index.js";
 import { cases } from "../db/schema.js";
@@ -46,6 +46,41 @@ router.get("/", async (_req: Request, res: Response) => {
   } catch (err) {
     console.error("GET /cases error:", err);
     res.status(500).json({ error: "Erro ao buscar casos" });
+  }
+});
+
+// GET /api/cases/ultimos — último aceite e última vaga zero de cada hospital em
+// TODO o histórico (só ativos). O GET / corta em 24h; quem quer "sem aceite há
+// 30h" precisa disto. historicoDesde = primeiro caso ativo do banco: antes dele
+// não há registro, e ausência de registro não é ausência de aceite.
+router.get("/ultimos", async (_req: Request, res: Response) => {
+  try {
+    const [rows, [desde]] = await Promise.all([
+      db
+        .select({
+          hospitalId: cases.hospitalId,
+          situacao: cases.situacao,
+          ultimo: sql<string>`max(${cases.timestamp})`,
+        })
+        .from(cases)
+        .where(eq(cases.ativo, true))
+        .groupBy(cases.hospitalId, cases.situacao),
+      db
+        .select({ desde: sql<string | null>`min(${cases.timestamp})` })
+        .from(cases)
+        .where(eq(cases.ativo, true)),
+    ]);
+    const iso = (v: string | Date | null | undefined) => (v ? new Date(v).toISOString() : null);
+    const hospitais: Record<string, { ultimoAceite: string | null; ultimaZero: string | null }> = {};
+    for (const r of rows) {
+      const h = (hospitais[r.hospitalId] ??= { ultimoAceite: null, ultimaZero: null });
+      if (r.situacao === "ACEITO") h.ultimoAceite = iso(r.ultimo);
+      else if (r.situacao === "ZERO") h.ultimaZero = iso(r.ultimo);
+    }
+    res.json({ historicoDesde: iso(desde?.desde), hospitais });
+  } catch (err) {
+    console.error("GET /cases/ultimos error:", err);
+    res.status(500).json({ error: "Erro ao buscar últimos casos" });
   }
 });
 
