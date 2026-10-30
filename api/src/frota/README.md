@@ -71,7 +71,8 @@ vínculo sai da página de status; se ela sair do ar, vale o último salvo em
   no 16º Centro Imbassahy (PA Maria Conceição) — 274 paradas em 30 dias. A
   vaga do PA (24 m do pino) e a porta do HGESF ficam fora. "Base ocupada"
   continua só para a própria base.
-- **Aristides Maltez** e **Cardio Pulmonar** (privado, desde 30/10/2026):
+- **Aristides Maltez** e **Cardio Pulmonar / Jorge Valente** (privados,
+  prédios colados — um local só; desde 30/10/2026):
   hospitais fora do painel, só na frota (chegada vira parada, alerta de 40 min,
   linha do tempo, histórico e balanço). Fora do Acolhimentos
   (`NO_ACOLHIMENTOS`): nunca "sem notificação". Antes de entrar, parada lá não
