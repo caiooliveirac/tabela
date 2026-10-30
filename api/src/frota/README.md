@@ -71,8 +71,12 @@ vínculo sai da página de status; se ela sair do ar, vale o último salvo em
   no 16º Centro Imbassahy (PA Maria Conceição) — 274 paradas em 30 dias. A
   vaga do PA (24 m do pino) e a porta do HGESF ficam fora. "Base ocupada"
   continua só para a própria base.
-- **Aristides Maltez**: hospital fora do painel, só na frota (chegada vira
-  parada). Fora do Acolhimentos (`NO_ACOLHIMENTOS`): nunca "sem notificação".
+- **Aristides Maltez** e **Cardio Pulmonar** (privado, desde 30/10/2026):
+  hospitais fora do painel, só na frota (chegada vira parada, alerta de 40 min,
+  linha do tempo, histórico e balanço). Fora do Acolhimentos
+  (`NO_ACOLHIMENTOS`): nunca "sem notificação". Antes de entrar, parada lá não
+  ficava registrada em lugar nenhum — o coletor não guarda trilha e a API do
+  SAMU+ nega `/localizacoes` (403) ao nosso token.
 - **Situação de cada viatura:** `mapa` (posição da última hora) ·
   `sem-sinal` · `fora-do-turno` (SD entre 19h e 7h; as de 08h–20h rodam as
   24 h) · `desativada` (lista `DESATIVADAS_ATE_SEGUNDA_ORDEM` ou

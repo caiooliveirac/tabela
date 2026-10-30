@@ -89,9 +89,13 @@ const FORA_DA_FROTA = new Set(["mario_leal"]);
  * Acolhimentos: nunca "sem notificação" (`NO_ACOLHIMENTOS`).
  * • aristides_maltez — Av. Dom João VI, Brotas (OpenStreetMap, amenity
  *   hospital, 20/10/2026). A BR60 levou paciente para lá e não abriu parada.
+ * • cardio_pulmonar — Av. Anita Garibaldi, 2199, Federação (OpenStreetMap,
+ *   amenity hospital, 30/10/2026). Privado: retenção lá não aparecia em lugar
+ *   nenhum, e o coletor não guarda trilha para saber depois.
  */
 const HOSPITAIS_SO_FROTA: readonly HospitalFrota[] = [
     { id: "aristides_maltez", nome: "Aristides Maltez", tipo: "hospital", lat: -12.9904725, lng: -38.4860105 },
+    { id: "cardio_pulmonar", nome: "Cardio Pulmonar", tipo: "hospital", lat: -13.005965, lng: -38.5003294 },
 ];
 
 export const HOSPITAIS_FROTA: readonly HospitalFrota[] = [

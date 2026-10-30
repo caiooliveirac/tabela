@@ -32,11 +32,13 @@ test("catálogo: 62 viaturas até o numeral 74, código e número únicos, desat
     for (const c of CATALOGO) if (!DESATIVADAS_ATE_SEGUNDA_ORDEM.has(c.codigo)) assert.equal(c.status, "ATIVA", c.codigo);
 });
 
-test("hospitais: os do painel sem o Mário Leal, mais o Aristides Maltez (fora do Acolhimentos), todos na RMS", () => {
-    assert.equal(HOSPITAIS_FROTA.length, 11);
+test("hospitais: os do painel sem o Mário Leal, mais Aristides Maltez e Cardio Pulmonar (fora do Acolhimentos), todos na RMS", () => {
+    assert.equal(HOSPITAIS_FROTA.length, 12);
     assert.ok(!LOCAIS_FROTA.some((h) => h.id === "mario_leal"));
     assert.equal(local("aristides_maltez").tipo, "hospital");
     assert.ok(!NO_ACOLHIMENTOS.has("aristides_maltez") && NO_ACOLHIMENTOS.has("hgrs"));
+    assert.equal(local("cardio_pulmonar").tipo, "hospital");
+    assert.ok(!NO_ACOLHIMENTOS.has("cardio_pulmonar"));
     for (const h of HOSPITAIS_FROTA) {
         assert.ok(h.lat > -13.1 && h.lat < -12.7 && h.lng > -38.6 && h.lng < -38.2, h.id);
     }
