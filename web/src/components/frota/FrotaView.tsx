@@ -1,7 +1,8 @@
 // ═══════════════════════════════════════════════════════════════
 // Aba Frota — onde está cada viatura e quem está parado em hospital.
 //
-// O mapa é a primeira coisa da aba (números do momento ficam por cima dele).
+// Filtros no topo (filtro.ts; valem para o mapa), depois o mapa (números do
+// momento, sempre da frota inteira, ficam por cima dele).
 // Abaixo: quem está em hospital agora → linha do tempo → fora de operação
 // (informar/reativar) → quem NÃO está no mapa e por quê → como a regra funciona.
 // Os dados vêm de GET /tabela/api/frota (api/src/frota/README.md).
@@ -14,6 +15,8 @@ import type { Foco } from "./MapaFrota";
 import LinhaDoTempo from "./LinhaDoTempo";
 import DesativacoesFrota from "./DesativacoesFrota";
 import TabelaHospitais from "./TabelaHospitais";
+import FiltroFrota from "./FiltroFrota";
+import { FILTRO_VAZIO, passa, type Filtro } from "./filtro";
 
 const MapaFrota = lazy(() => import("./MapaFrota"));
 
@@ -87,6 +90,13 @@ export default function FrotaView({ painel, carregando, erro, foco, focar, opera
     };
   }, [painel]);
 
+  const [filtro, setFiltro] = useState<Filtro>(FILTRO_VAZIO);
+  const recenteMin = painel?.limites.recenteMin ?? 0;
+  const filtradas = useMemo(
+    () => grupos.noMapa.filter((v) => passa(v, filtro, recenteMin)),
+    [grupos.noMapa, filtro, recenteMin],
+  );
+
   if (!painel) {
     return (
       <div className="bg-white rounded-[10px] border border-slate-200 p-6 text-sm text-slate-500">
@@ -111,6 +121,10 @@ export default function FrotaView({ painel, carregando, erro, foco, focar, opera
   const emOcorrencia = grupos.noMapa.filter((v) => estadoOcorrencia(v) === "ocorrencia").length;
   const livres = grupos.noMapa.filter((v) => estadoOcorrencia(v) === "livre");
   const livresNaBase = livres.filter(estaNaBase).length;
+  const verNoMapa = (v: ViaturaFrota) => {
+    if (!v.posicao) return;
+    focar({ lat: v.posicao.lat, lng: v.posicao.lng, zoom: 17 });
+  };
 
   return (
     <div className="flex flex-col gap-4">
@@ -119,6 +133,17 @@ export default function FrotaView({ painel, carregando, erro, foco, focar, opera
           ⚠️ A última leitura do SAMU+ falhou ({painel.erro}). Mostrando a anterior, de {ha(painel.coletadoEm)}.
         </div>
       )}
+
+      {/* ── Filtros: valem para o mapa; com filtro ligado, a lista de quem passou ── */}
+      <FiltroFrota
+        noMapa={grupos.noMapa}
+        filtradas={filtradas}
+        recenteMin={L.recenteMin}
+        comMapaEquipes={comMapaEquipes}
+        filtro={filtro}
+        setFiltro={setFiltro}
+        onVer={verNoMapa}
+      />
 
       {/* ── Mapa em tela cheia de largura, com a situação por cima ── */}
       <div id="frota-mapa">
@@ -129,7 +154,7 @@ export default function FrotaView({ painel, carregando, erro, foco, focar, opera
                 mapsKey={mapsKey}
                 mapId={cfg?.mapId ?? "DEMO_MAP_ID"}
                 painel={painel}
-                noMapa={grupos.noMapa}
+                noMapa={filtradas}
                 foco={foco}
                 alto={mapaAlto}
                 onFalha={() => setGoogleFalhou(true)}
@@ -204,10 +229,7 @@ export default function FrotaView({ painel, carregando, erro, foco, focar, opera
       <TabelaHospitais
         painel={painel}
         noMapa={grupos.noMapa}
-        onVer={(v) => {
-          if (!v.posicao) return;
-          focar({ lat: v.posicao.lat, lng: v.posicao.lng, zoom: 17 });
-        }}
+        onVer={verNoMapa}
       />
 
       {/* ── Quanto tempo cada viatura ficou em cada hospital ── */}
@@ -324,6 +346,11 @@ export default function FrotaView({ painel, carregando, erro, foco, focar, opera
             🚑 em ocorrência (número, risco, MR, status e queixa no balão), ↩ encerrando (retorno à base) e ✓ livre.
             Parada no endereço da própria base só é "disponível" se o mapa disser livre. Se o coletor parar, as marcas
             somem e o grupo da frota é avisado.
+          </li>
+          <li>
+            Os filtros acima do mapa escondem do mapa quem não passa; os números por cima do mapa continuam
+            contando a frota inteira. Disponível = livre no mapa de equipes e parada; "só em movimento" = sem
+            ocorrência e andando acima de 5 km/h (velocidade do SAMU+, lida a cada 10 min).
           </li>
           <li>Desativadas até segunda ordem (29/09): 36, 39, 48, 64, 66, 67 e 68.</li>
         </ul>
