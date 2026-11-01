@@ -2,10 +2,11 @@ import { timingSafeEqual } from "node:crypto";
 import { Router, type Response } from "express";
 import { z } from "zod";
 import {
-    adesaoDenuncias, alertasRecentes, balancoPlantao, cobrancasPendentes, desativarViatura, diagnostico, historicoFrota, informarMotivo, linhaDoTempo, listarDesativacoes, painelAtual, reativarViatura,
+    adesaoDenuncias, alertasRecentes, balancoPlantao, cobrancasPendentes, ativarViatura, desativarViatura, diagnostico, encerrarAtivacao, listarAtivacoes, historicoFrota, informarMotivo, linhaDoTempo, listarDesativacoes, painelAtual, reativarViatura,
     registrarOcorrencias,
 } from "./coletor.js";
 import { ErroDesativacao, esquemaDesativar, esquemaMotivo, esquemaReativar } from "./desativacoes.js";
+import { ErroAtivacao, esquemaAtivar, esquemaEncerrar } from "./ativacoes.js";
 import { esquemaOcorrencias } from "./ocorrencias.js";
 
 const router = Router();
@@ -87,6 +88,49 @@ router.post("/desativacoes/:id/motivo", async (req, res) => {
         res.json(await informarMotivo(id, esquemaMotivo.parse(req.body)));
     } catch (e) {
         erroDesativacao(res, e);
+    }
+});
+
+// Ativação extraordinária (ativacoes.ts): viatura até segunda ordem posta para
+// rodar neste plantão — hoje pelo Quadro Informativo, servidor↔servidor. Vale
+// até a virada. GET: abertas e as das últimas N horas (1–72, padrão 24).
+router.get("/ativacoes", async (req, res) => {
+    const horas = Math.min(72, Math.max(1, Number(req.query.horas) || 24));
+    try {
+        res.json(await listarAtivacoes(horas));
+    } catch (e) {
+        console.error("[frota] ativações:", e);
+        res.status(500).json({ error: "ativações indisponíveis" });
+    }
+});
+
+function erroAtivacao(res: Response, e: unknown): void {
+    if (e instanceof z.ZodError) res.status(400).json({ error: e.errors.map((x) => x.message).join("; ") });
+    else if (e instanceof ErroAtivacao) res.status(e.status).json({ error: e.message });
+    else {
+        console.error("[frota] ativação:", e);
+        res.status(500).json({ error: "não foi possível registrar agora" });
+    }
+}
+
+router.post("/ativacoes", async (req, res) => {
+    try {
+        res.status(201).json(await ativarViatura(esquemaAtivar.parse(req.body)));
+    } catch (e) {
+        erroAtivacao(res, e);
+    }
+});
+
+router.post("/ativacoes/:id/encerrar", async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) {
+        res.status(400).json({ error: "ID inválido" });
+        return;
+    }
+    try {
+        res.json(await encerrarAtivacao(id, esquemaEncerrar.parse(req.body).encerradaPor));
+    } catch (e) {
+        erroAtivacao(res, e);
     }
 });
 

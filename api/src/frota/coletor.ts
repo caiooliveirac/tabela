@@ -40,6 +40,7 @@ import {
     type Desativacao, type Motivo, type Origem, type Posto, esquemaDesativar, esquemaMotivo,
 } from "./desativacoes.js";
 import { agregarHistorico, diaBahia, type Historico } from "./historico.js";
+import { ateSegundaOrdemAgora, ErroAtivacao, ORIGENS_ATIVACAO, VIRADA_ATIVACAO, type Ativacao, type OrigemAtivacao, esquemaAtivar } from "./ativacoes.js";
 import type { z } from "zod";
 
 const TOKEN = process.env.SAMUMAIS_TOKEN || "";
@@ -97,8 +98,12 @@ const resumosFeitos = new Set<string>();
 
 /** Desativações informadas no painel, ativas, por código (desativacoes.ts). */
 let desativacoes = new Map<string, Desativacao>();
-/** Até segunda ordem (catálogo) + informadas no painel. */
-const desativadasAgora = (): ReadonlySet<string> => new Set([...DESATIVADAS_ATE_SEGUNDA_ORDEM, ...desativacoes.keys()]);
+/** Ativações extraordinárias abertas (ativacoes.ts), por código: tiram a viatura da lista até segunda ordem. */
+let ativacoes = new Map<string, Ativacao>();
+/** Até segunda ordem agora: a lista do catálogo menos as ativadas neste plantão. */
+const ateSegundaOrdem = (): ReadonlySet<string> => ateSegundaOrdemAgora(DESATIVADAS_ATE_SEGUNDA_ORDEM, ativacoes.keys());
+/** Até segunda ordem (catálogo, menos as ativadas) + informadas no painel. */
+const desativadasAgora = (): ReadonlySet<string> => new Set([...ateSegundaOrdem(), ...desativacoes.keys()]);
 
 type Linha = Record<string, unknown>;
 const consultar = async (q: ReturnType<typeof sql>) => (await db.execute(q)) as unknown as Linha[];
@@ -169,6 +174,20 @@ async function criarTabelas(): Promise<void> {
         ON frota_desativacoes (codigo) WHERE reativada_em IS NULL`);
     // Onde foi informada (frota | huddle | quadro). Nula = linha antiga = "frota".
     await db.execute(sql`ALTER TABLE frota_desativacoes ADD COLUMN IF NOT EXISTS origem varchar(10)`);
+    // Ativação extraordinária de viatura até segunda ordem (ativacoes.ts) — uma aberta por viatura.
+    await db.execute(sql`
+        CREATE TABLE IF NOT EXISTS frota_ativacoes (
+            id             serial PRIMARY KEY,
+            codigo         varchar(10)  NOT NULL,
+            ativada_por    varchar(80)  NOT NULL,
+            origem         varchar(10)  NOT NULL,
+            desde          timestamptz  NOT NULL DEFAULT now(),
+            encerrada_em   timestamptz,
+            encerrada_por  varchar(80)
+        )`);
+    await db.execute(sql`
+        CREATE UNIQUE INDEX IF NOT EXISTS frota_ativacoes_aberta_idx
+        ON frota_ativacoes (codigo) WHERE encerrada_em IS NULL`);
     // Histórico do mapa de equipes (ocorrencias.ts), para os relatórios: uma
     // linha por ocorrência de cada viatura e uma por status que ela passou,
     // com o MR da hora. `ultima_vez` = última vez vista no mapa.
@@ -276,6 +295,9 @@ async function carregar(): Promise<void> {
     await carregarAlertas();
     desativacoes = new Map(
         (await consultar(sql`SELECT * FROM frota_desativacoes WHERE reativada_em IS NULL`)).map((r) => [String(r.codigo), desativacaoDe(r)]),
+    );
+    ativacoes = new Map(
+        (await consultar(sql`SELECT * FROM frota_ativacoes WHERE encerrada_em IS NULL`)).map((r) => [String(r.codigo), ativacaoDe(r)]),
     );
     const [v] = await consultar(sql`SELECT valor, atualizado_em FROM frota_estado WHERE chave = 'dispositivos'`);
     if (v) {
@@ -387,6 +409,7 @@ async function ciclo(): Promise<void> {
 
         const agora = new Date();
         await vencerDesativacoes(agora).catch((e) => registrarErro("virada das desativações", e));
+        await vencerAtivacoes(agora).catch((e) => registrarErro("virada das ativações", e));
         await espelharMesa(agora).catch((e) => registrarErro("desativações da Mesa", e));
         await atualizarEquipe().catch((e) => registrarErro("responsável das viaturas", e));
         const resolvidas = resolverPosicoes(posicoes, dispositivos, CATALOGO);
@@ -1049,7 +1072,7 @@ async function espelharMesa(agora: Date): Promise<void> {
         if (d.origem === "mesa" && !mesa.desativadas.has(d.codigo)) await reativarViatura(d.id, MESA);
     }
     for (const codigo of mesa.desativadas) {
-        if (desativacoes.has(codigo) || DESATIVADAS_ATE_SEGUNDA_ORDEM.has(codigo) || !CATALOGO.some((c) => c.codigo === codigo)) continue;
+        if (desativacoes.has(codigo) || ateSegundaOrdem().has(codigo) || !CATALOGO.some((c) => c.codigo === codigo)) continue;
         const antes = await consultar(sql`
             SELECT desde FROM frota_desativacoes
             WHERE codigo = ${codigo} AND origem = 'mesa' AND reativada_por NOT IN (${MESA}, ${VIRADA})
@@ -1064,7 +1087,7 @@ export async function desativarViatura(dados: z.infer<typeof esquemaDesativar>):
     // Motolância não está no catálogo, mas pode ser desativada pelo código (catalogo.ts, MOTOS).
     const c = CATALOGO.find((v) => v.codigo === dados.codigo) ?? (dados.codigo in MOTOS ? { codigo: dados.codigo } : undefined);
     if (!c) throw new ErroDesativacao(400, `${dados.codigo} não está no catálogo da frota`);
-    if (DESATIVADAS_ATE_SEGUNDA_ORDEM.has(c.codigo)) throw new ErroDesativacao(409, `${c.codigo} já está desativada até segunda ordem`);
+    if (ateSegundaOrdem().has(c.codigo)) throw new ErroDesativacao(409, `${c.codigo} já está desativada até segunda ordem`);
     if (desativacoes.has(c.codigo)) throw new ErroDesativacao(409, `${c.codigo} já está desativada — reative antes de informar de novo`);
     let linha: Linha | undefined;
     try {
@@ -1119,6 +1142,96 @@ export async function informarMotivo(id: number, dados: z.infer<typeof esquemaMo
  * Ativas e as que começaram ou terminaram nas últimas `horas`. É o que o
  * Huddle do SAMU lê (rede Docker, sem o portão) para "fora de operação".
  */
+function ativacaoDe(r: Linha): Ativacao {
+    const iso = (v: unknown) => (v == null ? null : new Date(v as string).toISOString());
+    return {
+        id: Number(r.id),
+        codigo: String(r.codigo),
+        ativadaPor: String(r.ativada_por),
+        origem: String(r.origem) as OrigemAtivacao,
+        desde: iso(r.desde)!,
+        encerradaEm: iso(r.encerrada_em),
+        encerradaPor: r.encerrada_por != null ? String(r.encerrada_por) : null,
+    };
+}
+
+/**
+ * Viatura até segunda ordem posta para rodar neste plantão (ativacoes.ts).
+ * Só vale para quem está na lista: as demais se reativam pela desativação.
+ * Sem Telegram por ora — quem ativa é o Quadro, que já mostra a equipe.
+ */
+export async function ativarViatura(dados: ReturnType<typeof esquemaAtivar.parse>): Promise<Ativacao> {
+    if (!TOKEN) throw new ErroAtivacao(503, "Frota desligada neste servidor");
+    const codigo = dados.codigo.replace(/\s+/g, "").toUpperCase();
+    if (!DESATIVADAS_ATE_SEGUNDA_ORDEM.has(codigo)) throw new ErroAtivacao(400, `${codigo} não está desativada até segunda ordem`);
+    const aberta = ativacoes.get(codigo);
+    if (aberta) return aberta;
+    let linha: Linha | undefined;
+    try {
+        [linha] = await consultar(sql`
+            INSERT INTO frota_ativacoes (codigo, ativada_por, origem)
+            VALUES (${codigo}, ${dados.ativadaPor}, ${dados.origem})
+            RETURNING *`);
+    } catch (e) {
+        if (/frota_ativacoes_aberta_idx|duplicate key/.test(String((e as Error).message))) {
+            const [r] = await consultar(sql`SELECT * FROM frota_ativacoes WHERE codigo = ${codigo} AND encerrada_em IS NULL`);
+            if (r) return ativacaoDe(r);
+        }
+        throw e;
+    }
+    const a = ativacaoDe(linha!);
+    ativacoes.set(a.codigo, a);
+    console.log(`[frota] ${a.codigo} ativada (até segunda ordem) por ${a.ativadaPor} (${a.origem})`);
+    return a;
+}
+
+export async function encerrarAtivacao(id: number, encerradaPor: string): Promise<Ativacao> {
+    if (!TOKEN) throw new ErroAtivacao(503, "Frota desligada neste servidor");
+    const [linha] = await consultar(sql`
+        UPDATE frota_ativacoes SET encerrada_em = now(), encerrada_por = ${encerradaPor}
+        WHERE id = ${id} AND encerrada_em IS NULL
+        RETURNING *`);
+    if (!linha) throw new ErroAtivacao(404, "Ativação não encontrada ou já encerrada");
+    const a = ativacaoDe(linha);
+    ativacoes.delete(a.codigo);
+    console.log(`[frota] ${a.codigo} volta a até segunda ordem (${encerradaPor})`);
+    return a;
+}
+
+/** A ativação vale até a virada do plantão da própria viatura, como a desativação. */
+async function vencerAtivacoes(agora: Date): Promise<void> {
+    for (const a of [...ativacoes.values()]) {
+        const atraso = atrasoDaViradaH(a.codigo);
+        if (plantaoDe(new Date(a.desde), atraso) === plantaoDe(agora, atraso)) continue;
+        await consultar(sql`
+            UPDATE frota_ativacoes SET encerrada_em = now(), encerrada_por = ${VIRADA_ATIVACAO}
+            WHERE id = ${a.id} AND encerrada_em IS NULL`);
+        ativacoes.delete(a.codigo);
+        console.log(`[frota] virada do plantão: ${a.codigo} volta a até segunda ordem`);
+    }
+}
+
+/** Abertas e as das últimas N horas; `ateSegundaOrdem` = a lista do catálogo (quem pode ser ativada). */
+export async function listarAtivacoes(horas: number) {
+    const lista = [...DESATIVADAS_ATE_SEGUNDA_ORDEM];
+    if (!TOKEN) return { ativo: false, origens: ORIGENS_ATIVACAO, ateSegundaOrdem: lista, ativacoes: [] };
+    const linhas = await consultar(sql`
+        SELECT * FROM frota_ativacoes
+        WHERE encerrada_em IS NULL
+           OR desde > now() - ${horas} * interval '1 hour'
+        ORDER BY desde DESC
+        LIMIT 200`);
+    return {
+        ativo: true,
+        origens: ORIGENS_ATIVACAO,
+        ateSegundaOrdem: lista,
+        ativacoes: linhas.map((r) => {
+            const a = ativacaoDe(r);
+            return { ...a, aberta: a.encerradaEm === null };
+        }),
+    };
+}
+
 export async function listarDesativacoes(horas: number) {
     if (!TOKEN) return { ativo: false, motivos: MOTIVOS, postos: POSTOS, origens: ORIGENS, desativacoes: [] };
     const linhas = await consultar(sql`
@@ -1181,6 +1294,8 @@ export function painelAtual(agora = new Date()): PainelFrota {
         catalogo: CATALOGO,
         desativadas: desativadasAgora(),
         desativacoes,
+        ateSegundaOrdem: DESATIVADAS_ATE_SEGUNDA_ORDEM,
+        ativacoes,
         hospitais: locais,
         resolvidas: resolverPosicoes(posicoes, dispositivos, CATALOGO),
         dispositivos,
@@ -1198,7 +1313,7 @@ export function painelAtual(agora = new Date()): PainelFrota {
  */
 export async function historicoFrota(dias: number, agora = new Date()): Promise<Historico & { ativo: boolean }> {
     const de = new Date(Date.parse(`${diaBahia(new Date(agora.getTime() - (dias - 1) * 86_400_000))}T03:00:00Z`));
-    const ativas = CATALOGO.filter((c) => !DESATIVADAS_ATE_SEGUNDA_ORDEM.has(c.codigo));
+    const ativas = CATALOGO.filter((c) => !ateSegundaOrdem().has(c.codigo));
     if (!TOKEN) return { ativo: false, ...agregarHistorico({ paradas: [], ocorrencias: [], desativacoes: [] }, LOCAIS_FROTA, ativas, de, agora) };
     const desde = de.toISOString();
     const [paradas, ocorrencias, desativadas] = await Promise.all([

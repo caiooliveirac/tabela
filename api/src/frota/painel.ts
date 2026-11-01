@@ -4,6 +4,7 @@
 // ═══════════════════════════════════════════════════════════════
 import { codigoDaMoto, COORDENADAS_BASES, MOTOS, numeroNoLimite, type ViaturaCatalogo } from "./catalogo.js";
 import { motivoPainel, type Desativacao } from "./desativacoes.js";
+import type { Ativacao } from "./ativacoes.js";
 import type { Responsavel } from "./equipe.js";
 import type { HospitalFrota } from "./hospitais.js";
 import type { SituacaoOcorrencia } from "./ocorrencias.js";
@@ -43,6 +44,10 @@ export interface ViaturaFrota {
     velocidade: number | null;
     /** Desativada no painel (rádio, chefe, enfermagem): quem, por quê, desde quando. */
     desativacao: Desativacao | null;
+    /** Na lista até segunda ordem do catálogo (mesmo quando ativada neste plantão). */
+    ateSegundaOrdem: boolean;
+    /** Ativação extraordinária aberta (ativacoes.ts): quem pôs para rodar e desde quando. */
+    ativacao: Ativacao | null;
     /** Pelo mapa de equipes: em ocorrência (com o MR) ou livre. `null` = não sei. */
     ocorrencia: SituacaoOcorrencia | null;
     /** De quem cobrar: médico da USA (Mesa ou escala), técnico(a) da USB (escala). `null` = sem fonte. */
@@ -147,6 +152,9 @@ export function montarPainel(entrada: {
     abertas: ReadonlyMap<string, Permanencia>;
     /** Desativações informadas no painel, por código (já somadas em `desativadas`). */
     desativacoes?: ReadonlyMap<string, Desativacao>;
+    /** Lista até segunda ordem do catálogo e as ativações abertas dela. */
+    ateSegundaOrdem?: ReadonlySet<string>;
+    ativacoes?: ReadonlyMap<string, Ativacao>;
     ocorrenciaDe?: (chave: string) => SituacaoOcorrencia | null;
     responsavelDe?: (tipo: ViaturaFrota["tipo"], codigo: string | null) => Responsavel | null;
     agora: Date;
@@ -182,6 +190,8 @@ export function montarPainel(entrada: {
             situacao: s.situacao,
             motivo: des ? motivoPainel(des) : s.motivo,
             desativacao: des,
+            ateSegundaOrdem: !!base.codigo && !!entrada.ateSegundaOrdem?.has(base.codigo),
+            ativacao: base.codigo ? entrada.ativacoes?.get(base.codigo) ?? null : null,
             ocorrencia: entrada.ocorrenciaDe?.(chave) ?? null,
             responsavel: entrada.responsavelDe?.(base.tipo, base.codigo) ?? null,
             posicao:
