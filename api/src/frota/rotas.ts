@@ -91,9 +91,9 @@ router.post("/desativacoes/:id/motivo", async (req, res) => {
     }
 });
 
-// Ativação extraordinária (ativacoes.ts): viatura até segunda ordem posta para
-// rodar neste plantão — hoje pelo Quadro Informativo, servidor↔servidor. Vale
-// até a virada. GET: abertas e as das últimas N horas (1–72, padrão 24).
+// Ativação (ativacoes.ts): viatura até segunda ordem posta de volta em operação
+// — hoje pelo Quadro Informativo, servidor↔servidor. Vale até alguém desativar
+// (ou POST /ativacoes/:id/encerrar). GET: abertas e as das últimas N horas (1–72, padrão 24).
 router.get("/ativacoes", async (req, res) => {
     const horas = Math.min(72, Math.max(1, Number(req.query.horas) || 24));
     try {

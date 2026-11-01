@@ -40,7 +40,7 @@ import {
     type Desativacao, type Motivo, type Origem, type Posto, esquemaDesativar, esquemaMotivo,
 } from "./desativacoes.js";
 import { agregarHistorico, diaBahia, type Historico } from "./historico.js";
-import { ateSegundaOrdemAgora, ErroAtivacao, ORIGENS_ATIVACAO, VIRADA_ATIVACAO, type Ativacao, type OrigemAtivacao, esquemaAtivar } from "./ativacoes.js";
+import { ateSegundaOrdemAgora, ErroAtivacao, ORIGENS_ATIVACAO, type Ativacao, type OrigemAtivacao, esquemaAtivar } from "./ativacoes.js";
 import type { z } from "zod";
 
 const TOKEN = process.env.SAMUMAIS_TOKEN || "";
@@ -409,7 +409,6 @@ async function ciclo(): Promise<void> {
 
         const agora = new Date();
         await vencerDesativacoes(agora).catch((e) => registrarErro("virada das desativações", e));
-        await vencerAtivacoes(agora).catch((e) => registrarErro("virada das ativações", e));
         await espelharMesa(agora).catch((e) => registrarErro("desativações da Mesa", e));
         await atualizarEquipe().catch((e) => registrarErro("responsável das viaturas", e));
         const resolvidas = resolverPosicoes(posicoes, dispositivos, CATALOGO);
@@ -1104,6 +1103,10 @@ export async function desativarViatura(dados: z.infer<typeof esquemaDesativar>):
     }
     const d = desativacaoDe(linha!);
     desativacoes.set(d.codigo, d);
+    // Ativada até segunda ordem: desativar (daqui, do Quadro, do Huddle, do Relatório, da Mesa)
+    // encerra a ativação — passada a virada da desativação, ela volta a até segunda ordem.
+    const ativa = ativacoes.get(d.codigo);
+    if (ativa) await encerrarAtivacao(ativa.id, `${d.informadoPor} (desativou)`).catch((e) => registrarErro("encerrar ativação", e));
     console.log(`[frota] ${d.codigo} desativada por ${d.informadoPor} (${d.posto}, ${d.origem}): ${d.motivos.join(",")}`);
     await avisarDesativacao(d);
     return d;
@@ -1156,7 +1159,7 @@ function ativacaoDe(r: Linha): Ativacao {
 }
 
 /**
- * Viatura até segunda ordem posta para rodar neste plantão (ativacoes.ts).
+ * Viatura até segunda ordem posta de volta em operação (ativacoes.ts), até alguém desativar.
  * Só vale para quem está na lista: as demais se reativam pela desativação.
  * Sem Telegram por ora — quem ativa é o Quadro, que já mostra a equipe.
  */
@@ -1196,19 +1199,6 @@ export async function encerrarAtivacao(id: number, encerradaPor: string): Promis
     ativacoes.delete(a.codigo);
     console.log(`[frota] ${a.codigo} volta a até segunda ordem (${encerradaPor})`);
     return a;
-}
-
-/** A ativação vale até a virada do plantão da própria viatura, como a desativação. */
-async function vencerAtivacoes(agora: Date): Promise<void> {
-    for (const a of [...ativacoes.values()]) {
-        const atraso = atrasoDaViradaH(a.codigo);
-        if (plantaoDe(new Date(a.desde), atraso) === plantaoDe(agora, atraso)) continue;
-        await consultar(sql`
-            UPDATE frota_ativacoes SET encerrada_em = now(), encerrada_por = ${VIRADA_ATIVACAO}
-            WHERE id = ${a.id} AND encerrada_em IS NULL`);
-        ativacoes.delete(a.codigo);
-        console.log(`[frota] virada do plantão: ${a.codigo} volta a até segunda ordem`);
-    }
 }
 
 /** Abertas e as das últimas N horas; `ateSegundaOrdem` = a lista do catálogo (quem pode ser ativada). */
