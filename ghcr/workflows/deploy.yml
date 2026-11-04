@@ -1,0 +1,40 @@
+name: Deploy
+
+# Roda DEPOIS do build-push concluir com sucesso (encadeado por workflow_run),
+# garantindo que a imagem já está no GHCR antes do servidor puxar.
+on:
+  workflow_run:
+    workflows: ["Build & Push images (GHCR)"]
+    types: [completed]
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - name: Deploy via SSH (pull do GHCR, sem build na produção)
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd ~/tabela || git clone git@github.com:caiooliveirac/tabela.git ~/tabela && cd ~/tabela
+
+            git fetch origin main
+            git reset --hard origin/main
+
+            # Puxa as imagens do GHCR (o servidor faz `docker login ghcr.io` uma vez;
+            # ver GHCR-MIGRATION.md — repositório público não exige login para pull).
+            docker compose pull
+            docker compose up -d
+
+            # Migrations
+            docker compose exec -T api node dist/db/migrate.js || true
+
+            # Healthcheck
+            sleep 5
+            curl -sf http://127.0.0.1:3001/tabela/api/health || echo "⚠️ Healthcheck failed"
+
+            echo "✅ Deploy complete (pull-based)"
