@@ -90,6 +90,11 @@ do painel. É só o que rádio-operador, TARM e enfermeiro alcançam na Tabela: 
 `/tabela/api/frota*` e `/tabela/api/encaminhamento/config` — chamada nova da
 Frota a outra rota da API precisa entrar lá.
 
+Giro sozinho: `/tabela/giro` (`GiroApp.tsx`, a `UpasView` sem o painel) é o que a
+conta de gestão UPA (papel `gestao_upa` do plantoes) abre; o porteiro
+(`giroPermite`) só libera a ela essa tela, `/tabela/upas/api|ws` e
+`/tabela/api/upas/restrictions`. `= /tabela/upas` é a prévia aberta do WhatsApp.
+
 ## Pegadinhas conhecidas
 
 - A API devolve **camelCase** (`hospitalId`, `criadoPor`) — o bug histórico do
