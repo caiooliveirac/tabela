@@ -432,8 +432,9 @@ export function Calor({ grade, metrica, alertaMin, semanas }: { grade: Resumo[][
   const minimo = metrica === "n" ? 1 : 3;
   const val = (r: Resumo) => (metrica === "n" ? r.n / Math.max(1, semanas) : metrica === "mediana" ? r.mediana : r.fracAlerta);
   const validos = grade.flat().filter((r) => r.n >= minimo).map(val);
-  const lo = metrica === "fracAlerta" ? 0 : metrica === "mediana" ? Math.min(...validos, alertaMin) : 0;
-  const hi = metrica === "fracAlerta" ? 1 : Math.max(...validos, lo + 1);
+  // Escala do menor ao maior valor observado: com 0–100% fixo, 40–60% viram a mesma cor.
+  const lo = metrica === "n" ? 0 : Math.min(...validos);
+  const hi = Math.max(...validos, lo + (metrica === "fracAlerta" ? 0.01 : 1));
   const passo = (v: number) => Math.max(0, Math.min(RAMPA.length - 1, Math.floor(((v - lo) / (hi - lo)) * RAMPA.length)));
   const texto = (r: Resumo) =>
     metrica === "n" ? (val(r) >= 10 ? Math.round(val(r)) : val(r).toFixed(1)) : metrica === "mediana" ? Math.round(r.mediana) : Math.round(r.fracAlerta * 100);
@@ -478,7 +479,7 @@ export function Calor({ grade, metrica, alertaMin, semanas }: { grade: Resumo[][
       </table>
       <div className="flex items-center gap-2 mt-2 text-[10px] text-slate-500">
         <span>
-          {metrica === "n" ? "0" : metrica === "mediana" ? minutos(lo) : "0%"}
+          {metrica === "n" ? "0" : metrica === "mediana" ? minutos(lo) : pct(lo)}
         </span>
         <div className="flex">
           {RAMPA.map((c) => (
@@ -486,7 +487,7 @@ export function Calor({ grade, metrica, alertaMin, semanas }: { grade: Resumo[][
           ))}
         </div>
         <span>
-          {metrica === "n" ? `${hi.toFixed(1)} por semana` : metrica === "mediana" ? minutos(hi) : "100%"}
+          {metrica === "n" ? `${hi.toFixed(1)} por semana` : metrica === "mediana" ? minutos(hi) : pct(hi)}
         </span>
         <span className="ml-3 inline-flex items-center gap-1">
           <span className="w-[14px] h-[10px] rounded-sm" style={{ background: "repeating-linear-gradient(45deg,#f8fafc,#f8fafc 3px,#e2e8f0 3px,#e2e8f0 4px)" }} />
