@@ -314,9 +314,10 @@ export function montarDetalhe(e: {
             mensagem: null,
         };
     } else if (
-        ultimoStatusHospital && chegadaReg && !aberta &&
+        // Base dentro de UPA/hospital (Vale dos Barris, Cajazeiras) também é chegada: conta toda parada.
+        ultimoStatusHospital && chegadaReg && !v.noHospital &&
         minEntre(chegadaReg.em, agora) >= CHEGADA_SEM_GPS_MIN &&
-        !fora.some((p) => (p.saida ?? agora).getTime() >= chegadaReg.em.getTime() - 30 * MIN)
+        !paradas.some((p) => (p.saida ?? agora).getTime() >= chegadaReg.em.getTime() - 30 * MIN)
     ) {
         aviso = {
             nivel: "atencao",

@@ -127,6 +127,22 @@ test("chegada registrada sem o GPS ter passado por hospital: aviso de atenção"
     assert.match(d.aviso!.titulo, /GPS não passou/);
 });
 
+test("chegada registrada na própria base que fica na UPA: sem aviso de GPS", () => {
+    const agora = t("05:00");
+    const d = montarDetalhe({
+        viatura: viatura({
+            posicao: { lat: H.lat, lng: H.lng, em: agora.toISOString(), idadeMin: 0 },
+            noHospital: { id: 9, hospitalId: H.id, entrada: t("04:31").toISOString(), minutos: 29, alerta: false, naBase: true },
+        }),
+        ocorrencia: { ...oc("CHEGADA AO HOSPITAL", t("04:30")), ativa: true },
+        status: [{ status: "CHEGADA AO HOSPITAL", em: t("04:30") }],
+        paradas: [parada({ id: 9, naBase: true, entrada: t("04:31"), saida: null, motivoFim: null })],
+        posicoes: [], locais: LOCAIS_FROTA, desde: t("02:29"), agora,
+    });
+    assert.equal(d.localizacao.estado, "na-base");
+    assert.equal(d.aviso, null);
+});
+
 test("janela: abertura menos 10 min, a parada aberta entra, nunca mais que 12 h", () => {
     const agora = t("06:47");
     assert.equal(inicioJanela({ abertura: t("02:39").toISOString() }, [], null, agora).getTime(), t("02:29").getTime());
