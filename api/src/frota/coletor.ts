@@ -40,6 +40,7 @@ import {
     type Desativacao, type Motivo, type Origem, type Posto, esquemaDesativar, esquemaMotivo,
 } from "./desativacoes.js";
 import { agregarHistorico, diaBahia, type Historico } from "./historico.js";
+import { montarRetencao, type Retencao } from "./retencao.js";
 import { ateSegundaOrdemAgora, ErroAtivacao, ORIGENS_ATIVACAO, type Ativacao, type OrigemAtivacao, esquemaAtivar } from "./ativacoes.js";
 import type { z } from "zod";
 
@@ -1348,6 +1349,38 @@ export async function historicoFrota(dias: number, agora = new Date()): Promise<
             locais,
             ativas,
             de,
+            agora,
+        ),
+    };
+}
+
+/**
+ * Cada parada de 10+ min fora da base entre `de` e `ate` (retencao.ts), para
+ * a tela de análise da chefia. Lê o banco na hora.
+ */
+export async function retencaoFrota(de: Date, ate: Date, agora = new Date()): Promise<Retencao & { ativo: boolean }> {
+    if (!TOKEN) return { ativo: false, ...montarRetencao([], locais, descreverChave, de, ate, agora) };
+    const linhas = await consultar(sql`
+        SELECT chave, hospital_id, entrada, COALESCE(saida, ultima_vez) AS fim, motivo_fim,
+               COALESCE(estavel_lat, lat) AS lat, COALESCE(estavel_lng, lng) AS lng, oc_coletas, livre_coletas
+        FROM frota_permanencias
+        WHERE NOT na_base AND entrada >= ${de.toISOString()} AND entrada < ${ate.toISOString()}`);
+    const lixo = (chave: string) => !chave.startsWith("equipe:") && !numeroNoLimite(descreverChave(chave).nome);
+    const numero = (v: unknown) => (v == null ? null : Number(v));
+    return {
+        ativo: true,
+        ...montarRetencao(
+            linhas
+                .filter((r) => !lixo(String(r.chave)))
+                .map((r) => ({
+                    chave: String(r.chave), hospitalId: String(r.hospital_id), entrada: new Date(r.entrada as string),
+                    fim: new Date(r.fim as string), naBase: false, motivoFim: r.motivo_fim == null ? null : String(r.motivo_fim),
+                    lat: numero(r.lat), lng: numero(r.lng), ocColetas: Number(r.oc_coletas) || 0, livreColetas: Number(r.livre_coletas) || 0,
+                })),
+            locais,
+            descreverChave,
+            de,
+            ate,
             agora,
         ),
     };

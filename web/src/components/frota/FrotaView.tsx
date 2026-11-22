@@ -17,6 +17,27 @@ import DesativacoesFrota from "./DesativacoesFrota";
 import TabelaHospitais from "./TabelaHospitais";
 import FiltroFrota from "./FiltroFrota";
 import { FILTRO_VAZIO, passa, type Filtro } from "./filtro";
+import { useQuery } from "@tanstack/react-query";
+import { temAcessoRetencao } from "../../api/client";
+
+/** Atalho para a análise de retenção: só aparece a quem o porteiro deixa ler (chefia, admin). */
+function AtalhoRetencao() {
+  const { data: pode } = useQuery({ queryKey: ["retencao", "acesso"], queryFn: temAcessoRetencao, staleTime: Infinity, retry: false });
+  if (!pode) return null;
+  return (
+    <a
+      href={`${import.meta.env.BASE_URL}retencao`}
+      className="self-start inline-flex items-center gap-2 bg-white border border-slate-200 rounded-[10px] px-3 py-2 text-[12px] font-bold text-slate-700 no-underline hover:border-slate-400"
+    >
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M3 3v18h18" />
+        <path d="m7 15 4-4 3 3 5-6" />
+      </svg>
+      Análise de retenção — tempos por hospital, viatura e período
+      <span className="text-[10px] font-extrabold uppercase tracking-wide text-blue-700">coordenação</span>
+    </a>
+  );
+}
 
 const MapaFrota = lazy(() => import("./MapaFrota"));
 
@@ -133,6 +154,8 @@ export default function FrotaView({ painel, carregando, erro, foco, focar, opera
           ⚠️ A última leitura do SAMU+ falhou ({painel.erro}). Mostrando a anterior, de {ha(painel.coletadoEm)}.
         </div>
       )}
+
+      <AtalhoRetencao />
 
       {/* ── Filtros: valem para o mapa; com filtro ligado, a lista de quem passou ── */}
       <FiltroFrota

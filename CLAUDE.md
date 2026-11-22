@@ -90,6 +90,11 @@ do painel. É só o que rádio-operador, TARM e enfermeiro alcançam na Tabela: 
 `/tabela/api/frota*` e `/tabela/api/encaminhamento/config` — chamada nova da
 Frota a outra rota da API precisa entrar lá.
 
+Retenção: `/tabela/retencao` (`frota/retencao/`), gráficos de tempo parado em
+hospital/UPA por período, viatura, local e perfil; dados em
+`/tabela/api/frota/retencao`, que o porteiro (`retencaoBarra`) só entrega a
+`chief`/`admin`.
+
 Giro sozinho: `/tabela/giro` (`GiroApp.tsx`, a `UpasView` sem o painel) é o que a
 conta de gestão UPA (papel `gestao_upa` do plantoes) abre; o porteiro
 (`giroPermite`) só libera a ela essa tela, `/tabela/upas/api|ws` e

@@ -137,7 +137,23 @@ local. Só contagem e minuto — nada de paciente, protocolo, endereço ou médi
   (`upas.ts`) e não aprende estacionamento: na dúvida, é HGRS. O passado foi regravado por `scripts/corrigir-cabula-hgrs.sh`.
 - **Não tem quilômetro rodado**: o coletor guarda só a última posição.
 
-## Sinal, bateria e resumo (`sinal.ts`, testado em `sinal.test.ts`)
+## Análise de retenção (`retencao.ts`, tela `/tabela/retencao`)
+
+`GET /tabela/api/frota/retencao?de=AAAA-MM-DD&ate=AAAA-MM-DD` (dias de
+Salvador, `ate` incluído, até 184 dias; padrão 30): cada parada de 10+ min fora
+da base, compacta (`[entrada em min, minutos, local, viatura, situação, fim]`),
+com o perfil do local (`geral`/`psiq`/`infecto` do painel, `privado` só na
+frota, `upa`). Mesma regra do histórico (porta declarada puxa para o dono). A
+tela (`web/src/components/frota/retencao/`) filtra e agrega no navegador:
+mediana, P90, % com 40+ min, horas além do limite, tendência, distribuição,
+dia × hora, comparação por local/perfil/viatura/base e CSV. Paradas livres
+(sem ocorrência no mapa) ficam fora por padrão.
+
+**Só chefia e admin**: o porteiro (`mnrs-portal`, `retencaoBarra`) responde
+403 a `/tabela/api/frota/retencao*` sem papel `chief`/`admin` — inclusive à
+Central. `/retencao/acesso` é a sonda do atalho na aba Frota.
+
+ (`sinal.ts`, testado em `sinal.test.ts`)
 
 Só entra viatura do catálogo, escalada agora e não desativada. Só caso
 **agudo** vai ao grupo na hora; muda há 3 h+ é crônica e fica só numa linha

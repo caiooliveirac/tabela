@@ -2,7 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import { Router, type Response } from "express";
 import { z } from "zod";
 import {
-    adesaoDenuncias, alertasRecentes, balancoPlantao, cobrancasPendentes, ativarViatura, desativarViatura, diagnostico, encerrarAtivacao, listarAtivacoes, historicoFrota, informarMotivo, linhaDoTempo, listarDesativacoes, painelAtual, reativarViatura,
+    adesaoDenuncias, alertasRecentes, balancoPlantao, cobrancasPendentes, ativarViatura, desativarViatura, diagnostico, encerrarAtivacao, listarAtivacoes, historicoFrota, informarMotivo, linhaDoTempo, listarDesativacoes, painelAtual, reativarViatura, retencaoFrota,
     registrarOcorrencias,
 } from "./coletor.js";
 import { ErroDesativacao, esquemaDesativar, esquemaMotivo, esquemaReativar } from "./desativacoes.js";
@@ -178,6 +178,30 @@ router.get("/historico", async (req, res) => {
     } catch (e) {
         console.error("[frota] histórico:", e);
         res.status(500).json({ error: "histórico indisponível" });
+    }
+});
+
+// Análise de retenção (tela /tabela/retencao). Só chefia e admin: o porteiro
+// (mnrs-portal, `retencaoDaChefia`) barra /retencao* com 403 para os demais.
+// `/acesso` é a sonda da tela da Frota para mostrar o atalho.
+router.get("/retencao/acesso", (_req, res) => {
+    res.json({ ok: true });
+});
+
+// ?de=AAAA-MM-DD&ate=AAAA-MM-DD (dias de Salvador, `ate` incluído; até 184
+// dias — a tela pede o período e o anterior, para comparar). Padrão: 30 dias.
+router.get("/retencao", async (req, res) => {
+    const DIA = 86_400_000;
+    const dia = (v: unknown) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? Date.parse(`${v}T03:00:00Z`) : NaN);
+    const agora = Date.now();
+    const ate = Number.isFinite(dia(req.query.ate)) ? Math.min(dia(req.query.ate) + DIA, agora) : agora;
+    const de = Number.isFinite(dia(req.query.de)) ? dia(req.query.de) : ate - 30 * DIA;
+    if (!(de < ate) || ate - de > 184 * DIA) return res.status(400).json({ error: "período inválido (até 184 dias)" });
+    try {
+        res.json(await retencaoFrota(new Date(de), new Date(ate)));
+    } catch (e) {
+        console.error("[frota] retenção:", e);
+        res.status(500).json({ error: "retenção indisponível" });
     }
 });
 

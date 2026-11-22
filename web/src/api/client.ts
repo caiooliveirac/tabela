@@ -28,6 +28,7 @@ import type {
   WsEvent,
 } from "../lib/types";
 import { semSessao, transitorio } from "./resposta";
+import type { RetencaoApi } from "../components/frota/retencao/estatistica";
 
 export { semSessao };
 
@@ -382,5 +383,39 @@ export function disconnectWs(): void {
     ws.onclose = null;
     ws.close();
     ws = null;
+  }
+}
+
+// ── Análise de retenção (só chefia e admin) ──
+// O porteiro responde 403 a quem não tem papel `chief`/`admin`: aqui 403 é
+// "sem acesso", não "fora do plantão" (por isso não passa por request()).
+export class SemAcessoRetencao extends Error {}
+
+async function getRetencaoBruta(path: string): Promise<Response> {
+  const res = await fetch(`${API_BASE}${path}`);
+  if (res.status === 403) throw new SemAcessoRetencao("Sem acesso");
+  if (semSessao(res)) {
+    sessaoExpirada();
+    throw new Error("Sessão expirada");
+  }
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(body.error || `HTTP ${res.status}`);
+  }
+  return res;
+}
+
+/** Paradas de 10+ min fora da base, de `de` a `ate` (AAAA-MM-DD, Salvador, `ate` incluído). */
+export async function getRetencao(de: string, ate: string): Promise<RetencaoApi> {
+  return (await getRetencaoBruta(`/frota/retencao?de=${de}&ate=${ate}`)).json();
+}
+
+/** A sessão alcança a análise? (atalho na aba Frota). */
+export async function temAcessoRetencao(): Promise<boolean> {
+  try {
+    await getRetencaoBruta("/frota/retencao/acesso");
+    return true;
+  } catch {
+    return false;
   }
 }
