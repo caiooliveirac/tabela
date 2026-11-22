@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from "react";
+import { lazy, Suspense, useState, useMemo, useRef, useEffect } from "react";
 import UpasView from "./UpasView";
 import type { HospitalData, CaseRow, IntelRow } from "../lib/types";
 import {
@@ -26,6 +26,7 @@ import SummaryDrawer from "./SummaryDrawer";
 import EncaminharView from "./EncaminharView";
 import FrotaView from "./frota/FrotaView";
 import AlertasFrota from "./frota/AlertasFrota";
+const DetalheViatura = lazy(() => import("./frota/DetalheViatura"));
 import type { Foco } from "./frota/MapaFrota";
 import { useFrota, useAlertasFrota } from "../hooks/useFrota";
 
@@ -131,9 +132,11 @@ export default function Dashboard() {
   // Frota: lida em todas as abas, porque o aviso de 40 min não espera ninguém
   // abrir a aba.
   const frota = useFrota();
-  const { alertas: alertasFrota, pendentes: avisosFrota, ciente: frotaCiente } =
-    useAlertasFrota(frota.data?.viaturas);
+  const { alertas: alertasFrota, pendentes: avisosFrota, pendentesFora: foraFrota, ciente: frotaCiente } =
+    useAlertasFrota(frota.data?.viaturas, frota.data?.limites.foraCercaMin);
   const [focoFrota, setFocoFrota] = useState<Foco | null>(null);
+  // Detalhe da viatura (modal): abre do mapa, da tabela de hospitais e dos avisos, em qualquer aba.
+  const [detalheFrota, setDetalheFrota] = useState<string | null>(null);
 
   // UI state
   const [selH, setSelH] = useState<string | null>(null);
@@ -935,6 +938,7 @@ export default function Dashboard() {
                 foco={focoFrota}
                 focar={(f) => setFocoFrota({ ...f, vez: Date.now() })}
                 operador={op}
+                onDetalhe={setDetalheFrota}
               />
             ) : tab === "upas" ? (
               <UpasView operador={op} />
@@ -1247,13 +1251,28 @@ export default function Dashboard() {
       {!tutActive && (
         <AlertasFrota
           pendentes={avisosFrota}
+          fora={foraFrota}
           alertaMin={frota.data?.limites.alertaMin ?? 40}
           onCiente={frotaCiente}
           onVer={(v) => {
             setTab("frota");
             if (v.posicao) setFocoFrota({ lat: v.posicao.lat, lng: v.posicao.lng, zoom: 17, vez: Date.now() });
           }}
+          onDetalhe={(v) => setDetalheFrota(v.chave)}
         />
+      )}
+
+      {detalheFrota && (
+        <Suspense fallback={null}>
+          <DetalheViatura
+            chave={detalheFrota}
+            onClose={() => setDetalheFrota(null)}
+            onVerNoMapa={(v) => {
+              setTab("frota");
+              if (v.posicao) setFocoFrota({ lat: v.posicao.lat, lng: v.posicao.lng, zoom: 17, vez: Date.now() });
+            }}
+          />
+        </Suspense>
       )}
     </div>
   );

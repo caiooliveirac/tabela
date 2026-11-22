@@ -2,7 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import { Router, type Response } from "express";
 import { z } from "zod";
 import {
-    adesaoDenuncias, alertasRecentes, balancoPlantao, cobrancasPendentes, ativarViatura, desativarViatura, diagnostico, encerrarAtivacao, listarAtivacoes, historicoFrota, informarMotivo, linhaDoTempo, listarDesativacoes, painelAtual, reativarViatura, retencaoFrota,
+    adesaoDenuncias, alertasRecentes, balancoPlantao, cobrancasPendentes, ativarViatura, desativarViatura, detalheViatura, diagnostico, encerrarAtivacao, listarAtivacoes, historicoFrota, informarMotivo, linhaDoTempo, listarDesativacoes, painelAtual, reativarViatura, retencaoFrota,
     registrarOcorrencias,
 } from "./coletor.js";
 import { ErroDesativacao, esquemaDesativar, esquemaMotivo, esquemaReativar } from "./desativacoes.js";
@@ -165,6 +165,27 @@ router.get("/linha-do-tempo", async (req, res) => {
     } catch (e) {
         console.error("[frota] linha do tempo:", e);
         res.status(500).json({ error: "linha do tempo indisponível" });
+    }
+});
+
+// Detalhe de uma viatura (modal da aba Frota): ocorrência, parada, rastro do
+// GPS desde a abertura e a linha do tempo status × cerca (detalhe.ts).
+router.get("/viaturas/:chave", async (req, res) => {
+    const chave = req.params.chave;
+    if (!/^[\w:.-]{1,60}$/.test(chave)) {
+        res.status(400).json({ error: "chave inválida" });
+        return;
+    }
+    try {
+        const d = await detalheViatura(chave);
+        if (!d) {
+            res.status(404).json({ error: "viatura fora do painel" });
+            return;
+        }
+        res.json(d);
+    } catch (e) {
+        console.error("[frota] detalhe:", e);
+        res.status(500).json({ error: "detalhe indisponível" });
     }
 });
 

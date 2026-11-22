@@ -43,6 +43,16 @@ export function useReativarViatura() {
   });
 }
 
+/** Detalhe de uma viatura (modal): ocorrência, parada, rastro e linha do tempo. Atualiza junto com a coleta. */
+export function useDetalheViatura(chave: string | null) {
+  return useQuery({
+    queryKey: ["frota", "viatura", chave],
+    queryFn: () => api.getDetalheViatura(chave!),
+    enabled: chave !== null,
+    refetchInterval: 30_000,
+  });
+}
+
 /** Paradas em hospital das últimas `horas`, para a linha do tempo. */
 export function useLinhaDoTempoFrota(horas: number) {
   return useQuery({
@@ -64,12 +74,16 @@ function lerCientes(): string[] {
 
 /** Uma permanência = uma viatura num hospital desde uma hora de entrada. */
 export const chaveAlerta = (v: ViaturaFrota) => `${v.chave}|${v.noHospital?.entrada ?? ""}`;
+/** Uma saída da cerca = a parada de onde saiu. */
+export const chaveFora = (v: ViaturaFrota) => `${v.chave}|fora|${v.foraDaCerca?.paradaId ?? ""}`;
 
 /**
- * Viaturas com 40 min ou mais num hospital. "Ciente" vale para ESTA parada,
- * neste navegador: se a viatura sair e voltar, é outra parada e avisa de novo.
+ * Viaturas com 40 min ou mais num hospital, e as que saíram da cerca com o
+ * status ainda de "chegada ao hospital" há `foraCercaMin` ou mais. "Ciente"
+ * vale para ESTA parada, neste navegador: se a viatura sair e voltar, é outra
+ * parada e avisa de novo.
  */
-export function useAlertasFrota(viaturas: ViaturaFrota[] | undefined) {
+export function useAlertasFrota(viaturas: ViaturaFrota[] | undefined, foraCercaMin = 15) {
   const [cientes, setCientes] = useState<string[]>(lerCientes);
   const alertas = useMemo(
     () =>
@@ -78,16 +92,24 @@ export function useAlertasFrota(viaturas: ViaturaFrota[] | undefined) {
         .sort((a, b) => (b.noHospital?.minutos ?? 0) - (a.noHospital?.minutos ?? 0)),
     [viaturas],
   );
+  const fora = useMemo(
+    () =>
+      (viaturas ?? [])
+        .filter((v) => v.foraDaCerca && v.foraDaCerca.minutos >= foraCercaMin)
+        .sort((a, b) => b.foraDaCerca!.minutos - a.foraDaCerca!.minutos),
+    [viaturas, foraCercaMin],
+  );
   const pendentes = alertas.filter((v) => !cientes.includes(chaveAlerta(v)));
+  const pendentesFora = fora.filter((v) => !cientes.includes(chaveFora(v)));
   const ciente = useCallback(
-    (v: ViaturaFrota) => {
-      // Guarda só as paradas ainda em alerta — a lista não cresce para sempre.
-      const vivas = new Set(alertas.map(chaveAlerta));
-      const novo = [...cientes.filter((c) => vivas.has(c)), chaveAlerta(v)];
+    (v: ViaturaFrota, tipo: "parada" | "fora" = "parada") => {
+      // Guarda só os avisos ainda vivos — a lista não cresce para sempre.
+      const vivas = new Set([...alertas.map(chaveAlerta), ...fora.map(chaveFora)]);
+      const novo = [...cientes.filter((c) => vivas.has(c)), tipo === "fora" ? chaveFora(v) : chaveAlerta(v)];
       setCientes(novo);
       localStorage.setItem(CHAVE_CIENTE, JSON.stringify(novo));
     },
-    [alertas, cientes],
+    [alertas, fora, cientes],
   );
-  return { alertas, pendentes, ciente };
+  return { alertas, pendentes, pendentesFora, ciente };
 }

@@ -6,16 +6,23 @@
 // essas contas alcançarem esta página e /tabela/api/frota (mnrs-portal,
 // porteiro/lib.mjs, centralPermite).
 // ═══════════════════════════════════════════════════════════════
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { useFrota, useAlertasFrota } from "../../hooks/useFrota";
 import FrotaView from "./FrotaView";
 import AlertasFrota from "./AlertasFrota";
 import type { Foco } from "./MapaFrota";
+import type { ViaturaFrota } from "../../lib/types";
+
+const DetalheViatura = lazy(() => import("./DetalheViatura"));
 
 export default function FrotaApp() {
   const frota = useFrota();
-  const { pendentes, ciente } = useAlertasFrota(frota.data?.viaturas);
+  const { pendentes, pendentesFora, ciente } = useAlertasFrota(frota.data?.viaturas, frota.data?.limites.foraCercaMin);
   const [foco, setFoco] = useState<Foco | null>(null);
+  const [detalhe, setDetalhe] = useState<string | null>(null);
+  const verNoMapa = (v: ViaturaFrota) => {
+    if (v.posicao) setFoco({ lat: v.posicao.lat, lng: v.posicao.lng, zoom: 17, vez: Date.now() });
+  };
   // Mesmo nome do cabeçalho do Painel de Vagas: quem informa a desativação.
   const [op, setOp] = useState(() => localStorage.getItem("tabela:op") || "");
   const semNome = !op.trim();
@@ -81,18 +88,25 @@ export default function FrotaApp() {
             foco={foco}
             focar={(f) => setFoco({ ...f, vez: Date.now() })}
             operador={op}
+            onDetalhe={setDetalhe}
           />
         </div>
       </div>
 
       <AlertasFrota
         pendentes={pendentes}
+        fora={pendentesFora}
         alertaMin={frota.data?.limites.alertaMin ?? 40}
         onCiente={ciente}
-        onVer={(v) => {
-          if (v.posicao) setFoco({ lat: v.posicao.lat, lng: v.posicao.lng, zoom: 17, vez: Date.now() });
-        }}
+        onVer={verNoMapa}
+        onDetalhe={(v) => setDetalhe(v.chave)}
       />
+
+      {detalhe && (
+        <Suspense fallback={null}>
+          <DetalheViatura chave={detalhe} onClose={() => setDetalhe(null)} onVerNoMapa={verNoMapa} />
+        </Suspense>
+      )}
     </div>
   );
 }

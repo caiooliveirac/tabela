@@ -35,10 +35,10 @@ export function hhmm(d: Date): string {
 const min = (de: Date, ate: Date) => Math.max(0, Math.floor((ate.getTime() - de.getTime()) / 60_000));
 
 /** "na UPA", "na UE"; o resto (hospital, PA, Centro) é masculino. */
-const artigo = (nome: string) => (/^(UPA|UE)\b/.test(nome) ? "a" : "o");
+export const artigo = (nome: string) => (/^(UPA|UE)\b/.test(nome) ? "a" : "o");
 
 /** "BRUNA MICHELI ALVES" → "Bruna Micheli Alves". */
-const nomeProprio = (s: string) => s.toLowerCase().replace(/(^|\s)\p{L}/gu, (c) => c.toUpperCase());
+export const nomeProprio = (s: string) => s.toLowerCase().replace(/(^|\s)\p{L}/gu, (c) => c.toUpperCase());
 
 /**
  * A viatura está em ocorrência, e com qual médico regulador (MR)? Parada sem

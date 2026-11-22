@@ -168,3 +168,12 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .frota-pulso { animation: none; }
 }
+
+/* Rótulos fixos do mapa de rastro (detalhe da viatura, MapaRastro.tsx). */
+.leaflet-tooltip.rastro-rotulo {
+  font: 800 11px/1.2 'DM Sans', sans-serif;
+  color: #0f172a;
+  padding: 2px 6px;
+  border-radius: 6px;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, .25);
+}

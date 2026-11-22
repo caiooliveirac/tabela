@@ -5,7 +5,8 @@
 // Primeiro as que contam para a retenção (mais antigas no topo), depois as
 // que estão na própria base — Pau Miúdo, junto do HGESF/16º Centro, e
 // Cajazeiras, no Municipal — em cinza: a hora de entrada aparece, mas não
-// geram alerta. Clicar na linha leva o mapa até a viatura.
+// geram alerta. Clicar na linha abre o detalhe da viatura (ou, sem ele, leva
+// o mapa até ela).
 // ═══════════════════════════════════════════════════════════════
 import { useMemo } from "react";
 import type { PainelFrota, ViaturaFrota } from "../../lib/types";
@@ -16,6 +17,8 @@ interface Props {
   painel: PainelFrota;
   noMapa: ViaturaFrota[];
   onVer: (v: ViaturaFrota) => void;
+  /** A linha abre o detalhe (rastro, linha do tempo) em vez de mover o mapa. */
+  detalhe?: boolean;
 }
 
 function Situacao({ v, alertaMin }: { v: ViaturaFrota; alertaMin: number }) {
@@ -58,7 +61,7 @@ function pesa(v: ViaturaFrota): boolean {
   return !v.noHospital!.naBase || ocupadaNaBase(v);
 }
 
-export default function TabelaHospitais({ painel, noMapa, onVer }: Props) {
+export default function TabelaHospitais({ painel, noMapa, onVer, detalhe = false }: Props) {
   // As paradas abertas sempre vêm na linha do tempo, com o cruzamento do Acolhimentos.
   const { data: historico } = useLinhaDoTempoFrota(6);
   const acolhimentoPorId = useMemo(
@@ -91,7 +94,7 @@ export default function TabelaHospitais({ painel, noMapa, onVer }: Props) {
           Ambulâncias em hospital ou UPA agora
         </div>
         <div className="text-[11px] text-slate-400">
-          a até {L.raioM} m do prédio · clique na linha para ver no mapa
+          a até {L.raioM} m do prédio · clique na linha para {detalhe ? "ver detalhes, rastro e linha do tempo" : "ver no mapa"}
         </div>
       </div>
 

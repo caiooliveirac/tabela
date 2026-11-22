@@ -24,15 +24,18 @@ interface Props {
   foco: Foco | null;
   alto: boolean;
   onFalha: () => void;
+  onDetalhe?: (chave: string) => void;
 }
 
-export default function MapaFrota({ mapsKey, mapId, painel, noMapa, foco, alto, onFalha }: Props) {
+export default function MapaFrota({ mapsKey, mapId, painel, noMapa, foco, alto, onFalha, onDetalhe }: Props) {
   const div = useRef<HTMLDivElement>(null);
   const mapa = useRef<google.maps.Map | null>(null);
   const camada = useRef<CamadaFrota | null>(null);
   const [pronto, setPronto] = useState(false);
   const aoFalhar = useRef(onFalha);
   aoFalhar.current = onFalha;
+  const aoDetalhe = useRef(onDetalhe);
+  aoDetalhe.current = onDetalhe;
 
   useEffect(() => {
     let vivo = true;
@@ -58,7 +61,12 @@ export default function MapaFrota({ mapsKey, mapId, painel, noMapa, foco, alto, 
           minZoom: 10,
           restriction: { latLngBounds: LIMITES, strictBounds: false },
         });
-        camada.current = new CamadaFrota(mapa.current, { raios: "todos", rotulosHospital: true, zViatura: 45 });
+        camada.current = new CamadaFrota(mapa.current, {
+          raios: "todos",
+          rotulosHospital: true,
+          zViatura: 45,
+          onDetalhe: (chave) => aoDetalhe.current?.(chave),
+        });
         setPronto(true);
       } catch (e) {
         console.error("[frota] Google Maps indisponível:", e);
