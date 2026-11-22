@@ -76,8 +76,9 @@ vínculo sai da página de status; se ela sair do ar, vale o último salvo em
   hospitais fora do painel, só na frota (chegada vira parada, alerta de 40 min,
   linha do tempo, histórico e balanço). Fora do Acolhimentos
   (`NO_ACOLHIMENTOS`): nunca "sem notificação". Antes de entrar, parada lá não
-  ficava registrada em lugar nenhum — o coletor não guarda trilha e a API do
-  SAMU+ nega `/localizacoes` (403) ao nosso token.
+  ficava registrada em lugar nenhum — o coletor só passou a guardar trilha em
+  22/11/2026 (`frota_posicoes`) e a API do SAMU+ nega `/localizacoes` (403) ao
+  nosso token.
 - **Situação de cada viatura:** `mapa` (posição da última hora) ·
   `sem-sinal` · `fora-do-turno` (SD entre 19h e 7h; as de 08h–20h rodam as
   24 h) · `desativada` (lista `DESATIVADAS_ATE_SEGUNDA_ORDEM` ou
@@ -135,7 +136,33 @@ local. Só contagem e minuto — nada de paciente, protocolo, endereço ou médi
   passar muda de dono quando a viatura estaciona mais perto de um local com
   porta. A UPA Cabula tem `raio` próprio de 50 m
   (`upas.ts`) e não aprende estacionamento: na dúvida, é HGRS. O passado foi regravado por `scripts/corrigir-cabula-hgrs.sh`.
-- **Não tem quilômetro rodado**: o coletor guarda só a última posição.
+- **Não tem quilômetro rodado**: o rastro (`frota_posicoes`) só existe desde
+  22/11/2026 e só por 15 dias.
+
+## Detalhe da viatura e "saiu da cerca" (`detalhe.ts`, testado em `detalhe.test.ts`)
+
+Clicar na viatura (botão no balão do mapa, linha da tabela de hospitais, caixa
+"Saíram do hospital…" ou um aviso) abre o modal `DetalheViatura.tsx`:
+ocorrência, parada, rastro do GPS e uma linha do tempo que junta os status da
+equipe (mapa de equipes) com o que o GPS viu (entrou/saiu da cerca, 40 min,
+sem sinal). `GET /tabela/api/frota/viaturas/:chave` (a Central alcança: o
+porteiro libera `/tabela/api/frota/*`).
+
+- **Rastro:** `frota_posicoes` (chave, em, lat, lng), cada posição nova a cada
+  coleta, 15 dias (limpa junto do aprendizado, a cada 30 min). Janela do
+  modal: abertura da ocorrência −10 min (sem ocorrência, 3 h), até 12 h.
+  Mapa em Leaflet + OSM (`MapaRastro.tsx`), sem chave do Google.
+- **Fora da cerca** (`foraDaCerca`): o mapa de equipes segue em "CHEGADA AO
+  HOSPITAL", mas a última parada fora da base fechou por saída depois do status
+  (folga de 10 min) e a viatura não está em outro hospital/UPA. Provável
+  liberação sem registro. `ViaturaFrota.foraDaCerca` traz a hora da saída; o
+  painel mostra a caixa na hora e o aviso em qualquer aba a partir de
+  `FORA_CERCA_MIN` (15 min). Em 14 dias até 22/11/2026: ~7 casos/dia com 15+ min,
+  19 com 2 h+. Sem Telegram por enquanto.
+- **Chegada registrada sem GPS no hospital** (10+ min, nenhuma parada perto da
+  hora): aviso âmbar no modal — destino fora da lista ou posição errada.
+- A última saída por viatura fica em memória (`ultimasSaidas`), recarregada no
+  boot das paradas das últimas 12 h.
 
 ## Análise de retenção (`retencao.ts`, tela `/tabela/retencao`)
 
@@ -326,8 +353,8 @@ o convite.
 `frota_permanencias` (uma linha por parada em hospital ou UPA: entrada,
 última confirmação e posição, saída, motivo, quando alertou, onde o GPS parou),
 `frota_alertas` (quedas de sinal, instabilidade, surto, bateria e resumos),
-`frota_desativacoes` (fora de operação informada no painel) e `frota_estado`
-(último vínculo).
+`frota_desativacoes` (fora de operação informada no painel), `frota_posicoes`
+(rastro, 15 dias) e `frota_estado` (último vínculo).
 Criadas no boot com `IF NOT EXISTS`.
 
 ## Ligar e desligar

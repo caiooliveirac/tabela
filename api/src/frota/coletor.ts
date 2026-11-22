@@ -26,7 +26,9 @@ import { medicosPorBase, mesaAgora } from "./plantoes.js";
 import { atualizarEquipe, responsavelAgora } from "./equipe.js";
 import {
     diagnosticoOcorrencias, lembreteFonteCaiu, ocorrenciaDe, receberOcorrencias, situacoesRecebidas, vigiarMapa, type esquemaOcorrencias,
+    type Ocorrencia,
 } from "./ocorrencias.js";
+import { inicioJanela, montarDetalhe, type ParadaDetalhe, type SaidaCerca, type StatusDetalhe } from "./detalhe.js";
 import {
     avancarQuedas, bateriaBaixa, instaveisAgora, plantaoDe, ranking, resumoDevido,
     textoBateria, textoFimQueda, textoFrota, textoInstavel, textoQueda, textoResumo, textoSurto,
@@ -59,6 +61,10 @@ let erro: string | null = null;
 let posicoes: PosicaoSamu[] = [];
 let dispositivos: DispositivoSamu[] = [];
 let abertas = new Map<string, Permanencia>();
+/** Última parada fora da base que fechou por saída, por chave — o "saiu da cerca" (detalhe.ts). */
+const ultimasSaidas = new Map<string, SaidaCerca>();
+/** Rastro guardado por tantos dias (frota_posicoes). */
+const RASTRO_DIAS = 15;
 /** Hospitais e UPAs com os estacionamentos aprendidos. */
 let locais: readonly HospitalFrota[] = LOCAIS_FROTA;
 let aprendidoEm = 0;
@@ -236,6 +242,16 @@ async function criarTabelas(): Promise<void> {
             avisado_em timestamptz NOT NULL DEFAULT now(),
             PRIMARY KEY (chave, protocolo)
         )`);
+    // Rastro do GPS (detalhe da viatura): cada posição nova que o SAMU+ manda,
+    // a cada 2 min, por 15 dias. A mesma posição repetida não duplica.
+    await db.execute(sql`
+        CREATE TABLE IF NOT EXISTS frota_posicoes (
+            chave varchar(60)      NOT NULL,
+            em    timestamptz      NOT NULL,
+            lat   double precision NOT NULL,
+            lng   double precision NOT NULL,
+            PRIMARY KEY (chave, em)
+        )`);
     await db.execute(sql`
         CREATE TABLE IF NOT EXISTS frota_estado (
             chave         varchar(40) PRIMARY KEY,
@@ -293,6 +309,18 @@ async function carregar(): Promise<void> {
         else aprendizado = { ...aprendizado, ...(r.valor as Partial<typeof aprendizado>) };
     }
     locais = comPontos(aprendizado.pontos);
+    for (const r of await consultar(sql`
+        SELECT DISTINCT ON (chave) id, chave, hospital_id, entrada, saida
+        FROM frota_permanencias
+        WHERE motivo_fim = 'saiu' AND NOT na_base AND saida > now() - interval '12 hours'
+        ORDER BY chave, saida DESC`)) {
+        ultimasSaidas.set(String(r.chave), {
+            id: Number(r.id),
+            hospitalId: String(r.hospital_id),
+            entrada: new Date(r.entrada as string),
+            saida: new Date(r.saida as string),
+        });
+    }
     await carregarAlertas();
     desativacoes = new Map(
         (await consultar(sql`SELECT * FROM frota_desativacoes WHERE reativada_em IS NULL`)).map((r) => [String(r.codigo), desativacaoDe(r)]),
@@ -352,8 +380,23 @@ async function atualizarVinculos(): Promise<void> {
 }
 
 /** Evidência: onde o GPS parou em cada parada de 10 min ou mais (fora da base), 30 dias. */
+/** Cada posição nova de cada viatura (a mesma `em` repetida não duplica). */
+async function gravarRastro(resolvidas: Iterable<{ chave: string; em: Date; posicao: PosicaoSamu }>): Promise<void> {
+    const linhas = [...resolvidas]
+        .filter((r) => r.posicao.lat !== null && r.posicao.lng !== null)
+        .map((r) => sql`(${r.chave}, ${r.em.toISOString()}, ${r.posicao.lat}, ${r.posicao.lng})`);
+    if (!linhas.length) return;
+    await db.execute(sql`
+        INSERT INTO frota_posicoes (chave, em, lat, lng)
+        VALUES ${sql.join(linhas, sql`, `)}
+        ON CONFLICT DO NOTHING`);
+}
+
 async function aprender(): Promise<void> {
     aprendidoEm = Date.now();
+    await db
+        .execute(sql`DELETE FROM frota_posicoes WHERE em < now() - make_interval(days => ${RASTRO_DIAS})`)
+        .catch((e) => registrarErro("limpeza do rastro", e));
     const evidencias: Evidencia[] = (
         await consultar(sql`
             SELECT hospital_id, chave, estavel_lat, estavel_lng,
@@ -413,6 +456,7 @@ async function ciclo(): Promise<void> {
         await espelharMesa(agora).catch((e) => registrarErro("desativações da Mesa", e));
         await atualizarEquipe().catch((e) => registrarErro("responsável das viaturas", e));
         const resolvidas = resolverPosicoes(posicoes, dispositivos, CATALOGO);
+        await gravarRastro(resolvidas.values()).catch((e) => registrarErro("rastro", e));
         // Desativada no painel com parada aberta: a parada fecha agora (e o aviso dela).
         const desativadas = desativadasAgora();
         const r = avancarPermanencias(
@@ -449,6 +493,10 @@ async function ciclo(): Promise<void> {
                 UPDATE frota_permanencias
                 SET saida = ${f.saida?.toISOString() ?? null}, motivo_fim = ${f.motivo}
                 WHERE id = ${f.permanencia.id}`);
+            if (f.motivo === "saiu" && f.saida && !f.permanencia.naBase) {
+                const p = f.permanencia;
+                ultimasSaidas.set(p.chave, { id: f.permanencia.id, hospitalId: p.hospitalId, entrada: p.entrada, saida: f.saida });
+            }
         }
         abertas = r.abertas;
         coletadoEm = agora;
@@ -1293,8 +1341,87 @@ export function painelAtual(agora = new Date()): PainelFrota {
         abertas,
         ocorrenciaDe: (chave) => ocorrenciaDe(chave, agora),
         responsavelDe: responsavelAgora,
+        saidaDe: (chave) => ultimasSaidas.get(chave),
         agora,
     });
+}
+
+const dataOuNull = (x: unknown) => (x == null ? null : new Date(x as string));
+const isoOuNull = (x: unknown) => (x == null ? null : new Date(x as string).toISOString());
+
+/**
+ * Detalhe de uma viatura (modal da aba Frota): a ocorrência de agora — ou a
+ * última das 3 h, já encerrada —, os status dela, as paradas e o rastro desde
+ * a abertura (detalhe.ts). `null` = chave fora do painel.
+ */
+export async function detalheViatura(chave: string, agora = new Date()) {
+    const painel = painelAtual(agora);
+    const v = painel.viaturas.find((x) => x.chave === chave);
+    if (!v) return null;
+
+    const atual = v.ocorrencia?.ocorrencia ?? null;
+    const [linha] = atual?.protocolo
+        ? await consultar(sql`SELECT * FROM frota_ocorrencias WHERE chave = ${chave} AND protocolo = ${atual.protocolo}`)
+        : await consultar(sql`
+            SELECT * FROM frota_ocorrencias
+            WHERE chave = ${chave} AND ultima_vez > now() - interval '3 hours'
+            ORDER BY ultima_vez DESC LIMIT 1`);
+    const ocorrencia: (Ocorrencia & { ativa: boolean }) | null = atual
+        ? { ...atual, ativa: true }
+        : linha
+          ? {
+              protocolo: String(linha.protocolo),
+              medico: (linha.medico as string | null) ?? null,
+              status: null,
+              statusEm: null,
+              abertura: isoOuNull(linha.abertura),
+              risco: (linha.risco as string | null) ?? null,
+              regulacaoSecundaria: linha.regulacao_secundaria === true,
+              endereco: (linha.endereco as string | null) ?? null,
+              bairro: (linha.bairro as string | null) ?? null,
+              queixa: (linha.queixa as string | null) ?? null,
+              hma: (linha.hma as string | null) ?? null,
+              ativa: false,
+          }
+          : null;
+    const status: StatusDetalhe[] = linha
+        ? (await consultar(sql`SELECT status, em FROM frota_ocorrencia_status WHERE ocorrencia_id = ${Number(linha.id)} ORDER BY em`))
+            .map((r) => ({ status: String(r.status), em: new Date(r.em as string) }))
+        : [];
+    // Encerrada: o último status do histórico é o "status" dela.
+    if (ocorrencia && !ocorrencia.ativa && status.length) {
+        ocorrencia.status = status.at(-1)!.status;
+        ocorrencia.statusEm = status.at(-1)!.em.toISOString();
+    }
+
+    const desde = inicioJanela(ocorrencia, status, v.noHospital ? new Date(v.noHospital.entrada) : null, agora);
+    const paradas: ParadaDetalhe[] = (
+        await consultar(sql`
+            SELECT id, hospital_id, entrada, ultima_vez, saida, motivo_fim, alerta_em, na_base
+            FROM frota_permanencias
+            WHERE chave = ${chave} AND (motivo_fim IS NULL OR COALESCE(saida, ultima_vez) >= ${desde.toISOString()})
+            ORDER BY entrada`)
+    ).map((r) => ({
+        id: Number(r.id),
+        hospitalId: String(r.hospital_id),
+        entrada: new Date(r.entrada as string),
+        ultimaVez: new Date(r.ultima_vez as string),
+        saida: dataOuNull(r.saida),
+        motivoFim: (r.motivo_fim as ParadaDetalhe["motivoFim"]) ?? null,
+        alertaEm: dataOuNull(r.alerta_em),
+        naBase: r.na_base === true,
+    }));
+    const posicoesRastro = (
+        await consultar(sql`
+            SELECT em, lat, lng FROM frota_posicoes
+            WHERE chave = ${chave} AND em >= ${desde.toISOString()}
+            ORDER BY em`)
+    ).map((r) => ({ em: new Date(r.em as string), lat: Number(r.lat), lng: Number(r.lng) }));
+
+    return {
+        viatura: v,
+        ...montarDetalhe({ viatura: v, ocorrencia, status, paradas, posicoes: posicoesRastro, locais, desde, agora }),
+    };
 }
 
 /**

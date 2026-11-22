@@ -443,6 +443,70 @@ export interface ViaturaFrota {
     naBase: boolean;
     distanciaM: number | null;
   } | null;
+  /** Saiu da cerca do hospital e o mapa de equipes segue em "chegada ao hospital". Ausente em API antiga. */
+  foraDaCerca?: ForaDaCercaFrota | null;
+}
+
+export interface ForaDaCercaFrota {
+  paradaId: number;
+  hospitalId: string;
+  hospitalNome: string;
+  entrada: string;
+  saiuEm: string;
+  /** Minutos desde que saiu da cerca. */
+  minutos: number;
+  statusEm: string | null;
+}
+
+type OcorrenciaFrota = NonNullable<NonNullable<ViaturaFrota["ocorrencia"]>["ocorrencia"]>;
+
+export type EstadoLocalizacaoFrota =
+  | "na-cerca" | "fora-da-cerca" | "sem-sinal" | "na-base" | "saiu" | "a-caminho" | "livre" | "sem-posicao";
+
+export type TomEventoFrota = "neutro" | "info" | "ok" | "atencao" | "critico";
+
+/** GET /frota/viaturas/:chave — o modal de detalhe (api/src/frota/detalhe.ts). */
+export interface DetalheViaturaFrota {
+  viatura: ViaturaFrota;
+  /** A ocorrência de agora; sem ela, a última das 3 h (`ativa: false`). */
+  ocorrencia: (OcorrenciaFrota & { abertura: string | null; ativa: boolean }) | null;
+  destino: {
+    id: string;
+    nome: string;
+    tipo: "hospital" | "upa";
+    lat: number;
+    lng: number;
+    raio: number;
+    pontos: { lat: number; lng: number }[];
+    papel: "atual" | "ultima";
+  } | null;
+  permanencia: {
+    id: number;
+    entrada: string;
+    saida: string | null;
+    minutos: number;
+    aberta: boolean;
+    alerta: boolean;
+    motivoFim: "saiu" | "sem-sinal" | "desativada" | null;
+  } | null;
+  localizacao: {
+    estado: EstadoLocalizacaoFrota;
+    titulo: string;
+    distanciaM: number | null;
+    saiuEm: string | null;
+    minutosFora: number | null;
+  };
+  aviso: { nivel: "critico" | "atencao"; titulo: string; texto: string; mensagem: string | null } | null;
+  linha: {
+    em: string;
+    tipo: "abertura" | "status" | "entrou" | "alerta" | "saiu" | "sem-sinal" | "desativada" | "posicao";
+    titulo: string;
+    detalhe: string | null;
+    tom: TomEventoFrota;
+  }[];
+  rastro: { em: string; lat: number; lng: number; local: string | null }[];
+  janela: { desde: string; ate: string };
+  limites: { raioM: number; raioSaidaM: number; alertaMin: number; foraCercaMin: number };
 }
 
 export interface PainelFrota {
@@ -450,7 +514,7 @@ export interface PainelFrota {
   coletadoEm: string | null;
   vinculosEm: string | null;
   erro: string | null;
-  limites: { raioM: number; raioSaidaM: number; raioBuscaM: number; janelaChegadaMin: number; alertaMin: number; recenteMin: number; mapaMin: number };
+  limites: { raioM: number; raioSaidaM: number; raioBuscaM: number; janelaChegadaMin: number; alertaMin: number; recenteMin: number; mapaMin: number; foraCercaMin?: number };
   hospitais: HospitalPonto[];
   viaturas: ViaturaFrota[];
   foraDoCatalogoSemSinal: number;

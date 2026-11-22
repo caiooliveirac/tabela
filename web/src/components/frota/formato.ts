@@ -17,6 +17,14 @@ export const COR = {
   livre: "#0d9488",
 } as const;
 
+/** Rastro do detalhe da viatura: violeta a caminho, azul na cerca, vermelho fora com status de hospital. */
+export const COR_RASTRO = {
+  caminho: COR.ocorrencia,
+  dentro: COR.hospital,
+  foraAlerta: COR.alerta,
+  fora: "#64748b",
+} as const;
+
 export type EstadoOcorrencia = "ocorrencia" | "retornando" | "livre";
 
 /**

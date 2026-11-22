@@ -10,7 +10,7 @@
 import { lazy, Suspense, useMemo, useState } from "react";
 import type { PainelFrota, ViaturaFrota } from "../../lib/types";
 import { useEncaminhamentoConfig } from "../../hooks/useEncaminhamento";
-import { COR, duracao, estaNaBase, estadoOcorrencia, ha } from "./formato";
+import { COR, artigo, duracao, estaNaBase, estadoOcorrencia, ha, hora } from "./formato";
 import type { Foco } from "./MapaFrota";
 import LinhaDoTempo from "./LinhaDoTempo";
 import DesativacoesFrota from "./DesativacoesFrota";
@@ -49,6 +49,52 @@ interface Props {
   focar: (f: Omit<Foco, "vez">) => void;
   /** Nome do cabeçalho do painel: quem informa a desativação. */
   operador: string;
+  /** Abre o detalhe da viatura (ocorrência, rastro, linha do tempo). */
+  onDetalhe?: (chave: string) => void;
+}
+
+/**
+ * Saiu da cerca do hospital e o mapa de equipes segue em "chegada ao
+ * hospital": provável liberação sem registro. Aparece assim que sai; o
+ * aviso em qualquer aba (AlertasFrota) só depois de `foraCercaMin`.
+ */
+function ForaDaCerca({ viaturas, onDetalhe }: { viaturas: ViaturaFrota[]; onDetalhe?: (chave: string) => void }) {
+  const lista = viaturas.filter((v) => v.foraDaCerca).sort((a, b) => b.foraDaCerca!.minutos - a.foraDaCerca!.minutos);
+  if (!lista.length) return null;
+  return (
+    <div className="rounded-[10px] border p-3" style={{ borderColor: `color-mix(in srgb, ${COR.alerta} 35%, white)`, background: `color-mix(in srgb, ${COR.alerta} 6%, white)` }}>
+      <div className="text-[11px] font-extrabold uppercase tracking-wide" style={{ color: COR.alerta }}>
+        Saíram do hospital com o status ainda de chegada · {lista.length}
+      </div>
+      <div className="text-[11px] text-slate-500 mb-2">
+        O GPS saiu da cerca e o mapa de equipes não mudou: confirme a liberação com a equipe e atualize o status.
+      </div>
+      <ul className="flex flex-col gap-1">
+        {lista.map((v) => {
+          const f = v.foraDaCerca!;
+          return (
+            <li key={v.chave}>
+              <button
+                onClick={() => onDetalhe?.(v.chave)}
+                disabled={!onDetalhe}
+                className="w-full text-left flex items-baseline gap-2 flex-wrap px-2 py-[5px] rounded-lg bg-white border border-slate-200 hover:border-red-400 cursor-pointer text-[13px]"
+              >
+                <b className="text-slate-900">{v.nome}</b>
+                <span className="text-slate-700">
+                  saiu d{artigo(f.hospitalNome)} {f.hospitalNome} às {hora(f.saiuEm)}
+                </span>
+                <span className="font-bold" style={{ color: COR.alerta }}>há {duracao(f.minutos)}</span>
+                {v.ocorrencia?.ocorrencia?.protocolo && (
+                  <span className="text-slate-500 text-[12px]">ocorrência {v.ocorrencia.ocorrencia.protocolo}</span>
+                )}
+                {onDetalhe && <span className="ml-auto text-[12px] font-bold text-blue-700">Detalhes ›</span>}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
 }
 
 function Linha({ v, extra }: { v: ViaturaFrota; extra: string }) {
@@ -85,7 +131,7 @@ function Grupo({ titulo, nota, itens, extra }: {
   );
 }
 
-export default function FrotaView({ painel, carregando, erro, foco, focar, operador }: Props) {
+export default function FrotaView({ painel, carregando, erro, foco, focar, operador, onDetalhe }: Props) {
   const { data: cfg } = useEncaminhamentoConfig();
   const [googleFalhou, setGoogleFalhou] = useState(false);
   const mapsKey = googleFalhou ? null : (cfg?.mapsKey ?? null);
@@ -181,6 +227,7 @@ export default function FrotaView({ painel, carregando, erro, foco, focar, opera
                 foco={foco}
                 alto={mapaAlto}
                 onFalha={() => setGoogleFalhou(true)}
+                onDetalhe={onDetalhe}
               />
             </Suspense>
             {/* A situação continua à vista com o mapa ampliado e a página rolada. */}
@@ -248,11 +295,14 @@ export default function FrotaView({ painel, carregando, erro, foco, focar, opera
         </span>
       </div>
 
+      <ForaDaCerca viaturas={grupos.noMapa} onDetalhe={onDetalhe} />
+
       {/* ── Quem está em hospital agora, e desde quando ── */}
       <TabelaHospitais
         painel={painel}
         noMapa={grupos.noMapa}
-        onVer={verNoMapa}
+        onVer={onDetalhe ? (v) => onDetalhe(v.chave) : verNoMapa}
+        detalhe={Boolean(onDetalhe)}
       />
 
       {/* ── Quanto tempo cada viatura ficou em cada hospital ── */}

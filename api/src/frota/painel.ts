@@ -5,6 +5,7 @@
 import { codigoDaMoto, COORDENADAS_BASES, MOTOS, numeroNoLimite, type ViaturaCatalogo } from "./catalogo.js";
 import { motivoPainel, type Desativacao } from "./desativacoes.js";
 import type { Ativacao } from "./ativacoes.js";
+import { FORA_CERCA_MIN, foraDaCerca, type ForaDaCerca, type SaidaCerca } from "./detalhe.js";
 import type { Responsavel } from "./equipe.js";
 import type { HospitalFrota } from "./hospitais.js";
 import type { SituacaoOcorrencia } from "./ocorrencias.js";
@@ -52,6 +53,8 @@ export interface ViaturaFrota {
     ocorrencia: SituacaoOcorrencia | null;
     /** De quem cobrar: médico da USA (Mesa ou escala), técnico(a) da USB (escala). `null` = sem fonte. */
     responsavel: Responsavel | null;
+    /** Saiu da cerca do hospital e o mapa de equipes segue em "chegada ao hospital" (detalhe.ts). */
+    foraDaCerca: ForaDaCerca | null;
     noHospital: {
         /** Id da parada (frota_permanencias) — casa com a linha do tempo. */
         id: number | null;
@@ -73,7 +76,7 @@ export interface PainelFrota {
     coletadoEm: string | null;
     vinculosEm: string | null;
     erro: string | null;
-    limites: { raioM: number; raioSaidaM: number; raioBuscaM: number; janelaChegadaMin: number; alertaMin: number; recenteMin: number; mapaMin: number };
+    limites: { raioM: number; raioSaidaM: number; raioBuscaM: number; janelaChegadaMin: number; alertaMin: number; recenteMin: number; mapaMin: number; foraCercaMin: number };
     hospitais: HospitalFrota[];
     viaturas: ViaturaFrota[];
     /** Unidades fora do catálogo (evento, reserva) sem posição recente — só contadas. */
@@ -157,6 +160,8 @@ export function montarPainel(entrada: {
     ativacoes?: ReadonlyMap<string, Ativacao>;
     ocorrenciaDe?: (chave: string) => SituacaoOcorrencia | null;
     responsavelDe?: (tipo: ViaturaFrota["tipo"], codigo: string | null) => Responsavel | null;
+    /** Última parada fora da base que fechou por saída, por chave (coletor.ts). */
+    saidaDe?: (chave: string) => SaidaCerca | undefined;
     agora: Date;
 }): PainelFrota {
     const { catalogo, desativadas, hospitais, resolvidas, abertas, agora } = entrada;
@@ -182,6 +187,7 @@ export function montarPainel(entrada: {
         const p = abertas.get(chave);
         const minutos = p ? duracaoMin(p, agora) : 0;
         const des = base.codigo ? entrada.desativacoes?.get(base.codigo) ?? null : null;
+        const ocorrencia = entrada.ocorrenciaDe?.(chave) ?? null;
         return {
             chave,
             ...base,
@@ -192,8 +198,12 @@ export function montarPainel(entrada: {
             desativacao: des,
             ateSegundaOrdem: !!base.codigo && !!entrada.ateSegundaOrdem?.has(base.codigo),
             ativacao: base.codigo ? entrada.ativacoes?.get(base.codigo) ?? null : null,
-            ocorrencia: entrada.ocorrenciaDe?.(chave) ?? null,
+            ocorrencia,
             responsavel: entrada.responsavelDe?.(base.tipo, base.codigo) ?? null,
+            foraDaCerca:
+                s.situacao === "mapa"
+                    ? foraDaCerca(ocorrencia?.ocorrencia, Boolean(p && !p.naBase), entrada.saidaDe?.(chave), hospitais, agora)
+                    : null,
             posicao:
                 r && r.posicao.lat !== null && r.posicao.lng !== null && idadeMin !== null
                     ? { lat: r.posicao.lat, lng: r.posicao.lng, em: r.em.toISOString(), idadeMin }
@@ -263,7 +273,7 @@ export function montarPainel(entrada: {
         coletadoEm: entrada.coletadoEm?.toISOString() ?? null,
         vinculosEm: entrada.vinculosEm?.toISOString() ?? null,
         erro: entrada.erro,
-        limites: { raioM: RAIO_M, raioSaidaM: RAIO_SAIDA_M, raioBuscaM: RAIO_BUSCA_M, janelaChegadaMin: JANELA_CHEGADA_MIN, alertaMin: ALERTA_MIN, recenteMin: RECENTE_MIN, mapaMin: MAPA_MIN },
+        limites: { raioM: RAIO_M, raioSaidaM: RAIO_SAIDA_M, raioBuscaM: RAIO_BUSCA_M, janelaChegadaMin: JANELA_CHEGADA_MIN, alertaMin: ALERTA_MIN, recenteMin: RECENTE_MIN, mapaMin: MAPA_MIN, foraCercaMin: FORA_CERCA_MIN },
         hospitais: [...hospitais],
         viaturas,
         foraDoCatalogoSemSinal,

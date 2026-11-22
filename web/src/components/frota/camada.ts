@@ -25,6 +25,8 @@ export interface OpcoesCamada {
   rotulosHospital: boolean;
   /** zIndex das viaturas. No Destino ficam por baixo dos pinos do ranking. */
   zViatura: number;
+  /** Botão "Detalhes" no balão da viatura (aba Frota). Sem ele, só o balão. */
+  onDetalhe?: (chave: string) => void;
 }
 
 function esc(s: string): string {
@@ -127,6 +129,13 @@ function balaoViatura(v: ViaturaFrota): string {
   }
   // Na base livre já foi dito acima; o resto ganha o bloco do mapa de equipes.
   if (!(est === "livre" && estaNaBase(v))) linhas.push(...linhasOcorrencia(v, est));
+  if (v.foraDaCerca) {
+    const f = v.foraDaCerca;
+    linhas.push(
+      `<span style="color:${COR.alerta};font-weight:800">⚠ Saiu d${artigo(f.hospitalNome)} ${esc(f.hospitalNome)} às ${hora(f.saiuEm)}` +
+        ` (há ${duracao(f.minutos)}) e o status segue "chegada ao hospital"</span>`,
+    );
+  }
   if (v.nomeDifere && v.nomeSamu) linhas.push(`<span style="color:#64748b">No SAMU+: ${esc(v.nomeSamu)}</span>`);
   if (v.motivo) linhas.push(`<span style="color:#64748b">${esc(v.motivo)}</span>`);
   return `<div style="font:13px/1.45 'DM Sans',sans-serif;color:#0f172a">${linhas.join("<br>")}</div>`;
@@ -238,7 +247,22 @@ export class CamadaFrota {
         m.addListener("click", () => {
           const r = this.viaturas.get(chave);
           if (!r) return;
-          this.balao.setContent(balaoViatura(r.v));
+          const conteudo = document.createElement("div");
+          conteudo.innerHTML = balaoViatura(r.v);
+          const onDetalhe = this.opcoes.onDetalhe;
+          if (onDetalhe) {
+            const b = document.createElement("button");
+            b.textContent = "Detalhes, rastro e linha do tempo ›";
+            b.style.cssText =
+              "margin-top:8px;width:100%;padding:6px 10px;border:none;border-radius:8px;cursor:pointer;" +
+              `background:${COR.hospital};color:#fff;font:800 12px/1.2 'DM Sans',sans-serif`;
+            b.addEventListener("click", () => {
+              this.balao.close();
+              onDetalhe(chave);
+            });
+            conteudo.appendChild(b);
+          }
+          this.balao.setContent(conteudo);
           this.balao.open({ map: this.mapa, anchor: r.m });
         });
         reg = { m, el, v };
