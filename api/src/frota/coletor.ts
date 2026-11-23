@@ -25,13 +25,14 @@ import {
 } from "./aviso.js";
 import { editarChat, enviarChat, frotaChatId, notifyAdmin, reguladoresChatId } from "../lib/telegram.js";
 import { medicosPorBase, mesaAgora } from "./plantoes.js";
-import { atualizarEquipe, responsavelAgora } from "./equipe.js";
+import { atualizarEquipe, equipeAgora, responsavelAgora } from "./equipe.js";
 import {
     diagnosticoOcorrencias, lembreteFonteCaiu, ocorrenciaDe, receberOcorrencias, situacoesRecebidas, vigiarMapa, type esquemaOcorrencias,
     type Ocorrencia,
 } from "./ocorrencias.js";
 import {
-    FORA_CERCA_MIN, fimForaDaCerca, inicioJanela, montarDetalhe, type ParadaDetalhe, type SaidaCerca, type StatusDetalhe,
+    FORA_CERCA_MIN, fimForaDaCerca, inicioJanela, montarDetalhe,
+    type AcolhimentoDetalhe, type ParadaDetalhe, type SaidaCerca, type StatusDetalhe,
 } from "./detalhe.js";
 import {
     avancarQuedas, bateriaBaixa, instaveisAgora, plantaoDe, ranking, resumoDevido,
@@ -1468,8 +1469,8 @@ export async function detalheViatura(chave: string, agora = new Date()) {
           }
           : null;
     const status: StatusDetalhe[] = linha
-        ? (await consultar(sql`SELECT status, em FROM frota_ocorrencia_status WHERE ocorrencia_id = ${Number(linha.id)} ORDER BY em`))
-            .map((r) => ({ status: String(r.status), em: new Date(r.em as string) }))
+        ? (await consultar(sql`SELECT status, em, medico FROM frota_ocorrencia_status WHERE ocorrencia_id = ${Number(linha.id)} ORDER BY em`))
+            .map((r) => ({ status: String(r.status), em: new Date(r.em as string), medico: r.medico != null ? String(r.medico) : null }))
         : [];
     // Encerrada: o último status do histórico é o "status" dela.
     if (ocorrencia && !ocorrencia.ativa && status.length) {
@@ -1501,9 +1502,36 @@ export async function detalheViatura(chave: string, agora = new Date()) {
             ORDER BY em`)
     ).map((r) => ({ em: new Date(r.em as string), lat: Number(r.lat), lng: Number(r.lng) }));
 
+    // Acolhimentos: só USA e só os hospitais que ele registra (não UPA, não a base).
+    const cobre = (hospitalId: string) => v.tipo === "USA" && NO_ACOLHIMENTOS.has(hospitalId);
+    const porParada = new Map<number, AcolhimentoDetalhe>();
+    let erroAcolhimentos: string | null = null;
+    const candidatas = paradas
+        .filter((p) => !p.naBase && cobre(p.hospitalId))
+        .map((p) => ({
+            id: p.id, chave, hospitalId: p.hospitalId, entrada: p.entrada.toISOString(),
+            fim: (p.saida ?? (p.motivoFim === null ? agora : p.ultimaVez)).toISOString(),
+            aberta: p.motivoFim === null, naBase: false,
+        }));
+    if (candidatas.length && acolhimentosLigado()) {
+        try {
+            const lidos = await buscarAcolhimentos(inicioBusca(desde, candidatas), agora);
+            for (const [id, a] of cruzar(candidatas, lidos, agora.getTime()).casadas) {
+                const r = resumo(a, agora.getTime());
+                porParada.set(id, { chegada: r.chegada, passagem: r.passagem, liberada: r.liberada, minutos: r.minutos, maca: r.maca, motivos: r.motivos });
+            }
+        } catch (e) {
+            erroAcolhimentos = (e as Error).message;
+        }
+    }
+
     return {
         viatura: v,
-        ...montarDetalhe({ viatura: v, ocorrencia, status, paradas, posicoes: posicoesRastro, locais, desde, agora }),
+        equipe: equipeAgora(v.tipo, v.codigo),
+        ...montarDetalhe({
+            viatura: v, ocorrencia, status, paradas, posicoes: posicoesRastro, locais, desde, agora,
+            acolhimentos: { ligado: acolhimentosLigado(), erro: erroAcolhimentos, porParada, cobre },
+        }),
     };
 }
 

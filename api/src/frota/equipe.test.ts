@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { codigoDoPosto, responsavelDe } from "./equipe.js";
+import { codigoDoPosto, responsavelDe, equipeDe } from "./equipe.js";
 
 const escala = new Map([
     ["SM01", [{ nome: "Ana Paula Mendes", nomeCurto: "Ana Mendes", categoria: "MEDICO" }, { nome: "Rui Souza", nomeCurto: "Rui Souza", categoria: "TECNICO_ENFERMAGEM" }]],
@@ -25,4 +25,20 @@ test("sem fonte, sem nome", () => {
     assert.equal(responsavelDe("USB", "CZ53", new Map(), escala), null);
     assert.equal(responsavelDe("MOTO", "MT06", new Map(), escala), null);
     assert.equal(responsavelDe("USA", null, new Map(), escala), null);
+});
+
+test("equipe: médico da Mesa no lugar do escalado, depois enfermagem e condutor; sem fonte, vazia", () => {
+    const escala = new Map([["SM01", [
+        { nome: "Condutor Exemplo", categoria: "CONDUTOR" },
+        { nome: "Médica Escalada", categoria: "MEDICO" },
+        { nome: "Técnica Exemplo", nomeCurto: "Técnica", categoria: "TECNICO_ENFERMAGEM" },
+    ]]]);
+    assert.deepEqual(equipeDe("USA", "SM01", new Map([["SM01", "Médico Mesa"]]), escala).map((m) => [m.nome, m.funcao, m.fonte]), [
+        ["Médico Mesa", "Médico(a)", "mesa"],
+        ["Técnica", "Técnico(a) de enfermagem", "escala"],
+        ["Condutor Exemplo", "Condutor(a)", "escala"],
+    ]);
+    assert.equal(equipeDe("USA", "SM01", new Map(), escala)[0].nome, "Médica Escalada");
+    assert.deepEqual(equipeDe("USB", "SM02", new Map(), escala), []);
+    assert.deepEqual(equipeDe("USA", null, new Map(), escala), []);
 });

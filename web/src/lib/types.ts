@@ -497,9 +497,28 @@ export interface DetalheViaturaFrota {
     minutosFora: number | null;
   };
   aviso: { nivel: "critico" | "atencao"; titulo: string; texto: string; mensagem: string | null } | null;
+  /** MRs da ocorrência na ordem dos status. Ausente em API antiga. */
+  medicos?: string[];
+  /** Notificação do Acolhimentos da parada do caso (só USA em hospital). Ausente em API antiga. */
+  acolhimento?: {
+    cobre: boolean;
+    ligado: boolean;
+    erro: string | null;
+    notificacao: {
+      chegada: string | null;
+      passagem: string | null;
+      liberada: string | null;
+      minutos: number | null;
+      maca: { inicio: string; fim: string | null } | null;
+      motivos: string[];
+    } | null;
+    semNotificacao: boolean;
+  };
+  /** Equipe do turno: escala (com ESCALA_TOKEN) e o médico com chegada na Mesa. Ausente em API antiga. */
+  equipe?: { escalaLigada: boolean; membros: { nome: string; funcao: string; fonte: "mesa" | "escala" }[] };
   linha: {
     em: string;
-    tipo: "abertura" | "status" | "entrou" | "alerta" | "saiu" | "sem-sinal" | "desativada" | "posicao";
+    tipo: "abertura" | "status" | "entrou" | "alerta" | "saiu" | "sem-sinal" | "desativada" | "acolhimento" | "posicao";
     titulo: string;
     detalhe: string | null;
     tom: TomEventoFrota;

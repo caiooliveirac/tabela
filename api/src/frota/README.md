@@ -170,6 +170,13 @@ porteiro libera `/tabela/api/frota/*`).
   hora): aviso âmbar no modal — destino fora da lista ou posição errada.
 - A última saída por viatura fica em memória (`ultimasSaidas`), recarregada no
   boot das paradas das últimas 12 h.
+- **Também no modal:** a notificação do Acolhimentos da parada (chegada,
+  maca retida/devolvida, passagem, liberação e motivos na linha do tempo; "sem
+  notificação" com o critério da cobrança — só USA em hospital), o MR de cada
+  status (`frota_ocorrencia_status.medico`) e a equipe do turno (aba Equipe,
+  `equipeDe`). A equipe inteira depende de `ESCALA_TOKEN` no `.env` (=
+  `ESPERADOS_TOKEN` do escalas-e-trocas); sem ele, só o médico com chegada na
+  Mesa do Plantões. Em 22/11/2026 o LIVE ainda estava sem esse token.
 
 ## Análise de retenção (`retencao.ts`, tela `/tabela/retencao`)
 

@@ -86,3 +86,46 @@ export async function atualizarEquipe(): Promise<void> {
 export function responsavelAgora(tipo: "USA" | "USB" | "MOTO" | null, codigo: string | null): Responsavel | null {
     return responsavelDe(tipo, codigo, medicos, escala?.porCodigo ?? new Map());
 }
+
+const FUNCAO: Record<string, string> = {
+    MEDICO: "Médico(a)",
+    ENFERMEIRO: "Enfermeiro(a)",
+    TECNICO_ENFERMAGEM: "Técnico(a) de enfermagem",
+    CONDUTOR: "Condutor(a)",
+};
+const ORDEM = Object.keys(FUNCAO);
+
+export interface MembroEquipe {
+    nome: string;
+    funcao: string;
+    /** mesa = chegada registrada no Plantões; escala = esperado pela escala do turno. */
+    fonte: "mesa" | "escala";
+}
+
+/**
+ * Pura: a equipe inteira da viatura no turno (escala), com o médico da Mesa
+ * no lugar do esperado quando ele já registrou chegada. Sem fonte, vazia.
+ */
+export function equipeDe(
+    tipo: "USA" | "USB" | "MOTO" | null,
+    codigo: string | null,
+    medicosMesa: ReadonlyMap<string, string>,
+    escalaPorCodigo: ReadonlyMap<string, readonly PessoaEscala[]>,
+): MembroEquipe[] {
+    if (!codigo) return [];
+    const mesa = tipo === "USA" ? medicosMesa.get(codigo) : undefined;
+    const saida: MembroEquipe[] = mesa ? [{ nome: mesa, funcao: FUNCAO.MEDICO, fonte: "mesa" }] : [];
+    const pos = (c: string) => (ORDEM.includes(c) ? ORDEM.indexOf(c) : ORDEM.length);
+    const pessoas = [...(escalaPorCodigo.get(codigo) ?? [])].sort((a, b) => pos(a.categoria) - pos(b.categoria));
+    for (const p of pessoas) {
+        if (mesa && p.categoria === "MEDICO") continue;
+        const nome = (p.nomeCurto || p.nome).trim();
+        if (nome) saida.push({ nome, funcao: FUNCAO[p.categoria] ?? p.categoria.toLowerCase().replace(/_/g, " "), fonte: "escala" });
+    }
+    return saida;
+}
+
+/** Para o detalhe da viatura: equipe e se a escala está ligada (sem ESCALA_TOKEN, só a Mesa). */
+export function equipeAgora(tipo: "USA" | "USB" | "MOTO" | null, codigo: string | null): { escalaLigada: boolean; membros: MembroEquipe[] } {
+    return { escalaLigada: Boolean(TOKEN), membros: equipeDe(tipo, codigo, medicos, escala?.porCodigo ?? new Map()) };
+}

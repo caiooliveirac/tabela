@@ -8,7 +8,7 @@
 // mas o GPS já saiu da cerca. A viatura provavelmente está livre e ninguém
 // registrou — `foraDaCerca` marca a hora em que saiu.
 // ═══════════════════════════════════════════════════════════════
-import { artigo, duracaoTexto, hhmm } from "./aviso.js";
+import { artigo, duracaoTexto, hhmm, nomeProprio } from "./aviso.js";
 import type { HospitalFrota } from "./hospitais.js";
 import type { Ocorrencia, SituacaoOcorrencia } from "./ocorrencias.js";
 import { ALERTA_MIN, distanciaLocal, hospitalNoRaio, RAIO_M, RAIO_SAIDA_M, RECENTE_MIN } from "./regras.js";
@@ -119,6 +119,18 @@ export interface ParadaDetalhe {
 export interface StatusDetalhe {
     status: string;
     em: Date;
+    /** MR da ocorrência na hora do status (frota_ocorrencia_status.medico). */
+    medico?: string | null;
+}
+
+/** Notificação do Acolhimentos casada com uma parada (coletor.ts, `resumo`). Só USA em hospital. */
+export interface AcolhimentoDetalhe {
+    chegada: string | null;
+    passagem: string | null;
+    liberada: string | null;
+    minutos: number | null;
+    maca: { inicio: string; fim: string | null } | null;
+    motivos: string[];
 }
 
 export interface PosicaoDetalhe {
@@ -151,7 +163,7 @@ export type Tom = "neutro" | "info" | "ok" | "atencao" | "critico";
 
 export interface EventoLinha {
     em: string;
-    tipo: "abertura" | "status" | "entrou" | "alerta" | "saiu" | "sem-sinal" | "desativada" | "posicao";
+    tipo: "abertura" | "status" | "entrou" | "alerta" | "saiu" | "sem-sinal" | "desativada" | "acolhimento" | "posicao";
     titulo: string;
     detalhe: string | null;
     tom: Tom;
@@ -197,6 +209,17 @@ export interface DetalheMontado {
         minutosFora: number | null;
     };
     aviso: { nivel: "critico" | "atencao"; titulo: string; texto: string; mensagem: string | null } | null;
+    /** MRs da ocorrência na ordem em que apareceram nos status. */
+    medicos: string[];
+    /** A notificação do Acolhimentos da parada do caso; `cobre` = USA em hospital do Acolhimentos. */
+    acolhimento: {
+        cobre: boolean;
+        ligado: boolean;
+        erro: string | null;
+        notificacao: AcolhimentoDetalhe | null;
+        /** USA 40+ min fora da base sem notificação (o mesmo critério da cobrança). */
+        semNotificacao: boolean;
+    };
     linha: EventoLinha[];
     rastro: PontoRastro[];
     janela: { desde: string; ate: string };
@@ -248,6 +271,8 @@ export function montarDetalhe(e: {
     locais: readonly HospitalFrota[];
     desde: Date;
     agora: Date;
+    /** Notificações do Acolhimentos por id de parada; `cobre(hospitalId)` = USA e hospital do Acolhimentos. */
+    acolhimentos?: { ligado: boolean; erro: string | null; porParada: ReadonlyMap<number, AcolhimentoDetalhe>; cobre: (hospitalId: string) => boolean };
 }): DetalheMontado {
     const { viatura: v, ocorrencia: oc, agora } = e;
     const local = (id: string) => e.locais.find((h) => h.id === id);
@@ -375,13 +400,17 @@ export function montarDetalhe(e: {
             tom: "neutro",
         });
     }
+    let mrAntes: string | null = null;
     for (const s of status) {
         const st = s.status.toUpperCase();
+        const mr = s.medico?.trim() || null;
+        const trocou = mr !== null && mr !== mrAntes;
+        if (mr) mrAntes = mr;
         linha.push({
             em: s.em.toISOString(),
             tipo: "status",
             titulo: TITULO_STATUS[st] ?? frase(s.status),
-            detalhe: "Registrado no mapa de equipes",
+            detalhe: `Registrado no mapa de equipes${trocou ? ` · MR ${nomeProprio(mr!)}` : ""}`,
             tom: /DISPON/.test(st) ? "ok" : NO_HOSPITAL.test(st) ? "info" : "neutro",
         });
     }
@@ -436,6 +465,26 @@ export function montarDetalhe(e: {
             });
         }
     }
+    const ac = e.acolhimentos;
+    for (const p of paradas) {
+        const n = ac?.porParada.get(p.id);
+        if (!n) continue;
+        const nome = nomeLocal(p.hospitalId);
+        const ev = (em: string | null, titulo: string, detalhe: string | null, tom: Tom) => {
+            if (em) linha.push({ em, tipo: "acolhimento", titulo, detalhe, tom });
+        };
+        ev(n.chegada, `Chegada notificada no Acolhimentos`, nome, "info");
+        ev(n.maca?.inicio ?? null, "Maca retida", "Notificado no Acolhimentos", "atencao");
+        ev(n.maca?.fim ?? null, "Maca devolvida", "Notificado no Acolhimentos", "ok");
+        ev(n.passagem, "Paciente passado ao hospital", "Notificado no Acolhimentos", "ok");
+        ev(
+            n.liberada,
+            "Liberação notificada no Acolhimentos",
+            [n.minutos != null && `${duracaoTexto(n.minutos)} no total`, n.motivos.length && `motivos: ${n.motivos.join(", ").toLowerCase()}`]
+                .filter(Boolean).join(" · ") || null,
+            "ok",
+        );
+    }
     if (v.posicao) {
         linha.push({
             em: v.posicao.em,
@@ -459,10 +508,26 @@ export function montarDetalhe(e: {
         .sort((a, b) => a.em.getTime() - b.em.getTime())
         .map((p) => ({ em: p.em.toISOString(), lat: p.lat, lng: p.lng, local: hospitalNoRaio(p, e.locais)?.id ?? null }));
 
+    const medicos: string[] = [];
+    for (const m of [...status.map((x) => x.medico), oc?.medico]) {
+        const n = m?.trim() ? nomeProprio(m.trim()) : null;
+        if (n && !medicos.includes(n)) medicos.push(n);
+    }
+    const cobre = Boolean(parada && !parada.naBase && ac?.cobre(parada.hospitalId));
+    const notificacao = parada ? ac?.porParada.get(parada.id) ?? null : null;
+
     return {
         ocorrencia: oc,
         destino,
         permanencia,
+        medicos,
+        acolhimento: {
+            cobre,
+            ligado: ac?.ligado ?? false,
+            erro: ac?.erro ?? null,
+            notificacao,
+            semNotificacao: cobre && !notificacao && !ac?.erro && Boolean(ac?.ligado) && Boolean(permanencia?.alerta),
+        },
         localizacao: {
             estado,
             titulo,

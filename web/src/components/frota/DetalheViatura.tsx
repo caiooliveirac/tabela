@@ -14,12 +14,13 @@ import { COR, COR_RASTRO, artigo, corRisco, duracao, frase, hora, nomeProprio, t
 
 const MapaRastro = lazy(() => import("./MapaRastro"));
 
-type Aba = "geral" | "local" | "tempo" | "ocorrencia";
+type Aba = "geral" | "local" | "tempo" | "ocorrencia" | "equipe";
 const ABAS: { id: Aba; nome: string }[] = [
   { id: "geral", nome: "Visão geral" },
   { id: "local", nome: "Localização" },
   { id: "tempo", nome: "Linha do tempo" },
   { id: "ocorrencia", nome: "Ocorrência" },
+  { id: "equipe", nome: "Equipe" },
 ];
 
 /** Cor de cada estado da localização (mesma régua do resto da aba Frota). */
@@ -209,6 +210,35 @@ function Conteudo({ d, aba, setAba, onVerNoMapa }: { d: DetalheViaturaFrota; aba
         </>
       )
     : "—";
+  const mrs = d.medicos?.length ? d.medicos.join(", ") : o?.medico ? nomeProprio(o.medico) : "—";
+  // Acolhimentos: só USA em hospital (não UPA, não a base). Sem parada do caso, nada a dizer.
+  const A = d.acolhimento;
+  const n = A?.notificacao;
+  const acolhimento: ReactNode = !A?.cobre
+    ? <span className="text-slate-500">Não se aplica{v.tipo !== "USA" ? " (só USA)" : " (UPA ou base)"}</span>
+    : A.erro
+      ? <span className="text-slate-500">Acolhimentos fora do ar agora</span>
+      : !A.ligado
+        ? <span className="text-slate-500">Cruzamento desligado</span>
+        : n
+          ? (
+              <>
+                <span className="font-bold" style={{ color: COR.livre }}>Notificado</span>
+                <div className="text-[11px] text-slate-600">
+                  {[
+                    n.chegada && `chegada ${hora(n.chegada)}`,
+                    n.passagem && `passagem ${hora(n.passagem)}`,
+                    n.maca && `maca retida ${hora(n.maca.inicio)}${n.maca.fim ? `–${hora(n.maca.fim)}` : " (ainda)"}`,
+                    n.liberada ? `liberada ${hora(n.liberada)}` : "ainda não liberada",
+                    n.minutos != null && duracao(n.minutos),
+                  ].filter(Boolean).join(" · ")}
+                  {n.motivos.length > 0 && <div>motivos: {n.motivos.join(", ").toLowerCase()}</div>}
+                </div>
+              </>
+            )
+          : A.semNotificacao
+            ? <span className="font-bold" style={{ color: COR.alerta }}>Sem notificação (USA {d.limites.alertaMin}+ min)</span>
+            : <span className="text-slate-500">Sem notificação ainda</span>;
   const permanenciaTexto = p ? (
     <>
       <span style={{ color: p.alerta ? COR.alerta : undefined }} className="font-bold">{duracao(p.minutos)}</span>
@@ -227,7 +257,8 @@ function Conteudo({ d, aba, setAba, onVerNoMapa }: { d: DetalheViaturaFrota; aba
     ) : p?.aberta ? "Ainda dentro" : "—"],
     ["Situação da localização", <span className="font-bold" style={{ color: corEstado }}>{L.titulo}</span>],
     ["Distância do hospital", L.distanciaM != null && d.destino ? metros(L.distanciaM) : "—"],
-    ["Médico regulador", o?.medico ? nomeProprio(o.medico) : "—"],
+    ["Acolhimentos", acolhimento],
+    ["Médico regulador", mrs],
     ["Responsável na viatura", textoResponsavel(v.responsavel ?? null) ?? "—"],
     ["Última posição (GPS)", posicao],
   ];
@@ -247,7 +278,7 @@ function Conteudo({ d, aba, setAba, onVerNoMapa }: { d: DetalheViaturaFrota; aba
           rotulo="Médico regulador"
           sub={o?.risco ? <Selo cor={corRisco(o.risco)}>risco {o.risco.toLowerCase()}</Selo> : o && !o.ativa ? "ocorrência encerrada" : undefined}
         >
-          {o?.medico ? nomeProprio(o.medico) : "—"}
+          {mrs}
         </Cartao>
         <Cartao
           rotulo="Tempo de permanência"
@@ -349,7 +380,7 @@ function Conteudo({ d, aba, setAba, onVerNoMapa }: { d: DetalheViaturaFrota; aba
                 ["Endereço", o.endereco ?? "—"],
                 ["Queixa", o.queixa ?? "—"],
                 ["Hospital / UPA", d.destino?.nome ?? "—"],
-                ["Médico regulador", o.medico ? nomeProprio(o.medico) : "—"],
+                ["Médico regulador", mrs],
                 ["Regulação secundária", o.regulacaoSecundaria ? "Sim" : "Não"],
                 ["Unidade", `${v.nome}${v.tipo ? ` · ${v.tipo}` : ""}${v.base ? ` · base ${v.base}` : ""}`],
               ]}
@@ -366,6 +397,30 @@ function Conteudo({ d, aba, setAba, onVerNoMapa }: { d: DetalheViaturaFrota; aba
             Sem ocorrência no mapa de equipes nas últimas 3 h — ou a ponte do mapa está parada.
           </div>
         )
+      )}
+
+      {aba === "equipe" && (
+        <div className="flex flex-col gap-2">
+          <Tabela
+            titulo={`Equipe de ${v.nome} neste turno`}
+            linhas={
+              d.equipe?.membros.length
+                ? d.equipe.membros.map((m, i): [string, ReactNode] => [
+                    `${m.funcao}${d.equipe!.membros.filter((x) => x.funcao === m.funcao).length > 1 ? ` ${i + 1}` : ""}`,
+                    <>
+                      {nomeProprio(m.nome)}{" "}
+                      <span className="text-[11px] text-slate-500">{m.fonte === "mesa" ? "· chegada na Mesa do Plantões" : "· esperado pela escala"}</span>
+                    </>,
+                  ])
+                : [["Equipe", <span className="text-slate-500">Sem nome nesta viatura agora</span>]]
+            }
+          />
+          {d.equipe && !d.equipe.escalaLigada && (
+            <div className="text-[11px] text-slate-500">
+              A escala do turno ainda não está ligada à Tabela: aparece só o médico da USA com chegada na Mesa.
+            </div>
+          )}
+        </div>
       )}
     </>
   );

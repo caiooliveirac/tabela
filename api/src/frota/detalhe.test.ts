@@ -165,3 +165,38 @@ test("fim do aviso fora da cerca: status novo, liberada, voltou; mapa mudo segue
     assert.deepEqual(fimForaDaCerca({ ...base, situacao: "sem-sinal", ocorrencia: null }, 7), { tipo: "encerrado" });
     assert.deepEqual(fimForaDaCerca(undefined, 7), { tipo: "encerrado" });
 });
+
+test("detalhe: MR de cada status na linha do tempo, MRs em ordem e a notificação do Acolhimentos", () => {
+    const agora = t("06:00");
+    const o = { ...oc("DISPONÍVEL / RETORNO À BASE", t("05:40")), ativa: true };
+    const notificacao = {
+        chegada: t("04:15").toISOString(), passagem: t("04:40").toISOString(), liberada: t("05:30").toISOString(),
+        minutos: 75, maca: { inicio: t("04:20").toISOString(), fim: t("05:25").toISOString() }, motivos: ["SEM MACA"],
+    };
+    const d = montarDetalhe({
+        viatura: viatura({}), ocorrencia: o,
+        status: [
+            { status: "DESIGNADA", em: t("03:08"), medico: "FULANO EXEMPLO" },
+            { status: "CHEGADA AO HOSPITAL", em: t("04:13"), medico: "FULANO EXEMPLO" },
+            { status: "DISPONÍVEL / RETORNO À BASE", em: t("05:40"), medico: "BELTRANA EXEMPLO" },
+        ],
+        paradas: [parada({ saida: t("05:35"), alertaEm: t("04:50") })], posicoes: [], locais: LOCAIS_FROTA, desde: t("02:29"), agora,
+        acolhimentos: { ligado: true, erro: null, porParada: new Map([[7, notificacao]]), cobre: () => true },
+    });
+    assert.deepEqual(d.medicos, ["Fulano Exemplo", "Beltrana Exemplo"]);
+    const st = d.linha.filter((x) => x.tipo === "status").map((x) => x.detalhe);
+    assert.deepEqual(st, ["Registrado no mapa de equipes · MR Fulano Exemplo", "Registrado no mapa de equipes", "Registrado no mapa de equipes · MR Beltrana Exemplo"]);
+    assert.deepEqual(d.linha.filter((x) => x.tipo === "acolhimento").map((x) => x.titulo), [
+        "Chegada notificada no Acolhimentos", "Maca retida", "Paciente passado ao hospital", "Maca devolvida", "Liberação notificada no Acolhimentos",
+    ]);
+    assert.match(d.linha.find((x) => x.titulo.startsWith("Liberação"))!.detalhe!, /1h15 no total · motivos: sem maca/);
+    assert.equal(d.acolhimento.cobre, true);
+    assert.equal(d.acolhimento.notificacao, notificacao);
+    assert.equal(d.acolhimento.semNotificacao, false);
+
+    const sem = montarDetalhe({
+        viatura: viatura({}), ocorrencia: o, status: [], paradas: [parada({ alertaEm: t("04:50") })], posicoes: [], locais: LOCAIS_FROTA,
+        desde: t("02:29"), agora, acolhimentos: { ligado: true, erro: null, porParada: new Map(), cobre: () => true },
+    });
+    assert.equal(sem.acolhimento.semNotificacao, true);
+});
