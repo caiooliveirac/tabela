@@ -176,7 +176,8 @@ porteiro libera `/tabela/api/frota/*`).
   status (`frota_ocorrencia_status.medico`) e a equipe do turno (aba Equipe,
   `equipeDe`). A equipe inteira depende de `ESCALA_TOKEN` no `.env` (=
   `ESPERADOS_TOKEN` do escalas-e-trocas); sem ele, só o médico com chegada na
-  Mesa do Plantões. Em 22/11/2026 o LIVE ainda estava sem esse token.
+  Mesa do Plantões. Configurado no LIVE em 22/11/2026 (antes disso a USB
+  ficava sem responsável).
 
 ## Análise de retenção (`retencao.ts`, tela `/tabela/retencao`)
 
