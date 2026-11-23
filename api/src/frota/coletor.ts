@@ -25,7 +25,7 @@ import {
 } from "./aviso.js";
 import { editarChat, enviarChat, frotaChatId, notifyAdmin, reguladoresChatId } from "../lib/telegram.js";
 import { medicosPorBase, mesaAgora } from "./plantoes.js";
-import { atualizarEquipe, equipeAgora, responsavelAgora } from "./equipe.js";
+import { atualizarEquipe, equipeAgora, escalaAgora, responsavelAgora } from "./equipe.js";
 import {
     diagnosticoOcorrencias, lembreteFonteCaiu, ocorrenciaDe, receberOcorrencias, situacoesRecebidas, vigiarMapa, type esquemaOcorrencias,
     type Ocorrencia,
@@ -1426,6 +1426,7 @@ export function painelAtual(agora = new Date()): PainelFrota {
         ocorrenciaDe: (chave) => ocorrenciaDe(chave, agora),
         responsavelDe: responsavelAgora,
         saidaDe: (chave) => ultimasSaidas.get(chave),
+        escalaDe: escalaAgora,
         agora,
     });
 }

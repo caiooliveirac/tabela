@@ -55,6 +55,8 @@ export interface ViaturaFrota {
     responsavel: Responsavel | null;
     /** Saiu da cerca do hospital e o mapa de equipes segue em "chegada ao hospital" (detalhe.ts). */
     foraDaCerca: ForaDaCerca | null;
+    /** Equipe ESPERADA pela escala do turno (não confirmada) — o Quadro sugere a partir dela. */
+    escala?: { categoria: string; funcao: string; nome: string }[];
     noHospital: {
         /** Id da parada (frota_permanencias) — casa com a linha do tempo. */
         id: number | null;
@@ -162,6 +164,8 @@ export function montarPainel(entrada: {
     responsavelDe?: (tipo: ViaturaFrota["tipo"], codigo: string | null) => Responsavel | null;
     /** Última parada fora da base que fechou por saída, por chave (coletor.ts). */
     saidaDe?: (chave: string) => SaidaCerca | undefined;
+    /** Equipe esperada pela escala, por código (equipe.ts, `escalaAgora`). */
+    escalaDe?: (codigo: string | null) => { categoria: string; funcao: string; nome: string }[];
     agora: Date;
 }): PainelFrota {
     const { catalogo, desativadas, hospitais, resolvidas, abertas, agora } = entrada;
@@ -200,6 +204,7 @@ export function montarPainel(entrada: {
             ativacao: base.codigo ? entrada.ativacoes?.get(base.codigo) ?? null : null,
             ocorrencia,
             responsavel: entrada.responsavelDe?.(base.tipo, base.codigo) ?? null,
+            ...(entrada.escalaDe && base.codigo && !base.foraDoCatalogo ? { escala: entrada.escalaDe(base.codigo) } : {}),
             foraDaCerca:
                 s.situacao === "mapa"
                     ? foraDaCerca(ocorrencia?.ocorrencia, Boolean(p && !p.naBase), entrada.saidaDe?.(chave), hospitais, agora)

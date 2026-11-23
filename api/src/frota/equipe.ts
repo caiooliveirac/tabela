@@ -242,3 +242,16 @@ export function equipeAgora(tipo: "USA" | "USB" | "MOTO" | null, codigo: string 
         membros: equipeDe(tipo, codigo, medicos, escala?.porCodigo ?? new Map(), informadoAgora()),
     };
 }
+
+/**
+ * Só a escala (o ESPERADO), por função — para quem precisa SUGERIR e pedir
+ * confirmação (o Quadro pré-preenche a equipe a confirmar). Nunca é "quem está".
+ */
+export function escalaAgora(codigo: string | null): { categoria: string; funcao: string; nome: string }[] {
+    if (!codigo) return [];
+    const pos = (c: string) => (ORDEM.includes(c as Categoria) ? ORDEM.indexOf(c as Categoria) : ORDEM.length);
+    return [...(escala?.porCodigo.get(codigo) ?? [])]
+        .sort((a, b) => pos(a.categoria) - pos(b.categoria))
+        .map((p) => ({ categoria: p.categoria, funcao: FUNCAO[p.categoria as Categoria] ?? p.categoria.toLowerCase().replace(/_/g, " "), nome: (p.nomeCurto || p.nome).trim() }))
+        .filter((p) => p.nome);
+}

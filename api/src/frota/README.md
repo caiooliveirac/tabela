@@ -398,6 +398,9 @@ nunca o escalado. Fontes: `GET relatorio.mnrs.com.br/api/servicos/equipe`
 quadro.mnrs.com.br/api/interno/equipes` (`QUADRO_TOKEN` = `QUADRO_INTERNO_TOKEN`
 de lá), memória de 5 min, lidas a cada coleta. `fonte` do responsável:
 `relatorio` | `quadro` | `mesa` | `escala` — só `escala` é "esperado".
+`viaturas[].escala` no `GET /frota` = só a equipe ESPERADA pela escala
+(`escalaAgora`), para o Quadro sugerir e o enfermeiro confirmar; nunca é
+"quem está".
 
 Para o coordenador saber de quem cobrar, cada viatura do painel traz
 `responsavel: { nome, funcao, fonte }` (`equipe.ts`, pura em `responsavelDe`):
