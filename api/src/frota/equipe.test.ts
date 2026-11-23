@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { codigoDoPosto, responsavelDe, equipeDe } from "./equipe.js";
+import { categoriaDoPapel, codigoDoPosto, equipeDe, responsavelDe, type Informado } from "./equipe.js";
 
 const escala = new Map([
     ["SM01", [{ nome: "Ana Paula Mendes", nomeCurto: "Ana Mendes", categoria: "MEDICO" }, { nome: "Rui Souza", nomeCurto: "Rui Souza", categoria: "TECNICO_ENFERMAGEM" }]],
@@ -41,4 +41,43 @@ test("equipe: médico da Mesa no lugar do escalado, depois enfermagem e condutor
     assert.equal(equipeDe("USA", "SM01", new Map(), escala)[0].nome, "Médica Escalada");
     assert.deepEqual(equipeDe("USB", "SM02", new Map(), escala), []);
     assert.deepEqual(equipeDe("USA", null, new Map(), escala), []);
+});
+
+test("informado vence a escala (regra 7): Relatório > Mesa > Quadro > escala; falta informada é falta", () => {
+    const escala = new Map([["SM01", [
+        { nome: "Médica Escalada", categoria: "MEDICO" },
+        { nome: "Enfermeira Escalada", categoria: "ENFERMEIRO" },
+        { nome: "Condutor Escalado", categoria: "CONDUTOR" },
+    ]], ["SM02", [{ nome: "Técnica Escalada", categoria: "TECNICO_ENFERMAGEM" }]]]);
+    const info = new Map<string, Informado[]>([
+        ["SM01", [
+            { categoria: "MEDICO", nome: "Médico Quadro", fonte: "quadro" },
+            { categoria: "ENFERMEIRO", nome: "Enfermeiro Quadro", fonte: "quadro" },
+            { categoria: "ENFERMEIRO", nome: "Enfermeira Chefia", fonte: "relatorio" },
+            { categoria: "CONDUTOR", nome: null, fonte: "relatorio" },
+        ]],
+        ["SM02", [{ categoria: "TECNICO_ENFERMAGEM", nome: "Técnico Quadro", fonte: "quadro" }]],
+    ]);
+    const mesa = new Map([["SM01", "Médico Mesa"]]);
+    const eq = (m: Map<string, string>) => equipeDe("USA", "SM01", m, escala, info).map((x) => [x.categoria, x.nome, x.fonte]);
+    assert.deepEqual(eq(mesa), [
+        ["MEDICO", "Médico Mesa", "mesa"],
+        ["ENFERMEIRO", "Enfermeira Chefia", "relatorio"],
+        ["CONDUTOR", null, "relatorio"],
+    ]);
+    // Sem chegada na Mesa: o Quadro vence a escala.
+    assert.deepEqual(eq(new Map())[0], ["MEDICO", "Médico Quadro", "quadro"]);
+    // Relatório com o médico confirmado vence a Mesa.
+    const comRel = new Map(info);
+    comRel.set("SM01", [...info.get("SM01")!, { categoria: "MEDICO", nome: "Médico Relatório", fonte: "relatorio" }]);
+    assert.deepEqual(equipeDe("USA", "SM01", mesa, escala, comRel)[0].nome, "Médico Relatório");
+    // Responsável da USB: o técnico informado no Quadro, não o da escala.
+    assert.deepEqual(responsavelDe("USB", "SM02", new Map(), escala, info), { nome: "Técnico Quadro", funcao: "técnico", fonte: "quadro" });
+    // Sem informado, a escala segue marcada como escala.
+    assert.equal(responsavelDe("USB", "SM02", new Map(), escala)?.fonte, "escala");
+});
+
+test("papel do Quadro vira categoria", () => {
+    assert.deepEqual(["Médico(a)", "Enfermeiro(a)", "TE", "Téc. enf.", "Condutor(a)", "Motorista", "Rádio"].map(categoriaDoPapel),
+        ["MEDICO", "ENFERMEIRO", "TECNICO_ENFERMAGEM", "TECNICO_ENFERMAGEM", "CONDUTOR", "CONDUTOR", null]);
 });

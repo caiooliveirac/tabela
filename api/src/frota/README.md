@@ -389,6 +389,16 @@ de 6. Acolhimentos fora do ar: 503.
 
 ## Responsável de cada viatura (`responsavel`, desde 29/10/2026)
 
+**Regra 7 (`~/Projetos/CLAUDE.md`, 22/11/2026): o informado vence a escala.**
+Função por função (`equipeDe`): médico = Relatório da chefia (linha confirmada
+ou editada) > Mesa do Plantões > Quadro Informativo > escala; o resto =
+Relatório > Quadro > escala. Falta informada no Relatório é falta (sem nome),
+nunca o escalado. Fontes: `GET relatorio.mnrs.com.br/api/servicos/equipe`
+(`RELATORIO_TOKEN` = `RELATORIO_SERVICO_TOKEN` de lá) e `GET
+quadro.mnrs.com.br/api/interno/equipes` (`QUADRO_TOKEN` = `QUADRO_INTERNO_TOKEN`
+de lá), memória de 5 min, lidas a cada coleta. `fonte` do responsável:
+`relatorio` | `quadro` | `mesa` | `escala` — só `escala` é "esperado".
+
 Para o coordenador saber de quem cobrar, cada viatura do painel traz
 `responsavel: { nome, funcao, fonte }` (`equipe.ts`, pura em `responsavelDe`):
 

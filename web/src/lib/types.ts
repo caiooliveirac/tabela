@@ -416,7 +416,7 @@ export interface ViaturaFrota {
   /** Desativada no painel (rádio, chefe, enfermagem). */
   desativacao?: DesativacaoFrota | null;
   /** De quem cobrar: médico da USA (Mesa ou escala), técnico(a) da USB (escala). null = sem fonte. */
-  responsavel?: { nome: string; funcao: "médico" | "técnico"; fonte: "mesa" | "escala" } | null;
+  responsavel?: { nome: string; funcao: "médico" | "técnico"; fonte: FonteEquipeFrota } | null;
   /** Pelo mapa de equipes: em ocorrência (com o MR) ou livre. null = sem informação. */
   ocorrencia?: {
     ocorrencia: {
@@ -446,6 +446,9 @@ export interface ViaturaFrota {
   /** Saiu da cerca do hospital e o mapa de equipes segue em "chegada ao hospital". Ausente em API antiga. */
   foraDaCerca?: ForaDaCercaFrota | null;
 }
+
+/** De onde veio o nome: relatório/quadro/mesa = informado na hora; escala = só o esperado. */
+export type FonteEquipeFrota = "relatorio" | "quadro" | "mesa" | "escala";
 
 export interface ForaDaCercaFrota {
   paradaId: number;
@@ -514,8 +517,13 @@ export interface DetalheViaturaFrota {
     } | null;
     semNotificacao: boolean;
   };
-  /** Equipe do turno: escala (com ESCALA_TOKEN) e o médico com chegada na Mesa. Ausente em API antiga. */
-  equipe?: { escalaLigada: boolean; membros: { nome: string; funcao: string; fonte: "mesa" | "escala" }[] };
+  /** Equipe do turno, função por função, da fonte mais confiável (regra 7: informado > escala). Ausente em API antiga. */
+  equipe?: {
+    escalaLigada: boolean;
+    informadoLigado?: boolean;
+    /** `nome: null` = falta informada no Relatório da chefia. */
+    membros: { nome: string | null; categoria?: string; funcao: string; fonte: FonteEquipeFrota }[];
+  };
   linha: {
     em: string;
     tipo: "abertura" | "status" | "entrou" | "alerta" | "saiu" | "sem-sinal" | "desativada" | "acolhimento" | "posicao";

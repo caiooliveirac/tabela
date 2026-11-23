@@ -8,13 +8,21 @@
 // registrada sem o GPS no hospital, sem sinal. Regras em api/src/frota/detalhe.ts.
 // ═══════════════════════════════════════════════════════════════
 import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
-import type { DetalheViaturaFrota, EstadoLocalizacaoFrota, TomEventoFrota, ViaturaFrota } from "../../lib/types";
+import type { DetalheViaturaFrota, EstadoLocalizacaoFrota, FonteEquipeFrota, TomEventoFrota, ViaturaFrota } from "../../lib/types";
 import { useDetalheViatura } from "../../hooks/useFrota";
 import { COR, COR_RASTRO, artigo, corRisco, duracao, frase, hora, nomeProprio, textoResponsavel } from "./formato";
 
 const MapaRastro = lazy(() => import("./MapaRastro"));
 
 type Aba = "geral" | "local" | "tempo" | "ocorrencia" | "equipe";
+
+/** De onde veio cada nome da equipe (regra 7: o informado vence a escala). */
+const ORIGEM_EQUIPE: Record<FonteEquipeFrota, string> = {
+  relatorio: "confirmado no Relatório da chefia",
+  mesa: "chegada na Mesa do Plantões",
+  quadro: "informado no Quadro",
+  escala: "esperado pela escala, sem confirmação",
+};
 const ABAS: { id: Aba; nome: string }[] = [
   { id: "geral", nome: "Visão geral" },
   { id: "local", nome: "Localização" },
@@ -407,19 +415,24 @@ function Conteudo({ d, aba, setAba, onVerNoMapa }: { d: DetalheViaturaFrota; aba
               d.equipe?.membros.length
                 ? d.equipe.membros.map((m, i): [string, ReactNode] => [
                     `${m.funcao}${d.equipe!.membros.filter((x) => x.funcao === m.funcao).length > 1 ? ` ${i + 1}` : ""}`,
-                    <>
-                      {nomeProprio(m.nome)}{" "}
-                      <span className="text-[11px] text-slate-500">{m.fonte === "mesa" ? "· chegada na Mesa do Plantões" : "· esperado pela escala"}</span>
-                    </>,
+                    m.nome ? (
+                      <>
+                        <span className={m.fonte === "escala" ? "text-slate-500" : undefined}>{nomeProprio(m.nome)}</span>{" "}
+                        <span className="text-[11px] text-slate-500">· {ORIGEM_EQUIPE[m.fonte]}</span>
+                      </>
+                    ) : (
+                      <span className="font-bold" style={{ color: COR.alerta }}>
+                        Falta informada <span className="text-[11px] font-normal text-slate-500">· Relatório da chefia</span>
+                      </span>
+                    ),
                   ])
                 : [["Equipe", <span className="text-slate-500">Sem nome nesta viatura agora</span>]]
             }
           />
-          {d.equipe && !d.equipe.escalaLigada && (
-            <div className="text-[11px] text-slate-500">
-              A escala do turno ainda não está ligada à Tabela: aparece só o médico da USA com chegada na Mesa.
-            </div>
-          )}
+          <div className="text-[11px] text-slate-500">
+            Vale o informado na hora (Relatório da chefia, Mesa, Quadro) sobre a escala; nome só da escala é o esperado, sem confirmação.
+            {d.equipe && !d.equipe.informadoLigado && " Relatório e Quadro ainda não estão ligados à Tabela."}
+          </div>
         </div>
       )}
     </>

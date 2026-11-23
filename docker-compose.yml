@@ -63,6 +63,11 @@ services:
       # Vazio = USB sem nome; a USA segue com o médico da Mesa.
       ESCALA_URL: ${ESCALA_URL:-https://escala.mnrs.com.br}
       ESCALA_TOKEN: ${ESCALA_TOKEN:-}
+      # Equipe informada na hora (regra 7: vence a escala) — api/src/frota/equipe.ts
+      RELATORIO_URL: ${RELATORIO_URL:-https://relatorio.mnrs.com.br}
+      RELATORIO_TOKEN: ${RELATORIO_TOKEN:-}
+      QUADRO_URL: ${QUADRO_URL:-https://quadro.mnrs.com.br}
+      QUADRO_TOKEN: ${QUADRO_TOKEN:-}
       # Ocorrência e MR de cada equipe (POST /frota/ocorrencias, enviado pelo
       # scripts/mapa-equipes-coletor.mjs de dentro da rede da SMS). Vazio = desligado.
       MAPA_EQUIPES_TOKEN: ${MAPA_EQUIPES_TOKEN:-}

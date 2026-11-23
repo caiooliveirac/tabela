@@ -8,19 +8,57 @@
 // GET /api/servicos/relatorio/turno) espera no posto neste turno.
 // Token da escala = ESPERADOS_TOKEN de lá, aqui ESCALA_TOKEN. Sem token ou
 // fora do ar: só o que a Mesa der. Nunca inventa: sem fonte, sem nome.
+//
+// Regra dura 7 (~/Projetos/CLAUDE.md): a escala é o ESPERADO. O informado na
+// hora vence: Relatório da chefia (linha confirmada ou editada; GET
+// /api/servicos/equipe, RELATORIO_TOKEN = RELATORIO_SERVICO_TOKEN de lá) e
+// Quadro Informativo (equipe do turno digitada pela Central ou passada no
+// Telegram; GET /api/interno/equipes, QUADRO_TOKEN = QUADRO_INTERNO_TOKEN de
+// lá). Médico: Relatório > Mesa > Quadro > escala; o resto: Relatório >
+// Quadro > escala. Falta informada no Relatório é falta, não o nome da escala.
 // ═══════════════════════════════════════════════════════════════
 import { mesaAgora } from "./plantoes.js";
 
 const URL_BASE = (process.env.ESCALA_URL || "https://escala.mnrs.com.br").replace(/\/$/, "");
 const TOKEN = process.env.ESCALA_TOKEN || "";
+const RELATORIO_URL = (process.env.RELATORIO_URL || "https://relatorio.mnrs.com.br").replace(/\/$/, "");
+const RELATORIO_TOKEN = process.env.RELATORIO_TOKEN || "";
+const QUADRO_URL = (process.env.QUADRO_URL || "https://quadro.mnrs.com.br").replace(/\/$/, "");
+const QUADRO_TOKEN = process.env.QUADRO_TOKEN || "";
 const MEMO_MS = 5 * 60_000;
 
 export interface Responsavel {
     /** Nome curto ("Fulano Silva"); dupla na USA vem como "Fulano + Beltrano". */
     nome: string;
     funcao: "médico" | "técnico";
-    /** mesa = chegada registrada no Plantões; escala = esperado pela escala do turno. */
-    fonte: "mesa" | "escala";
+    /**
+     * relatorio = confirmado/editado no Relatório da chefia; quadro = informado
+     * no Quadro; mesa = chegada registrada no Plantões; escala = só o esperado.
+     */
+    fonte: Fonte;
+}
+
+export type Fonte = "relatorio" | "quadro" | "mesa" | "escala";
+export type Categoria = "MEDICO" | "ENFERMEIRO" | "TECNICO_ENFERMAGEM" | "CONDUTOR";
+
+/** Quem foi informado na hora para uma viatura (Relatório ou Quadro). `nome: null` = falta informada. */
+export interface Informado {
+    categoria: Categoria;
+    nome: string | null;
+    fonte: "relatorio" | "quadro";
+}
+
+/** Função do Relatório (MI, ENF, TE, COND) → categoria da escala. */
+const DO_RELATORIO: Record<string, Categoria> = { MI: "MEDICO", ENF: "ENFERMEIRO", TE: "TECNICO_ENFERMAGEM", COND: "CONDUTOR" };
+
+/** Papel livre do Quadro ("Médico(a)", "TE", "Téc. enf.", "Condutor(a)") → categoria. */
+export function categoriaDoPapel(papel: string): Categoria | null {
+    const p = papel.trim().toLowerCase();
+    if (/^m[eé]d/.test(p)) return "MEDICO";
+    if (/^enf/.test(p)) return "ENFERMEIRO";
+    if (/^(te\b|t[eé]c)/.test(p)) return "TECNICO_ENFERMAGEM";
+    if (/^cond|^motor/.test(p)) return "CONDUTOR";
+    return null;
 }
 
 export interface PessoaEscala {
@@ -32,32 +70,84 @@ export interface PessoaEscala {
 /** "SM-01" → "SM01" (o código do catálogo da frota). */
 export const codigoDoPosto = (c: string) => c.toUpperCase().replace(/[^A-Z0-9]/g, "");
 
-const nomesDe = (ps: readonly PessoaEscala[], categoria: string) =>
-    ps.filter((p) => p.categoria === categoria).map((p) => (p.nomeCurto || p.nome).trim()).filter(Boolean);
-
-/** Pura: o responsável de uma viatura a partir do que Mesa e escala disseram. */
+/**
+ * Pura: o responsável de uma viatura — o médico da USA, o técnico(a) da USB —
+ * pela mesma precedência da equipe (informado > escala). Falta informada sem
+ * substituto: ninguém.
+ */
 export function responsavelDe(
     tipo: "USA" | "USB" | "MOTO" | null,
     codigo: string | null,
     medicosMesa: ReadonlyMap<string, string>,
     escala: ReadonlyMap<string, readonly PessoaEscala[]>,
+    informado: ReadonlyMap<string, readonly Informado[]> = new Map(),
 ): Responsavel | null {
-    if (!codigo) return null;
-    if (tipo === "USA") {
-        const mesa = medicosMesa.get(codigo);
-        if (mesa) return { nome: mesa, funcao: "médico", fonte: "mesa" };
-        const esc = nomesDe(escala.get(codigo) ?? [], "MEDICO");
-        return esc.length ? { nome: esc.join(" + "), funcao: "médico", fonte: "escala" } : null;
-    }
-    if (tipo === "USB") {
-        const esc = nomesDe(escala.get(codigo) ?? [], "TECNICO_ENFERMAGEM");
-        return esc.length ? { nome: esc.join(" + "), funcao: "técnico", fonte: "escala" } : null;
-    }
-    return null;
+    const categoria = tipo === "USA" ? "MEDICO" : tipo === "USB" ? "TECNICO_ENFERMAGEM" : null;
+    if (!categoria) return null;
+    const quem = equipeDe(tipo, codigo, medicosMesa, escala, informado).filter((m) => m.categoria === categoria && m.nome);
+    if (!quem.length) return null;
+    return { nome: quem.map((m) => m.nome).join(" + "), funcao: categoria === "MEDICO" ? "médico" : "técnico", fonte: quem[0].fonte };
 }
 
 let medicos: Map<string, string> = new Map();
 let escala: { em: number; porCodigo: Map<string, PessoaEscala[]> } | null = null;
+let doRelatorio: { em: number; porCodigo: Map<string, Informado[]> } | null = null;
+let doQuadro: { em: number; porCodigo: Map<string, Informado[]> } | null = null;
+
+const juntar = (porCodigo: Map<string, Informado[]>, codigo: string, i: Informado) => {
+    const arr = porCodigo.get(codigo) ?? [];
+    arr.push(i);
+    porCodigo.set(codigo, arr);
+};
+
+/** Relatório da chefia, turno vigente: só linha confirmada ou editada (o resto é a escala). */
+async function lerRelatorio(): Promise<void> {
+    if (!RELATORIO_TOKEN || (doRelatorio && Date.now() - doRelatorio.em < MEMO_MS)) return;
+    const res = await fetch(`${RELATORIO_URL}/api/servicos/equipe`, {
+        headers: { "x-relatorio-token": RELATORIO_TOKEN, Accept: "application/json" },
+        signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) throw new Error(`relatório: HTTP ${res.status}`);
+    const corpo = (await res.json()) as {
+        equipe?: { posto: string; funcao: string; nome: string | null; confirmado: boolean; editado: boolean }[];
+    };
+    const porCodigo = new Map<string, Informado[]>();
+    for (const l of corpo.equipe ?? []) {
+        const categoria = DO_RELATORIO[l.funcao];
+        if (!categoria || !(l.confirmado || l.editado)) continue;
+        juntar(porCodigo, codigoDoPosto(l.posto), { categoria, nome: l.nome?.trim() || null, fonte: "relatorio" });
+    }
+    doRelatorio = { em: Date.now(), porCodigo };
+}
+
+/** Quadro Informativo: equipe digitada/passada para o turno vigente (`doTurno`). */
+async function lerQuadro(): Promise<void> {
+    if (!QUADRO_TOKEN || (doQuadro && Date.now() - doQuadro.em < MEMO_MS)) return;
+    const res = await fetch(`${QUADRO_URL}/api/interno/equipes`, {
+        headers: { "x-quadro-token": QUADRO_TOKEN, Accept: "application/json" },
+        signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) throw new Error(`quadro: HTTP ${res.status}`);
+    const corpo = (await res.json()) as { unidades?: { codigo: string; pessoas: { papel: string; nome: string }[]; doTurno: boolean }[] };
+    const porCodigo = new Map<string, Informado[]>();
+    for (const u of corpo.unidades ?? []) {
+        if (!u.doTurno) continue;
+        for (const p of u.pessoas ?? []) {
+            const categoria = categoriaDoPapel(p.papel);
+            if (categoria && p.nome?.trim()) juntar(porCodigo, codigoDoPosto(u.codigo), { categoria, nome: p.nome.trim(), fonte: "quadro" });
+        }
+    }
+    doQuadro = { em: Date.now(), porCodigo };
+}
+
+/** Relatório e Quadro juntos, por código (a precedência entre eles é do `equipeDe`). */
+function informadoAgora(): Map<string, Informado[]> {
+    const saida = new Map<string, Informado[]>();
+    for (const fonte of [doRelatorio?.porCodigo, doQuadro?.porCodigo]) {
+        for (const [codigo, lista] of fonte ?? []) for (const i of lista) juntar(saida, codigo, i);
+    }
+    return saida;
+}
 
 async function lerEscala(): Promise<Map<string, PessoaEscala[]> | null> {
     if (!TOKEN) return null;
@@ -76,56 +166,79 @@ async function lerEscala(): Promise<Map<string, PessoaEscala[]> | null> {
 
 /** Chamado a cada coleta; falha de uma fonte não apaga o que a outra deu. */
 export async function atualizarEquipe(): Promise<void> {
-    const [mesa, esc] = await Promise.allSettled([mesaAgora(), lerEscala()]);
+    const [mesa, esc, rel, quadro] = await Promise.allSettled([mesaAgora(), lerEscala(), lerRelatorio(), lerQuadro()]);
     if (mesa.status === "fulfilled") medicos = mesa.value?.medicos ?? new Map();
-    if (esc.status === "rejected") throw esc.reason;
-    if (mesa.status === "rejected") throw mesa.reason;
+    for (const r of [esc, mesa, rel, quadro]) if (r.status === "rejected") throw r.reason;
 }
 
 /** Para o painel (síncrono): o que as últimas leituras deram. */
 export function responsavelAgora(tipo: "USA" | "USB" | "MOTO" | null, codigo: string | null): Responsavel | null {
-    return responsavelDe(tipo, codigo, medicos, escala?.porCodigo ?? new Map());
+    return responsavelDe(tipo, codigo, medicos, escala?.porCodigo ?? new Map(), informadoAgora());
 }
 
-const FUNCAO: Record<string, string> = {
+const FUNCAO: Record<Categoria, string> = {
     MEDICO: "Médico(a)",
     ENFERMEIRO: "Enfermeiro(a)",
     TECNICO_ENFERMAGEM: "Técnico(a) de enfermagem",
     CONDUTOR: "Condutor(a)",
 };
-const ORDEM = Object.keys(FUNCAO);
+const ORDEM = Object.keys(FUNCAO) as Categoria[];
 
 export interface MembroEquipe {
-    nome: string;
+    /** `null` = falta informada (Relatório da chefia), sem substituto. */
+    nome: string | null;
+    categoria: string;
     funcao: string;
-    /** mesa = chegada registrada no Plantões; escala = esperado pela escala do turno. */
-    fonte: "mesa" | "escala";
+    fonte: Fonte;
 }
 
 /**
- * Pura: a equipe inteira da viatura no turno (escala), com o médico da Mesa
- * no lugar do esperado quando ele já registrou chegada. Sem fonte, vazia.
+ * Pura: a equipe da viatura no turno, função por função, da fonte mais
+ * confiável que tiver alguém: Relatório (confirmado/editado) > Mesa (só o
+ * médico da USA) > Quadro > escala. Sem fonte, vazia.
  */
 export function equipeDe(
     tipo: "USA" | "USB" | "MOTO" | null,
     codigo: string | null,
     medicosMesa: ReadonlyMap<string, string>,
     escalaPorCodigo: ReadonlyMap<string, readonly PessoaEscala[]>,
+    informado: ReadonlyMap<string, readonly Informado[]> = new Map(),
 ): MembroEquipe[] {
     if (!codigo) return [];
+    const info = informado.get(codigo) ?? [];
+    const esperados = escalaPorCodigo.get(codigo) ?? [];
     const mesa = tipo === "USA" ? medicosMesa.get(codigo) : undefined;
-    const saida: MembroEquipe[] = mesa ? [{ nome: mesa, funcao: FUNCAO.MEDICO, fonte: "mesa" }] : [];
-    const pos = (c: string) => (ORDEM.includes(c) ? ORDEM.indexOf(c) : ORDEM.length);
-    const pessoas = [...(escalaPorCodigo.get(codigo) ?? [])].sort((a, b) => pos(a.categoria) - pos(b.categoria));
-    for (const p of pessoas) {
-        if (mesa && p.categoria === "MEDICO") continue;
-        const nome = (p.nomeCurto || p.nome).trim();
-        if (nome) saida.push({ nome, funcao: FUNCAO[p.categoria] ?? p.categoria.toLowerCase().replace(/_/g, " "), fonte: "escala" });
+    const outras = [...new Set(esperados.map((p) => p.categoria).filter((c) => !ORDEM.includes(c as Categoria)))];
+    const saida: MembroEquipe[] = [];
+    for (const categoria of [...ORDEM, ...outras]) {
+        const funcao = FUNCAO[categoria as Categoria] ?? categoria.toLowerCase().replace(/_/g, " ");
+        const de = (f: "relatorio" | "quadro") => info.filter((i) => i.fonte === f && i.categoria === categoria);
+        const rel = de("relatorio");
+        const quadro = de("quadro");
+        const esc = esperados.filter((p) => p.categoria === categoria).map((p) => (p.nomeCurto || p.nome).trim()).filter(Boolean);
+        const lista: { nome: string | null; fonte: Fonte }[] = rel.length
+            ? rel.map((i) => ({ nome: i.nome, fonte: "relatorio" }))
+            : categoria === "MEDICO" && mesa
+              ? [{ nome: mesa, fonte: "mesa" }]
+              : quadro.length
+                ? quadro.map((i) => ({ nome: i.nome, fonte: "quadro" }))
+                : esc.map((nome) => ({ nome, fonte: "escala" }));
+        // Relatório com quem veio e com falta na mesma função: a falta é da pessoa escalada, quem veio cobre.
+        const comNome = lista.filter((m) => m.nome);
+        for (const m of comNome.length ? comNome : lista) saida.push({ nome: m.nome, categoria, funcao, fonte: m.fonte });
     }
     return saida;
 }
 
-/** Para o detalhe da viatura: equipe e se a escala está ligada (sem ESCALA_TOKEN, só a Mesa). */
-export function equipeAgora(tipo: "USA" | "USB" | "MOTO" | null, codigo: string | null): { escalaLigada: boolean; membros: MembroEquipe[] } {
-    return { escalaLigada: Boolean(TOKEN), membros: equipeDe(tipo, codigo, medicos, escala?.porCodigo ?? new Map()) };
+/** Para o detalhe da viatura: a equipe e quais fontes estão ligadas. */
+export function equipeAgora(tipo: "USA" | "USB" | "MOTO" | null, codigo: string | null): {
+    escalaLigada: boolean;
+    informadoLigado: boolean;
+    membros: MembroEquipe[];
+} {
+    return {
+        escalaLigada: Boolean(TOKEN),
+        informadoLigado: Boolean(RELATORIO_TOKEN || QUADRO_TOKEN),
+        membros: equipeDe(tipo, codigo, medicos, escala?.porCodigo ?? new Map(), informadoAgora()),
+    };
 }
