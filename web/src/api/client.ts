@@ -265,8 +265,8 @@ export const api = {
   getEncaminhamentoConfig: () => request<EncaminhamentoConfig>("/encaminhamento/config"),
 
   getFrota: () => request<PainelFrota>("/frota"),
-  getDetalheViatura: (chave: string, horas: number | null = null) =>
-    request<DetalheViaturaFrota>(`/frota/viaturas/${encodeURIComponent(chave)}${horas ? `?horas=${horas}` : ""}`),
+  getDetalheViatura: (chave: string, minutos: number | null = null) =>
+    request<DetalheViaturaFrota>(`/frota/viaturas/${encodeURIComponent(chave)}${minutos ? `?minutos=${minutos}` : ""}`),
   getLinhaDoTempoFrota: (horas: number) =>
     request<LinhaDoTempoFrota>(`/frota/linha-do-tempo?horas=${horas}`),
 

@@ -1452,10 +1452,10 @@ const isoOuNull = (x: unknown) => (x == null ? null : new Date(x as string).toIS
 /**
  * Detalhe de uma viatura (modal da aba Frota): a ocorrência de agora — ou a
  * última das 3 h, já encerrada —, os status dela, as paradas e o rastro desde
- * a vinculação à ocorrência ou da última hora; `horas` (seletor do modal)
- * volta mais (janelaDoRastro, detalhe.ts). `null` = chave fora do painel.
+ * a vinculação à ocorrência ou da última hora; `minutos` (seletor do modal)
+ * mostra os últimos N minutos (janelaDoRastro, detalhe.ts). `null` = chave fora do painel.
  */
-export async function detalheViatura(chave: string, agora = new Date(), horas: number | null = null) {
+export async function detalheViatura(chave: string, agora = new Date(), minutos: number | null = null) {
     const painel = painelAtual(agora);
     const v = painel.viaturas.find((x) => x.chave === chave);
     if (!v) return null;
@@ -1495,12 +1495,13 @@ export async function detalheViatura(chave: string, agora = new Date(), horas: n
         ocorrencia.statusEm = status.at(-1)!.em.toISOString();
     }
 
-    const janela = janelaDoRastro(ocorrencia, status, agora, horas);
+    const janela = janelaDoRastro(ocorrencia, status, agora, minutos);
     const desde = janela.desde;
     // Fases pelo GPS (fases.ts): precisam do rastro desde a vinculação, mesmo que a janela mostre menos.
     const vinculacao = vinculacaoDa(ocorrencia, status, agora);
     const vinculacaoRecente = vinculacao && agora.getTime() - vinculacao.getTime() <= 12 * 3_600_000 ? vinculacao : null;
-    const desdePosicoes = vinculacaoRecente && vinculacaoRecente < desde ? new Date(vinculacaoRecente.getTime() - 10 * 60_000) : desde;
+    // A linha do tempo cobre ao menos o padrão, mesmo com o seletor nos últimos minutos.
+    const desdePosicoes = new Date(Math.min(desde.getTime(), janela.padrao.getTime(), vinculacaoRecente ? vinculacaoRecente.getTime() - 10 * 60_000 : Infinity));
     const paradas: ParadaDetalhe[] = (
         await consultar(sql`
             SELECT id, hospital_id, entrada, ultima_vez, saida, motivo_fim, alerta_em, na_base

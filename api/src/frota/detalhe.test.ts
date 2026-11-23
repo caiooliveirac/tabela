@@ -9,7 +9,7 @@ import {
 import type { Fases } from "./fases.js";
 
 const t = (hhmm: string) => new Date(`2026-11-22T${hhmm}:00-03:00`);
-const jan = (desde: Date): Janela => ({ desde, padrao: desde, motivo: "vinculacao", horas: null });
+const jan = (desde: Date): Janela => ({ desde, padrao: desde, motivo: "vinculacao", minutos: null });
 const H = LOCAIS_FROTA.find((h) => h.tipo === "hospital")!;
 /** ~10 km ao norte do hospital. */
 const LONGE = { lat: H.lat + 0.09, lng: H.lng };
@@ -176,16 +176,33 @@ test("janela: protocolo repetido de outro dia não puxa a vinculação para trá
     assert.equal(janelaDoRastro({ abertura: null, ativa: true }, status, agora).desde.getTime(), t("05:50").getTime());
 });
 
-test("janela: o seletor volta horas, nunca menos que o padrão nem mais que a retenção", () => {
+test("janela: o seletor mostra os últimos N minutos — menos que o padrão ou até a retenção", () => {
     const agora = t("06:47");
     const o = { abertura: t("02:39").toISOString(), ativa: true };
     const status = [{ status: "DESIGNADA", em: t("03:08") }];
-    const h = (n: number) => agora.getTime() - n * 3_600_000;
-    assert.equal(janelaDoRastro(o, status, agora, 8).desde.getTime(), h(8));
-    assert.equal(janelaDoRastro(o, status, agora, 8).horas, 8);
-    assert.equal(janelaDoRastro(o, status, agora, 1).desde.getTime(), t("03:08").getTime());
-    assert.equal(janelaDoRastro(o, status, agora, 999).desde.getTime(), h(RASTRO_DIAS * 24));
-    assert.equal(janelaDoRastro(null, [], agora, 2).desde.getTime(), h(2));
+    const m = (n: number) => agora.getTime() - n * 60_000;
+    assert.equal(janelaDoRastro(o, status, agora, 480).desde.getTime(), m(480));
+    assert.equal(janelaDoRastro(o, status, agora, 480).minutos, 480);
+    // os últimos 15 min de uma ocorrência de 3h39: menos que o padrão
+    const j = janelaDoRastro(o, status, agora, 15);
+    assert.equal(j.desde.getTime(), m(15));
+    assert.equal(j.padrao.getTime(), t("03:08").getTime());
+    assert.equal(janelaDoRastro(o, status, agora, 99_999).desde.getTime(), m(RASTRO_DIAS * 24 * 60));
+    assert.equal(janelaDoRastro(null, [], agora, 120).desde.getTime(), m(120));
+    assert.equal(janelaDoRastro(o, status, agora).minutos, null);
+});
+
+test("detalhe: com o seletor nos últimos minutos, o rastro encolhe e a linha do tempo segue cobrindo a ocorrência", () => {
+    const agora = t("06:47");
+    const status = [{ status: "DESIGNADA", em: t("03:08") }, { status: "CHEGADA AO HOSPITAL", em: t("04:13") }];
+    const d = montarDetalhe({
+        viatura: viatura({}), ocorrencia: { ...oc("CHEGADA AO HOSPITAL", t("04:13")), ativa: true }, status, paradas: [parada({})],
+        posicoes: [{ em: t("04:20"), lat: H.lat, lng: H.lng }, { em: t("06:40"), ...LONGE }],
+        locais: LOCAIS_FROTA, janela: { desde: t("06:32"), padrao: t("03:08"), motivo: "vinculacao", minutos: 15 }, agora,
+    });
+    assert.equal(d.rastro.length, 1);
+    assert.ok(d.linha.some((e) => e.tipo === "status" && e.em === t("03:08").toISOString()));
+    assert.equal(d.janela.minutos, 15);
 });
 
 test("fim do aviso fora da cerca: status novo, liberada, voltou; mapa mudo segue aberto; sem sinal fecha calado", () => {

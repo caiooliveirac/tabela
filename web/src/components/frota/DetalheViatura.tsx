@@ -10,8 +10,11 @@
 import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
 import type { DetalheViaturaFrota, EstadoLocalizacaoFrota, FaseRastroFrota, FonteEquipeFrota, TempoFaseFrota, TomEventoFrota, ViaturaFrota } from "../../lib/types";
 import { useDetalheViatura } from "../../hooks/useFrota";
+import { useEncaminhamentoConfig } from "../../hooks/useEncaminhamento";
 import { COR, COR_FASE, COR_RASTRO, NOME_FASE, artigo, corRisco, duracao, frase, hora, nomeProprio, textoResponsavel } from "./formato";
 
+// Google Maps (chave e mapId da aba Frota); o Leaflet só sem chave ou se o Google falhar.
+const MapaRastroGoogle = lazy(() => import("./MapaRastroGoogle"));
 const MapaRastro = lazy(() => import("./MapaRastro"));
 
 type Aba = "geral" | "local" | "tempo" | "ocorrencia" | "equipe";
@@ -63,10 +66,29 @@ const quando = (iso: string, ate: string) =>
     ? hora(iso)
     : dataHora(iso);
 
-/** Quanto o seletor volta no rastro (horas). Só entram os que vão além do padrão. */
-const PASSOS_H = [1, 2, 4, 8, 12, 24, 48, 72, 120];
-/** "últimas 8 h", "último dia", "últimos 3 dias". */
-const ultimas = (h: number) => (h < 24 ? `últimas ${h} h` : h === 24 ? "último dia" : `últimos ${h / 24} dias`);
+/**
+ * Escalas do seletor do rastro, como o timeframe de um gráfico de bolsa: o
+ * passo do slider e quantos passos ele tem. Quem olha o rastro quer os últimos
+ * minutos ou horas; dias ficam na escala de 4 h.
+ */
+const ESCALAS = [
+  { id: "5m", nome: "5 min", passo: 5, passos: 24 },
+  { id: "15m", nome: "15 min", passo: 15, passos: 24 },
+  { id: "1h", nome: "1 h", passo: 60, passos: 24 },
+  { id: "4h", nome: "4 h", passo: 240, passos: 30 },
+] as const;
+type EscalaId = (typeof ESCALAS)[number]["id"];
+/** 15 → "15m", 90 → "1h30", 120 → "2h", 2880 → "2d" (rótulo do slider). */
+const curto = (m: number) =>
+  m < 60 ? `${m}m` : m % 1440 === 0 ? `${m / 1440}d` : m % 60 === 0 ? `${m / 60}h` : `${Math.floor(m / 60)}h${String(m % 60).padStart(2, "0")}`;
+/** "últimos 15 min", "última hora", "últimas 6 h", "últimos 1h30", "último dia", "últimos 3 dias". */
+const ultimos = (m: number) =>
+  m < 60 ? `últimos ${m} min`
+  : m === 60 ? "última hora"
+  : m % 60 !== 0 ? `últimos ${curto(m)}`
+  : m === 1440 ? "último dia"
+  : m % 1440 === 0 ? `últimos ${m / 1440} dias`
+  : `últimas ${m / 60} h`;
 
 function Selo({ cor, children }: { cor: string; children: ReactNode }) {
   return (
@@ -164,71 +186,105 @@ function Legenda({ d }: { d: DetalheViaturaFrota }) {
   );
 }
 
-/** Janela do rastro: o seletor que volta no tempo (padrão à direita, até a retenção à esquerda). */
+/** Janela do rastro: escala (5 min … 4 h) + slider dos últimos N minutos; "ocorrência" volta ao padrão. */
 export interface JanelaRastro {
-  horas: number | null;
-  onHoras: (h: number | null) => void;
+  minutos: number | null;
+  onMinutos: (m: number | null) => void;
   carregando: boolean;
 }
 
 function SeletorRastro({ d, j }: { d: DetalheViaturaFrota; j: JanelaRastro }) {
-  const { horas, onHoras } = j;
+  const { minutos, onMinutos } = j;
   const ate = Date.parse(d.janela.ate);
-  const padrao = Date.parse(d.janela.padrao);
-  const opcoes: (number | null)[] = [...PASSOS_H.filter((h) => h <= d.janela.maxHoras && ate - h * 3_600_000 < padrao).reverse(), null];
-  const [pendente, setPendente] = useState<number | null>(horas);
-  useEffect(() => setPendente(horas), [horas]);
+  const padraoMin = Math.max(1, Math.round((ate - Date.parse(d.janela.padrao)) / 60_000));
+  const [escalaId, setEscalaId] = useState<EscalaId>("5m");
+  const escala = ESCALAS.find((e) => e.id === escalaId)!;
+  const n = Math.max(1, Math.min(escala.passos, Math.floor(d.janela.maxMinutos / escala.passo)));
+  const [pendente, setPendente] = useState<number | null>(minutos);
+  useEffect(() => setPendente(minutos), [minutos]);
   // Arrastar não pede a cada passo: pede quando para.
   useEffect(() => {
-    if (pendente === horas) return;
-    const t = window.setTimeout(() => onHoras(pendente), 350);
+    if (pendente === minutos) return;
+    const t = window.setTimeout(() => onMinutos(pendente), 350);
     return () => window.clearTimeout(t);
-  }, [pendente, horas, onHoras]);
-  if (opcoes.length < 2) return null;
-  const i = opcoes.indexOf(pendente);
-  const pos = i >= 0 ? i : opcoes.length - 1;
-  const desde = pendente === null ? d.janela.padrao : new Date(ate - pendente * 3_600_000).toISOString();
-  const nomePadrao = d.janela.motivo === "vinculacao" ? "ocorrência" : "1 h";
+  }, [pendente, minutos, onMinutos]);
+  // k passos para trás: k = n na ponta esquerda (o mais antigo), 1 na direita (agora).
+  const passosDe = (m: number) => Math.min(n, Math.max(1, Math.round(m / escala.passo)));
+  const k = passosDe(pendente ?? padraoMin);
+  const trocarEscala = (id: EscalaId) => {
+    const e = ESCALAS.find((x) => x.id === id)!;
+    const ne = Math.max(1, Math.min(e.passos, Math.floor(d.janela.maxMinutos / e.passo)));
+    setEscalaId(id);
+    if (pendente !== null) setPendente(Math.min(ne, Math.max(1, Math.round(pendente / e.passo))) * e.passo);
+  };
+  const desde = pendente === null ? d.janela.padrao : new Date(ate - pendente * 60_000).toISOString();
+  const nomePadrao = d.janela.motivo === "vinculacao" ? "ocorrência" : "última hora";
   const texto =
     pendente === null
       ? d.janela.motivo === "vinculacao"
         ? `desde ${quando(desde, d.janela.ate)}, quando foi vinculada à ocorrência${d.ocorrencia?.protocolo ? ` ${d.ocorrencia.protocolo}` : ""}`
         : `última hora, desde ${quando(desde, d.janela.ate)}`
-      : `${ultimas(pendente)}, desde ${quando(desde, d.janela.ate)}`;
+      : `${ultimos(pendente)}, desde ${quando(desde, d.janela.ate)}`;
+  // Cinco marcas sob o slider: as pontas e três no meio.
+  const marcas = [...new Set([n, Math.round((n * 3) / 4), Math.round(n / 2), Math.round(n / 4), 1].filter((x) => x >= 1))];
   return (
     <div className="mb-2">
       <div className="flex items-baseline justify-between gap-2 text-[12px]">
         <span className="font-bold text-slate-800">Rastro: {texto}</span>
-        <span className="shrink-0 text-[11px] text-slate-400">
-          {j.carregando ? "carregando…" : `${d.rastro.length} posições`}
-          {pendente !== null && (
-            <button onClick={() => setPendente(null)} className="ml-2 font-bold text-sky-700 bg-transparent border-none cursor-pointer p-0 text-[11px]">
-              voltar ao padrão
-            </button>
-          )}
-        </span>
+        <span className="shrink-0 text-[11px] text-slate-400">{j.carregando ? "carregando…" : `${d.rastro.length} posições`}</span>
       </div>
-      <input
-        type="range"
-        min={0}
-        max={opcoes.length - 1}
-        step={1}
-        value={pos}
-        onChange={(e) => setPendente(opcoes[Number(e.target.value)])}
-        aria-label="Voltar no tempo do rastro"
-        aria-valuetext={texto}
-        className="w-full cursor-pointer accent-slate-700"
-      />
-      <div className="flex justify-between text-[10px] text-slate-400 tabular-nums select-none">
-        {opcoes.map((h, k) => (
-          <button
-            key={h ?? "padrao"}
-            onClick={() => setPendente(h)}
-            className={`bg-transparent border-none p-0 cursor-pointer text-[10px] ${k === pos ? "font-black text-slate-800" : "text-slate-400"}`}
-          >
-            {h === null ? nomePadrao : h < 24 ? `${h}h` : `${h / 24}d`}
-          </button>
-        ))}
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1">
+        <div role="radiogroup" aria-label="Escala do seletor" className="inline-flex shrink-0 rounded-md border border-slate-200 overflow-hidden">
+          {ESCALAS.map((e) => (
+            <button
+              key={e.id}
+              role="radio"
+              aria-checked={e.id === escalaId}
+              onClick={() => trocarEscala(e.id)}
+              className={`px-2 py-[3px] text-[11px] font-bold border-none cursor-pointer tabular-nums ${
+                e.id === escalaId ? "bg-slate-800 text-white" : "bg-white text-slate-600 hover:bg-slate-100"
+              }`}
+            >
+              {e.nome}
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={() => setPendente(null)}
+          aria-pressed={pendente === null}
+          className={`shrink-0 px-2 py-[3px] rounded-md text-[11px] font-bold cursor-pointer border ${
+            pendente === null ? "bg-sky-700 border-sky-700 text-white" : "bg-white border-slate-200 text-sky-700 hover:bg-sky-50"
+          }`}
+        >
+          {nomePadrao}
+        </button>
+        <div className="flex-1 min-w-[180px]">
+          <input
+            type="range"
+            min={0}
+            max={n - 1}
+            step={1}
+            value={n - k}
+            onChange={(e) => setPendente((n - Number(e.target.value)) * escala.passo)}
+            aria-label="Últimos minutos do rastro"
+            aria-valuetext={texto}
+            className="block w-full cursor-pointer accent-slate-700"
+          />
+          <div className="relative h-[14px] text-[10px] text-slate-400 tabular-nums select-none">
+            {marcas.map((x) => (
+              <button
+                key={x}
+                onClick={() => setPendente(x * escala.passo)}
+                style={{ left: `${n === 1 ? 50 : ((n - x) / (n - 1)) * 100}%` }}
+                className={`absolute -translate-x-1/2 bg-transparent border-none p-0 cursor-pointer text-[10px] ${
+                  pendente === x * escala.passo ? "font-black text-slate-800" : "text-slate-400"
+                }`}
+              >
+                {curto(x * escala.passo)}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -273,11 +329,28 @@ function TemposFases({ d }: { d: DetalheViaturaFrota }) {
 }
 
 function Mapa({ d, j, alto }: { d: DetalheViaturaFrota; j: JanelaRastro; alto?: boolean }) {
+  const { data: cfg, isError } = useEncaminhamentoConfig();
+  const [googleFalhou, setGoogleFalhou] = useState(false);
+  const mapsKey = googleFalhou ? null : (cfg?.mapsKey ?? null);
+  const fundo = <div className={`w-full ${alto ? "h-[46vh] min-h-[320px]" : "h-[260px]"} rounded-lg border border-slate-200 bg-slate-50`} />;
   return (
     <>
       <SeletorRastro d={d} j={j} />
-      <Suspense fallback={<div className={`w-full ${alto ? "h-[46vh]" : "h-[260px]"} rounded-lg border border-slate-200 bg-slate-50`} />}>
-        <MapaRastro detalhe={d} alto={alto} enquadrar={j.horas} />
+      <Suspense fallback={fundo}>
+        {mapsKey ? (
+          <MapaRastroGoogle
+            detalhe={d}
+            mapsKey={mapsKey}
+            mapId={cfg?.mapId ?? "DEMO_MAP_ID"}
+            alto={alto}
+            enquadrar={j.minutos}
+            onFalha={() => setGoogleFalhou(true)}
+          />
+        ) : cfg || isError || googleFalhou ? (
+          <MapaRastro detalhe={d} alto={alto} enquadrar={j.minutos} />
+        ) : (
+          fundo
+        )}
       </Suspense>
     </>
   );
@@ -487,7 +560,7 @@ function Conteudo({ d, j, aba, setAba, onVerNoMapa }: { d: DetalheViaturaFrota; 
               ["Cerca", d.destino
                 ? `${d.limites.raioM} m do prédio${d.destino.pontos.length ? ` e de ${d.destino.pontos.length} estacionamento(s)/porta(s)` : ""}; sai a ${d.limites.raioSaidaM} m`
                 : "—"],
-              ["Fonte GPS", <>SAMU+ <span className="text-slate-500 text-[11px]">(tablet da viatura, cerca de uma posição por minuto; guardado por {Math.round(d.janela.maxHoras / 24)} dias)</span></>],
+              ["Fonte GPS", <>SAMU+ <span className="text-slate-500 text-[11px]">(tablet da viatura, cerca de uma posição por minuto; guardado por {Math.round(d.janela.maxMinutos / 1440)} dias)</span></>],
               ["Rastro", d.rastro.length ? `${d.rastro.length} posições desde ${quando(d.rastro[0].em, d.janela.ate)}` : "Sem posições guardadas na janela"],
               ["Local (GPS)", d.fases?.local
                 ? `${hora(d.fases.local.inicio)}${d.fases.local.aberta ? " · ainda lá" : `–${hora(d.fases.local.fim)}`} · ${duracao(d.fases.local.minutos)}` +
@@ -582,12 +655,12 @@ interface Props {
 }
 
 export default function DetalheViatura({ chave, onClose, onVerNoMapa }: Props) {
-  const [horas, setHoras] = useState<number | null>(null);
-  const { data: d, isLoading, error, isPlaceholderData } = useDetalheViatura(chave, horas);
+  const [minutos, setMinutos] = useState<number | null>(null);
+  const { data: d, isLoading, error, isPlaceholderData } = useDetalheViatura(chave, minutos);
   const [aba, setAba] = useState<Aba>("geral");
   useEffect(() => {
     setAba("geral");
-    setHoras(null);
+    setMinutos(null);
   }, [chave]);
   useEffect(() => {
     if (!chave) return;
@@ -644,7 +717,7 @@ export default function DetalheViatura({ chave, onClose, onVerNoMapa }: Props) {
         {/* ── Corpo ── */}
         <div className="flex-1 overflow-y-auto px-4 sm:px-5 py-4 flex flex-col gap-3">
           {d ? (
-            <Conteudo d={d} j={{ horas, onHoras: setHoras, carregando: isPlaceholderData }} aba={aba} setAba={setAba} onVerNoMapa={verNoMapa} />
+            <Conteudo d={d} j={{ minutos, onMinutos: setMinutos, carregando: isPlaceholderData }} aba={aba} setAba={setAba} onVerNoMapa={verNoMapa} />
           ) : (
             <div className="text-[13px] text-slate-500 py-10 text-center">
               {isLoading ? "Carregando o detalhe da viatura…" : `Detalhe indisponível: ${error?.message ?? "sem resposta"}`}

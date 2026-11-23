@@ -576,9 +576,9 @@ export interface DetalheViaturaFrota {
     /** Começo padrão: vinculação à ocorrência ou a última hora. */
     padrao: string;
     motivo: "vinculacao" | "ultima-hora";
-    /** Horas pedidas pelo seletor (null = padrão) e o máximo que ele volta (retenção do rastro). */
-    horas: number | null;
-    maxHoras: number;
+    /** Minutos pedidos pelo seletor (null = padrão) e o máximo que ele volta (retenção do rastro). */
+    minutos: number | null;
+    maxMinutos: number;
   };
   limites: { raioM: number; raioSaidaM: number; alertaMin: number; foraCercaMin: number };
 }

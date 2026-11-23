@@ -1,7 +1,7 @@
 // Cores e textos da aba Frota. Cor carrega estado: verde/âmbar é a idade da
 // posição (a mesma régua do painel de destino), azul é "parada em hospital",
 // vermelho é só o alerta de 40 min. Violeta é "em ocorrência" (mapa de equipes).
-import type { FaseRastroFrota, ViaturaFrota } from "../../lib/types";
+import type { DetalheViaturaFrota, FaseRastroFrota, ViaturaFrota } from "../../lib/types";
 
 export const COR = {
   recente: "#16a34a",
@@ -39,6 +39,15 @@ export const COR_FASE: Record<FaseRastroFrota, string> = {
   retorno: COR.livre,
   depois: "#94a3b8",
 };
+/** Cor de um ponto do rastro (os dois mapas do detalhe: Google e a reserva Leaflet). */
+export function corDoPonto(d: DetalheViaturaFrota, p: DetalheViaturaFrota["rastro"][number]): string {
+  if (p.fase) return p.fase === "retorno" && d.localizacao.estado === "fora-da-cerca" ? COR_RASTRO.foraAlerta : COR_FASE[p.fase];
+  if (d.destino && p.local === d.destino.id) return COR_RASTRO.dentro;
+  const saiu = d.localizacao.saiuEm ?? d.permanencia?.saida ?? null;
+  if (saiu && p.em > saiu) return d.localizacao.estado === "fora-da-cerca" ? COR_RASTRO.foraAlerta : COR_RASTRO.fora;
+  return COR_RASTRO.caminho;
+}
+
 export const NOME_FASE: Record<FaseRastroFrota, string> = {
   antes: "antes da ocorrência",
   resposta: "até o local",

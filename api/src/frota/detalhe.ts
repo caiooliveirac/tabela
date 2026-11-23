@@ -258,9 +258,9 @@ export interface DetalheMontado {
         /** O começo padrão: vinculação à ocorrência ou a última hora. */
         padrao: string;
         motivo: MotivoJanela;
-        /** Quantas horas o seletor pediu (null = padrão) e o máximo que ele volta. */
-        horas: number | null;
-        maxHoras: number;
+        /** Quantos minutos o seletor pediu (null = padrão) e o máximo que ele volta. */
+        minutos: number | null;
+        maxMinutos: number;
     };
     limites: { raioM: number; raioSaidaM: number; alertaMin: number; foraCercaMin: number };
 }
@@ -271,14 +271,15 @@ export interface Janela {
     desde: Date;
     padrao: Date;
     motivo: MotivoJanela;
-    horas: number | null;
+    minutos: number | null;
 }
 
 /**
- * Desde quando olhar o rastro e a linha do tempo. Padrão: em ocorrência, a
- * hora em que a viatura foi vinculada a ela (o primeiro status dela nesta
- * ocorrência); fora de ocorrência, a última hora. `horas` (seletor do modal)
- * volta mais, até RASTRO_DIAS — nunca menos que o padrão.
+ * Desde quando olhar o rastro. Padrão: em ocorrência, a hora em que a viatura
+ * foi vinculada a ela (o primeiro status dela nesta ocorrência); fora de
+ * ocorrência, a última hora. `minutos` (seletor do modal, em passos de 5 min
+ * a 4 h) mostra os últimos N minutos — menos que o padrão ou até RASTRO_DIAS.
+ * A linha do tempo cobre sempre ao menos o padrão (montarDetalhe).
  *
  * O protocolo tem 4 dígitos e recomeça todo dia: a mesma viatura e o mesmo
  * número juntam status de dias diferentes. Status de antes da abertura (ou,
@@ -288,15 +289,15 @@ export function janelaDoRastro(
     ocorrencia: (Pick<Ocorrencia, "abertura"> & { ativa: boolean }) | null,
     status: readonly StatusDetalhe[],
     agora: Date,
-    horas: number | null = null,
+    minutos: number | null = null,
 ): Janela {
     const minimo = agora.getTime() - RASTRO_DIAS * 24 * 3_600_000;
     const v = ocorrencia?.ativa ? vinculacaoDa(ocorrencia, status, agora) : null;
     const vinculo = v ? v.getTime() : NaN;
     const motivo: MotivoJanela = Number.isNaN(vinculo) ? "ultima-hora" : "vinculacao";
     const padrao = Math.max(minimo, motivo === "vinculacao" ? vinculo : agora.getTime() - JANELA_LIVRE_MIN * MIN);
-    const pedido = horas && horas > 0 ? Math.max(minimo, agora.getTime() - horas * 3_600_000) : padrao;
-    return { desde: new Date(Math.min(padrao, pedido)), padrao: new Date(padrao), motivo, horas: horas && horas > 0 ? horas : null };
+    const pedido = minutos && minutos > 0 ? Math.max(minimo, agora.getTime() - minutos * MIN) : null;
+    return { desde: new Date(pedido ?? padrao), padrao: new Date(padrao), motivo, minutos: pedido === null ? null : minutos };
 }
 
 /**
@@ -458,11 +459,13 @@ export function montarDetalhe(e: {
     }
 
     // ── Linha do tempo: status da equipe + o que o GPS viu ──
+    // Cobre sempre ao menos o padrão (a ocorrência): o seletor estreita o rastro, não a linha.
+    const desdeLinha = Math.min(e.janela.desde.getTime(), e.janela.padrao.getTime());
     const linha: EventoLinha[] = [];
     // Ocorrência em curso: a abertura abre a linha mesmo antes da vinculação (dá o
     // tempo até designar). Encerrada, a abertura guardada pode ser de outro dia
     // (protocolo repetido): só dentro da janela.
-    const desdeAbertura = oc?.ativa ? Math.min(e.janela.desde.getTime(), agora.getTime() - 24 * 3_600_000) : e.janela.desde.getTime();
+    const desdeAbertura = oc?.ativa ? Math.min(desdeLinha, agora.getTime() - 24 * 3_600_000) : desdeLinha;
     if (oc?.abertura && Date.parse(oc.abertura) >= desdeAbertura) {
         linha.push({
             em: oc.abertura,
@@ -489,7 +492,7 @@ export function montarDetalhe(e: {
     for (const p of paradas) {
         const nome = nomeLocal(p.hospitalId);
         const de = `d${artigo(nome)} ${nome}`;
-        if (p.entrada.getTime() >= e.janela.desde.getTime()) {
+        if (p.entrada.getTime() >= desdeLinha) {
             linha.push({
                 em: p.entrada.toISOString(),
                 tipo: "entrou",
@@ -547,7 +550,7 @@ export function montarDetalhe(e: {
               chegadaUnidade: reg(NO_HOSPITAL), saidaUnidade: reg(/SA[IÍ]DA DO HOSPITAL/),
           }
         : null;
-    const naJanela = (d: Date) => d.getTime() >= e.janela.desde.getTime();
+    const naJanela = (d: Date) => d.getTime() >= desdeLinha;
     const perto = (tipo: EventoLinha["tipo"], d: Date) => linha.some((x) => x.tipo === tipo && Math.abs(Date.parse(x.em) - d.getTime()) <= 3 * MIN);
     const apertou = (gps: Date, r: Date | null) => {
         if (!r) return "";
@@ -618,7 +621,7 @@ export function montarDetalhe(e: {
     }
     // Status e paradas de antes da janela (carregados para as fases) ficam fora; a abertura tem regra própria.
     for (let i = linha.length - 1; i >= 0; i--) {
-        if (linha[i].tipo !== "abertura" && Date.parse(linha[i].em) < e.janela.desde.getTime()) linha.splice(i, 1);
+        if (linha[i].tipo !== "abertura" && Date.parse(linha[i].em) < desdeLinha) linha.splice(i, 1);
     }
     linha.sort((a, b) => Date.parse(a.em) - Date.parse(b.em));
 
@@ -681,8 +684,8 @@ export function montarDetalhe(e: {
             ate: agora.toISOString(),
             padrao: e.janela.padrao.toISOString(),
             motivo: e.janela.motivo,
-            horas: e.janela.horas,
-            maxHoras: RASTRO_DIAS * 24,
+            minutos: e.janela.minutos,
+            maxMinutos: RASTRO_DIAS * 24 * 60,
         },
         limites: { raioM: RAIO_M, raioSaidaM: RAIO_SAIDA_M, alertaMin: ALERTA_MIN, foraCercaMin: FORA_CERCA_MIN },
     };

@@ -1,5 +1,6 @@
 // ═══════════════════════════════════════════════════════════════
-// Mapa do detalhe da viatura: a cerca do hospital (150 m do prédio e de cada
+// RESERVA do mapa do detalhe (sem chave do Google ou se ele falhar; o
+// principal é MapaRastroGoogle.tsx). Mapa do detalhe da viatura: a cerca do hospital (150 m do prédio e de cada
 // estacionamento aprendido), o rastro do GPS da janela escolhida no modal
 // (vinculação à ocorrência ou última hora, até dias atrás) e a posição atual. Leaflet + OpenStreetMap, como o mapa do Destino: sem
 // chave no navegador.
@@ -13,7 +14,7 @@ import { useEffect, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { DetalheViaturaFrota } from "../../lib/types";
-import { COR, COR_FASE, COR_RASTRO, hora } from "./formato";
+import { COR, COR_FASE, corDoPonto, hora } from "./formato";
 
 interface Props {
   detalhe: DetalheViaturaFrota;
@@ -24,14 +25,6 @@ interface Props {
 
 const DIA = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", timeZone: "America/Bahia" });
 const dia = (iso: string) => DIA.format(new Date(iso));
-
-function corDoPonto(d: DetalheViaturaFrota, p: DetalheViaturaFrota["rastro"][number]): string {
-  if (p.fase) return p.fase === "retorno" && d.localizacao.estado === "fora-da-cerca" ? COR_RASTRO.foraAlerta : COR_FASE[p.fase];
-  if (d.destino && p.local === d.destino.id) return COR_RASTRO.dentro;
-  const saiu = d.localizacao.saiuEm ?? d.permanencia?.saida ?? null;
-  if (saiu && p.em > saiu) return d.localizacao.estado === "fora-da-cerca" ? COR_RASTRO.foraAlerta : COR_RASTRO.fora;
-  return COR_RASTRO.caminho;
-}
 
 export default function MapaRastro({ detalhe, alto = false, enquadrar = null }: Props) {
   const div = useRef<HTMLDivElement>(null);

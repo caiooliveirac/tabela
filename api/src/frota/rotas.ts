@@ -177,10 +177,12 @@ router.get("/viaturas/:chave", async (req, res) => {
         res.status(400).json({ error: "chave inválida" });
         return;
     }
-    // ?horas=N: o seletor do modal voltando no rastro (até RASTRO_DIAS); sem ele, a janela padrão.
-    const horas = Number(req.query.horas);
+    // ?minutos=N: o seletor do modal (últimos N minutos, até RASTRO_DIAS); sem ele, a janela padrão.
+    // ?horas=N ainda vale (aba aberta antes do deploy).
+    const pedido = req.query.minutos !== undefined ? Number(req.query.minutos) : Number(req.query.horas) * 60;
+    const minutos = Number.isInteger(pedido) && pedido > 0 && pedido <= RASTRO_DIAS * 24 * 60 ? pedido : null;
     try {
-        const d = await detalheViatura(chave, new Date(), Number.isInteger(horas) && horas > 0 && horas <= RASTRO_DIAS * 24 ? horas : null);
+        const d = await detalheViatura(chave, new Date(), minutos);
         if (!d) {
             res.status(404).json({ error: "viatura fora do painel" });
             return;
