@@ -14,25 +14,28 @@ import { useEffect, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { DetalheViaturaFrota } from "../../lib/types";
-import { COR, COR_FASE, corDoPonto, hora } from "./formato";
+import { COR, COR_FASE, NOME_FASE, corDoPonto, hora, horaSeg } from "./formato";
 
 interface Props {
   detalhe: DetalheViaturaFrota;
   alto?: boolean;
   /** Muda quando a pessoa escolhe outra janela no seletor: o mapa reenquadra o rastro novo. */
   enquadrar?: number | null;
+  /** Ponto sob o cursor do slider ("ocorrência"): marcado com a hora exata. */
+  cursor?: DetalheViaturaFrota["rastro"][number] | null;
 }
 
 const DIA = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", timeZone: "America/Bahia" });
 const dia = (iso: string) => DIA.format(new Date(iso));
 
-export default function MapaRastro({ detalhe, alto = false, enquadrar = null }: Props) {
+export default function MapaRastro({ detalhe, alto = false, enquadrar = null, cursor = null }: Props) {
   const div = useRef<HTMLDivElement>(null);
   const mapa = useRef<L.Map | null>(null);
   const camada = useRef<L.LayerGroup | null>(null);
   // Dias de rastro são milhares de pontos: canvas, não um elemento SVG por ponto.
   const canvas = useRef<L.Canvas | null>(null);
   const enquadrado = useRef(false);
+  const marcaCursor = useRef<L.CircleMarker | null>(null);
 
   useEffect(() => {
     if (!div.current || mapa.current) return;
@@ -52,6 +55,7 @@ export default function MapaRastro({ detalhe, alto = false, enquadrar = null }: 
       mapa.current = null;
       camada.current = null;
       canvas.current = null;
+      marcaCursor.current = null;
       enquadrado.current = false;
     };
   }, []);
@@ -161,6 +165,29 @@ export default function MapaRastro({ detalhe, alto = false, enquadrar = null }: 
       enquadrado.current = true;
     }
   }, [detalhe]);
+
+  // O cursor do slider: só este marcador anda a cada arraste.
+  useEffect(() => {
+    const m = mapa.current;
+    if (!m) return;
+    if (!cursor) {
+      marcaCursor.current?.remove();
+      marcaCursor.current = null;
+      return;
+    }
+    const ll: L.LatLngExpression = [cursor.lat, cursor.lng];
+    const texto = `${horaSeg(cursor.em)}${cursor.fase ? ` · ${NOME_FASE[cursor.fase]}` : ""}`;
+    const cor = corDoPonto(detalhe, cursor);
+    if (!marcaCursor.current) {
+      marcaCursor.current = L.circleMarker(ll, { radius: 9, color: cor, weight: 4, fillColor: "#fff", fillOpacity: 1 })
+        .bindTooltip(texto, { permanent: true, direction: "top", offset: [0, -10], className: "rastro-rotulo" })
+        .addTo(m);
+    } else {
+      marcaCursor.current.setLatLng(ll).setStyle({ color: cor }).setTooltipContent(texto);
+      marcaCursor.current.bringToFront();
+    }
+    if (!m.getBounds().contains(ll)) m.panTo(ll);
+  }, [cursor, detalhe]);
 
   return (
     <div

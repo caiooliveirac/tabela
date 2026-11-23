@@ -153,11 +153,13 @@ porteiro libera `/tabela/api/frota/*`).
   5 dias (`RASTRO_DIAS`; limpa junto do aprendizado, a cada 30 min).
 - **Janela do modal** (`janelaDoRastro`): em ocorrência, desde a vinculação
   da viatura a ela (o primeiro status dela nesta ocorrência); fora de
-  ocorrência, a última hora. O seletor do modal é como o timeframe de um
-  gráfico de bolsa: escala 5 min (até 2 h), 15 min (até 6 h), 1 h (até 24 h)
-  ou 4 h (até 5 dias) e o slider dos últimos N minutos naquela escala
-  (`?minutos=N`; `?horas=N` ainda vale) — pode ser menos que o padrão. O
-  seletor estreita o rastro; a linha do tempo cobre sempre ao menos o padrão. O protocolo tem 4 dígitos e recomeça todo dia, e `frota_ocorrencias`
+  ocorrência, a última hora. Seletor do modal: em "ocorrência" (o padrão) o
+  slider é um cursor ponto a ponto, com a hora exata de cada posição marcada
+  no mapa (só no navegador, sem chamar a API); numa escala, como o timeframe
+  de um gráfico de bolsa — 5 min (até 2 h), 15 min (até 6 h), 1 h (até 24 h)
+  ou 4 h (até 5 dias) — o slider dá os últimos N minutos (`?minutos=N`;
+  `?horas=N` ainda vale), que podem ser menos que o padrão. O seletor estreita
+  o rastro; a linha do tempo cobre sempre ao menos o padrão. O protocolo tem 4 dígitos e recomeça todo dia, e `frota_ocorrencias`
   é única por (chave, protocolo): status de antes da abertura é de outra
   ocorrência e não conta para a vinculação. Acolhimentos só cruza as paradas
   das últimas 24 h, por mais que o seletor volte.

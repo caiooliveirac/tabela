@@ -10,7 +10,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { DetalheViaturaFrota } from "../../lib/types";
 import { garantirGoogleMaps } from "../../lib/googleMaps";
-import { COR, COR_FASE, NOME_FASE, corDoPonto, hora } from "./formato";
+import { COR, COR_FASE, NOME_FASE, corDoPonto, hora, horaSeg } from "./formato";
 
 interface Props {
   detalhe: DetalheViaturaFrota;
@@ -19,6 +19,8 @@ interface Props {
   alto?: boolean;
   /** Muda quando a pessoa escolhe outra janela no seletor: o mapa reenquadra o rastro novo. */
   enquadrar?: number | null;
+  /** Ponto sob o cursor do slider ("ocorrência"): marcado com a hora exata. */
+  cursor?: DetalheViaturaFrota["rastro"][number] | null;
   onFalha: () => void;
 }
 
@@ -42,11 +44,12 @@ function etiqueta(texto: string, distancia = 10): HTMLElement {
   return el;
 }
 
-export default function MapaRastroGoogle({ detalhe, mapsKey, mapId, alto = false, enquadrar = null, onFalha }: Props) {
+export default function MapaRastroGoogle({ detalhe, mapsKey, mapId, alto = false, enquadrar = null, cursor = null, onFalha }: Props) {
   const div = useRef<HTMLDivElement>(null);
   const mapa = useRef<google.maps.Map | null>(null);
   const objetos = useRef<Objeto[]>([]);
   const dica = useRef<google.maps.marker.AdvancedMarkerElement | null>(null);
+  const marcaCursor = useRef<google.maps.marker.AdvancedMarkerElement | null>(null);
   const enquadrado = useRef(false);
   const [pronto, setPronto] = useState(false);
   const aoFalhar = useRef(onFalha);
@@ -86,6 +89,7 @@ export default function MapaRastroGoogle({ detalhe, mapsKey, mapId, alto = false
       for (const o of objetos.current) limpar(o);
       objetos.current = [];
       if (dica.current) dica.current.map = null;
+      if (marcaCursor.current) marcaCursor.current.map = null;
       mapa.current = null;
     };
   }, [mapsKey, mapId]);
@@ -213,6 +217,29 @@ export default function MapaRastroGoogle({ detalhe, mapsKey, mapId, alto = false
       enquadrado.current = true;
     }
   }, [detalhe, pronto]);
+
+  // O cursor do slider: só este marcador anda a cada arraste (o rastro não é redesenhado).
+  useEffect(() => {
+    const m = mapa.current;
+    if (!pronto || !m) return;
+    if (!cursor) {
+      if (marcaCursor.current) marcaCursor.current.map = null;
+      return;
+    }
+    if (!marcaCursor.current) marcaCursor.current = new google.maps.marker.AdvancedMarkerElement({ zIndex: 80 });
+    const cor = corDoPonto(detalhe, cursor);
+    const el = document.createElement("div");
+    el.style.cssText = "display:flex;flex-direction:column;align-items:center;transform:translateY(9px)";
+    el.append(etiqueta(`${horaSeg(cursor.em)}${cursor.fase ? ` · ${NOME_FASE[cursor.fase]}` : ""}`, 4));
+    const anel = document.createElement("div");
+    anel.style.cssText = `width:18px;height:18px;border-radius:50%;box-sizing:border-box;border:4px solid ${cor};background:#fff;box-shadow:0 0 0 2px #fff,0 1px 4px rgba(15,23,42,.45)`;
+    el.append(anel);
+    const pos = { lat: cursor.lat, lng: cursor.lng };
+    marcaCursor.current.position = pos;
+    marcaCursor.current.content = el;
+    marcaCursor.current.map = m;
+    if (!m.getBounds()?.contains(pos)) m.panTo(pos);
+  }, [cursor, pronto, detalhe]);
 
   return (
     <div

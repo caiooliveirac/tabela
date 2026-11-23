@@ -147,6 +147,13 @@ export function hora(iso: string): string {
   return HORA.format(new Date(iso));
 }
 
+const HORA_SEG = new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "America/Bahia" });
+
+/** "10:41:12": a hora exata de um ponto (cursor do rastro, linha do tempo). */
+export function horaSeg(iso: string): string {
+  return HORA_SEG.format(new Date(iso));
+}
+
 export function ha(iso: string | null, agora = Date.now()): string {
   if (!iso) return "nunca";
   const s = Math.max(0, Math.round((agora - new Date(iso).getTime()) / 1000));

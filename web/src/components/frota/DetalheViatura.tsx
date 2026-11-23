@@ -11,7 +11,7 @@ import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
 import type { DetalheViaturaFrota, EstadoLocalizacaoFrota, FaseRastroFrota, FonteEquipeFrota, TempoFaseFrota, TomEventoFrota, ViaturaFrota } from "../../lib/types";
 import { useDetalheViatura } from "../../hooks/useFrota";
 import { useEncaminhamentoConfig } from "../../hooks/useEncaminhamento";
-import { COR, COR_FASE, COR_RASTRO, NOME_FASE, artigo, corRisco, duracao, frase, hora, nomeProprio, textoResponsavel } from "./formato";
+import { COR, COR_FASE, COR_RASTRO, NOME_FASE, artigo, corRisco, duracao, frase, hora, horaSeg, nomeProprio, textoResponsavel } from "./formato";
 
 // Google Maps (chave e mapId da aba Frota); o Leaflet só sem chave ou se o Google falhar.
 const MapaRastroGoogle = lazy(() => import("./MapaRastroGoogle"));
@@ -54,8 +54,6 @@ const COR_TOM: Record<TomEventoFrota, string> = {
   critico: COR.alerta,
 };
 
-const horaSeg = (iso: string) =>
-  new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "America/Bahia" });
 const dataHora = (iso: string) =>
   new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", timeZone: "America/Bahia" });
 const minEntre = (a: string, b: string) => Math.max(0, Math.round((Date.parse(b) - Date.parse(a)) / 60_000));
@@ -187,104 +185,199 @@ function Legenda({ d }: { d: DetalheViaturaFrota }) {
   );
 }
 
-/** Janela do rastro: escala (5 min … 4 h) + slider dos últimos N minutos; "ocorrência" volta ao padrão. */
+/**
+ * Janela do rastro. "ocorrência" (o padrão): o rastro desde a vinculação e o
+ * slider como cursor ponto a ponto, com a hora exata de cada posição. Uma
+ * escala (5 min … 4 h, como o timeframe de um gráfico de bolsa): o slider
+ * escolhe os últimos N minutos.
+ */
 export interface JanelaRastro {
   minutos: number | null;
   onMinutos: (m: number | null) => void;
+  /** Ponto sob o cursor (hora do ponto); null = o último, acompanhando ao vivo. */
+  cursor: string | null;
+  onCursor: (em: string | null) => void;
   carregando: boolean;
 }
 
+/** O ponto do rastro sob o cursor; null fora do modo "ocorrência" ou sem pontos. */
+function pontoDoCursor(d: DetalheViaturaFrota, j: JanelaRastro) {
+  const pts = d.rastro;
+  if (j.minutos !== null || !pts.length) return null;
+  if (j.cursor === null) return pts[pts.length - 1];
+  return pts.find((p) => p.em >= j.cursor!) ?? pts[pts.length - 1];
+}
+
 function SeletorRastro({ d, j }: { d: DetalheViaturaFrota; j: JanelaRastro }) {
-  const { minutos, onMinutos } = j;
+  const { minutos, onMinutos, onCursor } = j;
   const ate = Date.parse(d.janela.ate);
   const padraoMin = Math.max(1, Math.round((ate - Date.parse(d.janela.padrao)) / 60_000));
   const [escalaId, setEscalaId] = useState<EscalaId>("5m");
-  const escala = ESCALAS.find((e) => e.id === escalaId)!;
-  const n = Math.max(1, Math.min(escala.passos, Math.floor(d.janela.maxMinutos / escala.passo)));
   const [pendente, setPendente] = useState<number | null>(minutos);
   useEffect(() => setPendente(minutos), [minutos]);
-  // Arrastar não pede a cada passo: pede quando para.
+  // Arrastar na escala não pede a cada passo: pede quando para.
   useEffect(() => {
     if (pendente === minutos) return;
     const t = window.setTimeout(() => onMinutos(pendente), 350);
     return () => window.clearTimeout(t);
   }, [pendente, minutos, onMinutos]);
-  // k passos para trás: k = n na ponta esquerda (o mais antigo), 1 na direita (agora).
-  const passosDe = (m: number) => Math.min(n, Math.max(1, Math.round(m / escala.passo)));
-  const k = passosDe(pendente ?? padraoMin);
-  const trocarEscala = (id: EscalaId) => {
-    const e = ESCALAS.find((x) => x.id === id)!;
-    const ne = Math.max(1, Math.min(e.passos, Math.floor(d.janela.maxMinutos / e.passo)));
-    setEscalaId(id);
-    if (pendente !== null) setPendente(Math.min(ne, Math.max(1, Math.round(pendente / e.passo))) * e.passo);
-  };
-  const desde = pendente === null ? d.janela.padrao : new Date(ate - pendente * 60_000).toISOString();
   const nomePadrao = d.janela.motivo === "vinculacao" ? "ocorrência" : "última hora";
-  const texto =
-    pendente === null
-      ? d.janela.motivo === "vinculacao"
-        ? `desde ${quando(desde, d.janela.ate)}, quando foi vinculada à ocorrência${d.ocorrencia?.protocolo ? ` ${d.ocorrencia.protocolo}` : ""}`
-        : `última hora, desde ${quando(desde, d.janela.ate)}`
-      : `${ultimos(pendente)}, desde ${quando(desde, d.janela.ate)}`;
-  const marcas = escala.marcas.map((m) => m / escala.passo).filter((x) => x >= 1 && x <= n);
-  return (
-    <div className="mb-2">
-      <div className="flex items-baseline justify-between gap-2 text-[12px]">
-        <span className="font-bold text-slate-800">Rastro: {texto}</span>
-        <span className="shrink-0 text-[11px] text-slate-400">{j.carregando ? "carregando…" : `${d.rastro.length} posições`}</span>
-      </div>
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1">
-        <div role="radiogroup" aria-label="Escala do seletor" className="inline-flex shrink-0 rounded-md border border-slate-200 overflow-hidden">
-          {ESCALAS.map((e) => (
+  const escolherEscala = (id: EscalaId) => {
+    const e = ESCALAS.find((x) => x.id === id)!;
+    const n = Math.max(1, Math.min(e.passos, Math.floor(d.janela.maxMinutos / e.passo)));
+    setEscalaId(id);
+    onCursor(null);
+    // Da ocorrência para uma escala: a mesma janela, no passo dela.
+    setPendente(Math.min(n, Math.max(1, Math.round((pendente ?? padraoMin) / e.passo))) * e.passo);
+  };
+  const modos = (
+    <div className="flex items-center justify-between gap-2">
+      <div role="radiogroup" aria-label="Janela do rastro" className="inline-flex rounded-md border border-slate-200 overflow-hidden">
+        {[{ id: "padrao" as const, nome: nomePadrao }, ...ESCALAS].map((e) => {
+          const ativo = e.id === "padrao" ? pendente === null : pendente !== null && e.id === escalaId;
+          return (
             <button
               key={e.id}
               role="radio"
-              aria-checked={e.id === escalaId}
-              onClick={() => trocarEscala(e.id)}
+              aria-checked={ativo}
+              onClick={() => {
+                if (e.id === "padrao") {
+                  setPendente(null);
+                  onCursor(null);
+                } else escolherEscala(e.id);
+              }}
               className={`px-2 py-[3px] text-[11px] font-bold border-none cursor-pointer tabular-nums ${
-                e.id === escalaId ? "bg-slate-800 text-white" : "bg-white text-slate-600 hover:bg-slate-100"
+                ativo ? (e.id === "padrao" ? "bg-sky-700 text-white" : "bg-slate-800 text-white") : "bg-white text-slate-600 hover:bg-slate-100"
               }`}
             >
               {e.nome}
             </button>
-          ))}
+          );
+        })}
+      </div>
+      <span className="shrink-0 text-[11px] text-slate-400">{j.carregando ? "carregando…" : `${d.rastro.length} posições`}</span>
+    </div>
+  );
+
+  // ── "ocorrência": o slider é um cursor sobre os pontos, com a hora exata de cada um ──
+  if (pendente === null) {
+    const pts = d.rastro;
+    const ponto = pontoDoCursor(d, { ...j, minutos: null });
+    const idx = ponto ? pts.indexOf(ponto) : -1;
+    const ultimo = pts.length - 1;
+    const pos = (i: number) => (ultimo <= 0 ? 100 : (i / ultimo) * 100);
+    const indice = (iso: string | null) => (iso ? pts.findIndex((p) => p.em >= iso) : -1);
+    const f = d.fases;
+    // Os marcos da ocorrência sob o slider, clicáveis.
+    const marcos = (
+      [
+        [f?.partida ?? null, f?.naBase ? "saída" : "andou"],
+        [f?.local?.inicio ?? null, "local"],
+        [f?.unidade?.entrada ?? null, "unidade"],
+        [f?.chegadaBase ?? null, "base"],
+      ] as [string | null, string][]
+    )
+      .map(([em, nome]) => [indice(em), nome] as [number, string])
+      .filter(([i]) => i > 0 && i < ultimo);
+    const vinculo = d.janela.motivo === "vinculacao"
+      ? `desde ${quando(d.janela.padrao, d.janela.ate)}, quando foi vinculada à ocorrência${d.ocorrencia?.protocolo ? ` ${d.ocorrencia.protocolo}` : ""}`
+      : `última hora, desde ${quando(d.janela.padrao, d.janela.ate)}`;
+    return (
+      <div className="mb-2">
+        {modos}
+        <div className="mt-1 text-[12px] flex flex-wrap items-baseline gap-x-2">
+          {ponto ? (
+            <>
+              <span className="font-black tabular-nums text-slate-900">{horaSeg(ponto.em)}</span>
+              {ponto.fase && (
+                <span className="inline-flex items-center gap-1 font-bold" style={{ color: COR_FASE[ponto.fase] }}>
+                  <span className="inline-block w-[10px] h-[3px] rounded" style={{ backgroundColor: COR_FASE[ponto.fase] }} />
+                  {NOME_FASE[ponto.fase]}
+                </span>
+              )}
+              <span className="text-slate-400 text-[11px]">
+                {j.cursor === null ? "posição mais recente" : `ponto ${idx + 1} de ${pts.length}`} · rastro {vinculo}
+              </span>
+            </>
+          ) : (
+            <span className="text-slate-500">Sem posições guardadas: rastro {vinculo}</span>
+          )}
         </div>
-        <button
-          onClick={() => setPendente(null)}
-          aria-pressed={pendente === null}
-          className={`shrink-0 px-2 py-[3px] rounded-md text-[11px] font-bold cursor-pointer border ${
-            pendente === null ? "bg-sky-700 border-sky-700 text-white" : "bg-white border-slate-200 text-sky-700 hover:bg-sky-50"
-          }`}
-        >
-          {nomePadrao}
-        </button>
-        <div className="flex-1 min-w-[180px]">
-          <input
-            type="range"
-            min={0}
-            max={n - 1}
-            step={1}
-            value={n - k}
-            onChange={(e) => setPendente((n - Number(e.target.value)) * escala.passo)}
-            aria-label="Últimos minutos do rastro"
-            aria-valuetext={texto}
-            className="block w-full cursor-pointer accent-slate-700"
-          />
-          <div className="relative h-[14px] text-[10px] text-slate-400 tabular-nums select-none">
-            {marcas.map((x) => (
-              <button
-                key={x}
-                onClick={() => setPendente(x * escala.passo)}
-                style={{ left: `${n === 1 ? 50 : ((n - x) / (n - 1)) * 100}%` }}
-                className={`absolute -translate-x-1/2 bg-transparent border-none p-0 cursor-pointer text-[10px] ${
-                  pendente === x * escala.passo ? "font-black text-slate-800" : "text-slate-400"
-                }`}
-              >
-                {curto(x * escala.passo)}
+        {pts.length > 1 && (
+          <>
+            <input
+              type="range"
+              min={0}
+              max={ultimo}
+              step={1}
+              value={idx}
+              onChange={(e) => {
+                const i = Number(e.target.value);
+                onCursor(i >= ultimo ? null : pts[i].em);
+              }}
+              aria-label="Posição no rastro"
+              aria-valuetext={ponto ? `${horaSeg(ponto.em)}${ponto.fase ? `, ${NOME_FASE[ponto.fase]}` : ""}` : undefined}
+              className="block w-full mt-1 cursor-pointer accent-sky-700"
+            />
+            <div className="relative h-[14px] text-[10px] text-slate-400 tabular-nums select-none">
+              <button onClick={() => onCursor(pts[0].em)} className="absolute left-0 bg-transparent border-none p-0 cursor-pointer text-[10px] text-slate-400">
+                {hora(pts[0].em)}
               </button>
-            ))}
-          </div>
-        </div>
+              {marcos.map(([i, nome]) => (
+                <button
+                  key={nome}
+                  onClick={() => onCursor(pts[i].em)}
+                  style={{ left: `${pos(i)}%` }}
+                  className={`absolute -translate-x-1/2 bg-transparent border-none p-0 cursor-pointer text-[10px] ${idx === i ? "font-black text-slate-800" : "text-slate-500"}`}
+                >
+                  {nome}
+                </button>
+              ))}
+              <button onClick={() => onCursor(null)} className="absolute right-0 bg-transparent border-none p-0 cursor-pointer text-[10px] text-slate-400">
+                agora
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    );
+  }
+
+  // ── escala: os últimos N minutos ──
+  const escala = ESCALAS.find((e) => e.id === escalaId)!;
+  const n = Math.max(1, Math.min(escala.passos, Math.floor(d.janela.maxMinutos / escala.passo)));
+  const k = Math.min(n, Math.max(1, Math.round(pendente / escala.passo)));
+  const desde = new Date(ate - pendente * 60_000).toISOString();
+  const texto = `${ultimos(pendente)}, desde ${quando(desde, d.janela.ate)}`;
+  const marcas = escala.marcas.map((m) => m / escala.passo).filter((x) => x >= 1 && x <= n);
+  return (
+    <div className="mb-2">
+      {modos}
+      <div className="mt-1 text-[12px] font-bold text-slate-800">Rastro: {texto}</div>
+      <input
+        type="range"
+        min={0}
+        max={n - 1}
+        step={1}
+        value={n - k}
+        onChange={(e) => setPendente((n - Number(e.target.value)) * escala.passo)}
+        aria-label="Últimos minutos do rastro"
+        aria-valuetext={texto}
+        className="block w-full mt-1 cursor-pointer accent-slate-700"
+      />
+      <div className="relative h-[14px] text-[10px] text-slate-400 tabular-nums select-none">
+        {marcas.map((x) => (
+          <button
+            key={x}
+            onClick={() => setPendente(x * escala.passo)}
+            style={{ left: `${n === 1 ? 50 : ((n - x) / (n - 1)) * 100}%` }}
+            className={`absolute -translate-x-1/2 bg-transparent border-none p-0 cursor-pointer text-[10px] ${
+              pendente === x * escala.passo ? "font-black text-slate-800" : "text-slate-400"
+            }`}
+          >
+            {curto(x * escala.passo)}
+          </button>
+        ))}
       </div>
     </div>
   );
@@ -340,6 +433,7 @@ function Mapa({ d, j, alto }: { d: DetalheViaturaFrota; j: JanelaRastro; alto?: 
         {mapsKey ? (
           <MapaRastroGoogle
             detalhe={d}
+            cursor={j.cursor === null ? null : pontoDoCursor(d, j)}
             mapsKey={mapsKey}
             mapId={cfg?.mapId ?? "DEMO_MAP_ID"}
             alto={alto}
@@ -347,7 +441,7 @@ function Mapa({ d, j, alto }: { d: DetalheViaturaFrota; j: JanelaRastro; alto?: 
             onFalha={() => setGoogleFalhou(true)}
           />
         ) : cfg || isError || googleFalhou ? (
-          <MapaRastro detalhe={d} alto={alto} enquadrar={j.minutos} />
+          <MapaRastro detalhe={d} alto={alto} enquadrar={j.minutos} cursor={j.cursor === null ? null : pontoDoCursor(d, j)} />
         ) : (
           fundo
         )}
@@ -656,11 +750,13 @@ interface Props {
 
 export default function DetalheViatura({ chave, onClose, onVerNoMapa }: Props) {
   const [minutos, setMinutos] = useState<number | null>(null);
+  const [cursor, setCursor] = useState<string | null>(null);
   const { data: d, isLoading, error, isPlaceholderData } = useDetalheViatura(chave, minutos);
   const [aba, setAba] = useState<Aba>("geral");
   useEffect(() => {
     setAba("geral");
     setMinutos(null);
+    setCursor(null);
   }, [chave]);
   useEffect(() => {
     if (!chave) return;
@@ -717,7 +813,7 @@ export default function DetalheViatura({ chave, onClose, onVerNoMapa }: Props) {
         {/* ── Corpo ── */}
         <div className="flex-1 overflow-y-auto px-4 sm:px-5 py-4 flex flex-col gap-3">
           {d ? (
-            <Conteudo d={d} j={{ minutos, onMinutos: setMinutos, carregando: isPlaceholderData }} aba={aba} setAba={setAba} onVerNoMapa={verNoMapa} />
+            <Conteudo d={d} j={{ minutos, onMinutos: setMinutos, cursor, onCursor: setCursor, carregando: isPlaceholderData }} aba={aba} setAba={setAba} onVerNoMapa={verNoMapa} />
           ) : (
             <div className="text-[13px] text-slate-500 py-10 text-center">
               {isLoading ? "Carregando o detalhe da viatura…" : `Detalhe indisponível: ${error?.message ?? "sem resposta"}`}
