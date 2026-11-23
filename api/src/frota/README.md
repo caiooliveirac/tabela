@@ -7,7 +7,7 @@ em hospital", que aparece em qualquer aba.
 
 | Fonte | O quê | Frequência |
 |---|---|---|
-| `GET {SAMUMAIS_API_URL}/localizacoes/ultimas-posicoes` (Bearer `SAMUMAIS_TOKEN`) | última posição de cada **equipe** | 2 min |
+| `GET {SAMUMAIS_API_URL}/localizacoes/ultimas-posicoes` (Bearer `SAMUMAIS_TOKEN`) | última posição de cada **equipe** | 2 min (rastro: 30 s) |
 | `status-unidades.php` (pública, sem token) | vínculo unidade↔equipe, bateria, sinal, velocidade | 10 min, ou antes se aparecer equipe nova |
 
 A API não diz qual viatura é cada equipe (`id_equipe` ≠ id da unidade). O
@@ -148,8 +148,9 @@ equipe (mapa de equipes) com o que o GPS viu (entrou/saiu da cerca, 40 min,
 sem sinal). `GET /tabela/api/frota/viaturas/:chave` (a Central alcança: o
 porteiro libera `/tabela/api/frota/*`).
 
-- **Rastro:** `frota_posicoes` (chave, em, lat, lng), cada posição nova a cada
-  coleta, 15 dias (limpa junto do aprendizado, a cada 30 min). Janela do
+- **Rastro:** `frota_posicoes` (chave, em, lat, lng), lido a cada 30 s
+  (`coletarRastro`, separado do ciclo de 2 min: o tablet manda a cada ~60 s),
+  15 dias (limpa junto do aprendizado, a cada 30 min). Janela do
   modal: abertura da ocorrência −10 min (sem ocorrência, 3 h), até 12 h.
   Mapa em Leaflet + OSM (`MapaRastro.tsx`), sem chave do Google.
 - **Fora da cerca** (`foraDaCerca`): o mapa de equipes segue em "CHEGADA AO

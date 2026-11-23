@@ -412,6 +412,21 @@ async function gravarRastro(resolvidas: Iterable<{ chave: string; em: Date; posi
         ON CONFLICT DO NOTHING`);
 }
 
+/**
+ * Só o rastro, a cada 30 s: o tablet manda posição a cada ~60 s e o ciclo de
+ * 2 min pegava metade (medido em 22/11/2026). Não mexe nas paradas nem nos
+ * avisos — esses seguem no ciclo.
+ */
+const RASTRO_MS = 30_000;
+async function coletarRastro(): Promise<void> {
+    if (rodando) return;
+    try {
+        await gravarRastro(resolverPosicoes(await buscarPosicoes(TOKEN), dispositivos, CATALOGO).values());
+    } catch (e) {
+        await registrarErro("rastro", e);
+    }
+}
+
 async function aprender(): Promise<void> {
     aprendidoEm = Date.now();
     await db
@@ -1368,6 +1383,7 @@ export async function initFrota(): Promise<void> {
     await carregar();
     void ciclo();
     setInterval(() => void ciclo(), COLETA_MS);
+    setInterval(() => void coletarRastro(), RASTRO_MS);
     console.log(`[frota] coletor ligado (${abertas.size} permanências abertas)`);
 }
 
