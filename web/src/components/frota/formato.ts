@@ -52,10 +52,12 @@ export function marcosNoMapa(d: DetalheViaturaFrota): { lat: number; lng: number
   if (!f || !d.rastro.length) return [];
   const no = (iso: string | null) => (iso && iso >= d.rastro[0].em ? d.rastro.find((p) => p.em >= iso) ?? null : null);
   const u = f.unidade;
+  // Unidade = o hospital do pino "H": as horas vão na etiqueta dele (etiquetaHospital), não num marco ao lado.
+  const noPino = Boolean(u && d.destino?.id === u.hospitalId);
   const marcos: [string | null, string, string][] = [
     [f.partida, f.naBase ? "Saiu da base" : "Partiu", COR_FASE.resposta],
-    [u?.entrada ?? null, u?.naBase ? "Chegou à unidade (base)" : "Chegou à unidade", COR_FASE.unidade],
-    [u?.saida ?? null, "Saiu da unidade", COR_FASE.retorno],
+    [noPino ? null : (u?.entrada ?? null), u?.naBase ? "Chegou à unidade (base)" : "Chegou à unidade", COR_FASE.unidade],
+    [noPino ? null : (u?.saida ?? null), "Saiu da unidade", COR_FASE.retorno],
     [f.chegadaBase, "Chegou à base", COR_FASE.retorno],
   ];
   return marcos.flatMap(([em, nome, cor]) => {
@@ -87,6 +89,14 @@ export function empilhador(pontos: readonly { lat: number; lng: number }[]): (la
     postos.push({ lat, lng });
     return n;
   };
+}
+
+/** "H UPA X · 11:59–12:40" (ou "· desde 11:59") quando o hospital do pino é a unidade da ocorrência. */
+export function etiquetaHospital(d: DetalheViaturaFrota): string {
+  const u = d.fases?.unidade;
+  const nome = `H ${d.destino?.nome ?? ""}`;
+  if (!u || d.destino?.id !== u.hospitalId) return nome;
+  return `${nome}${u.naBase ? " (base)" : ""} · ${u.saida ? `${hora(u.entrada)}–${hora(u.saida)}` : `desde ${hora(u.entrada)}`}`;
 }
 
 /** Cor de um ponto do rastro (os dois mapas do detalhe: Google e a reserva Leaflet). */

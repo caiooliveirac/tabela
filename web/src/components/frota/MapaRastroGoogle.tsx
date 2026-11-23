@@ -10,7 +10,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { DetalheViaturaFrota } from "../../lib/types";
 import { garantirGoogleMaps } from "../../lib/googleMaps";
-import { COR, COR_FASE, COR_VINCULADA, DEGRAU_PX, NOME_FASE, corDoPonto, empilhador, hora, horaSeg, marcosNoMapa } from "./formato";
+import { COR, COR_FASE, COR_VINCULADA, DEGRAU_PX, NOME_FASE, corDoPonto, empilhador, etiquetaHospital, hora, horaSeg, marcosNoMapa } from "./formato";
 
 interface Props {
   detalhe: DetalheViaturaFrota;
@@ -118,7 +118,12 @@ export default function MapaRastroGoogle({ detalhe, mapsKey, mapId, alto = false
     // Etiquetas vizinhas sobem em degraus; a da viatura fica no chão (registrada primeiro).
     const degrau = empilhador([...d.rastro, ...(d.destino ? [d.destino] : []), ...(d.viatura.posicao ? [d.viatura.posicao] : [])]);
     if (d.viatura.posicao) degrau(d.viatura.posicao.lat, d.viatura.posicao.lng);
-    const acima = (lat: number, lng: number) => 14 + DEGRAU_PX * degrau(lat, lng);
+    let pilha = 0;
+    const acima = (lat: number, lng: number) => {
+      const n = degrau(lat, lng);
+      pilha = Math.max(pilha, n);
+      return 14 + DEGRAU_PX * n;
+    };
 
     // Cerca do destino: o prédio e cada estacionamento/porta aprendido.
     if (d.destino) {
@@ -129,7 +134,7 @@ export default function MapaRastroGoogle({ detalhe, mapsKey, mapId, alto = false
         }));
       }
       marcador(d.destino.lat, d.destino.lng, bolinha(COR.alerta, 14, 2, COR.alerta), 20);
-      marcador(d.destino.lat, d.destino.lng, etiqueta(`H ${d.destino.nome}`, acima(d.destino.lat, d.destino.lng)), 21);
+      marcador(d.destino.lat, d.destino.lng, etiqueta(etiquetaHospital(d), acima(d.destino.lat, d.destino.lng)), 21);
       limites.extend({ lat: d.destino.lat, lng: d.destino.lng });
     }
 
@@ -227,7 +232,7 @@ export default function MapaRastroGoogle({ detalhe, mapsKey, mapId, alto = false
     // Enquadra uma vez por janela: a atualização de 30 s não tira o zoom de quem está olhando.
     if (!enquadrado.current && !limites.isEmpty()) {
       // margem maior em cima e à direita: os rótulos ficam acima do ponto e a tela cheia, no canto
-      m.fitBounds(limites, { top: 56, right: 60, bottom: 28, left: 32 });
+      m.fitBounds(limites, { top: 56 + DEGRAU_PX * pilha, right: 60, bottom: 28, left: 32 });
       google.maps.event.addListenerOnce(m, "idle", () => {
         if ((m.getZoom() ?? 0) > 16) m.setZoom(16);
       });

@@ -14,7 +14,7 @@ import { useEffect, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { DetalheViaturaFrota } from "../../lib/types";
-import { COR, COR_FASE, COR_VINCULADA, DEGRAU_PX, NOME_FASE, corDoPonto, empilhador, hora, horaSeg, marcosNoMapa } from "./formato";
+import { COR, COR_FASE, COR_VINCULADA, DEGRAU_PX, NOME_FASE, corDoPonto, empilhador, etiquetaHospital, hora, horaSeg, marcosNoMapa } from "./formato";
 
 interface Props {
   detalhe: DetalheViaturaFrota;
@@ -75,7 +75,12 @@ export default function MapaRastro({ detalhe, alto = false, enquadrar = null, cu
     // Etiquetas vizinhas sobem em degraus; a da viatura fica no chão (registrada primeiro).
     const degrau = empilhador([...d.rastro, ...(d.destino ? [d.destino] : []), ...(d.viatura.posicao ? [d.viatura.posicao] : [])]);
     if (d.viatura.posicao) degrau(d.viatura.posicao.lat, d.viatura.posicao.lng);
-    const acima = (lat: number, lng: number): [number, number] => [0, -(8 + DEGRAU_PX * degrau(lat, lng))];
+    let pilha = 0;
+    const acima = (lat: number, lng: number): [number, number] => {
+      const n = degrau(lat, lng);
+      pilha = Math.max(pilha, n);
+      return [0, -(8 + DEGRAU_PX * n)];
+    };
 
     // Cerca do destino: o pino e cada estacionamento/porta, com o raio de entrada.
     if (d.destino) {
@@ -90,7 +95,7 @@ export default function MapaRastro({ detalhe, alto = false, enquadrar = null, cu
         }).addTo(g);
       }
       L.circleMarker([d.destino.lat, d.destino.lng], { radius: 7, color: "#fff", weight: 2, fillColor: COR.alerta, fillOpacity: 1 })
-        .bindTooltip(`H ${d.destino.nome}`, { permanent: true, direction: "top", offset: acima(d.destino.lat, d.destino.lng), className: "rastro-rotulo" })
+        .bindTooltip(etiquetaHospital(d), { permanent: true, direction: "top", offset: acima(d.destino.lat, d.destino.lng), className: "rastro-rotulo" })
         .addTo(g);
       pontos.push([d.destino.lat, d.destino.lng]);
     }
@@ -179,7 +184,7 @@ export default function MapaRastro({ detalhe, alto = false, enquadrar = null, cu
 
     // Enquadra uma vez por janela: a atualização de 30 s não tira o zoom de quem está olhando.
     if (!enquadrado.current && pontos.length) {
-      m.fitBounds(L.latLngBounds(pontos), { padding: [28, 28], maxZoom: 16 });
+      m.fitBounds(L.latLngBounds(pontos), { paddingTopLeft: [28, 28 + DEGRAU_PX * pilha], paddingBottomRight: [28, 28], maxZoom: 16 });
       enquadrado.current = true;
     }
   }, [detalhe]);
