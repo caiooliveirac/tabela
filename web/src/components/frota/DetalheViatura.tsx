@@ -72,10 +72,11 @@ const quando = (iso: string, ate: string) =>
  * minutos ou horas; dias ficam na escala de 4 h.
  */
 const ESCALAS = [
-  { id: "5m", nome: "5 min", passo: 5, passos: 24 },
-  { id: "15m", nome: "15 min", passo: 15, passos: 24 },
-  { id: "1h", nome: "1 h", passo: 60, passos: 24 },
-  { id: "4h", nome: "4 h", passo: 240, passos: 30 },
+  // marcas: os minutos rotulados sob o slider (clicáveis), em valores redondos
+  { id: "5m", nome: "5 min", passo: 5, passos: 24, marcas: [120, 90, 60, 30, 5] },
+  { id: "15m", nome: "15 min", passo: 15, passos: 24, marcas: [360, 240, 120, 60, 15] },
+  { id: "1h", nome: "1 h", passo: 60, passos: 24, marcas: [1440, 720, 360, 180, 60] },
+  { id: "4h", nome: "4 h", passo: 240, passos: 30, marcas: [7200, 5760, 4320, 2880, 1440, 240] },
 ] as const;
 type EscalaId = (typeof ESCALAS)[number]["id"];
 /** 15 → "15m", 90 → "1h30", 120 → "2h", 2880 → "2d" (rótulo do slider). */
@@ -225,8 +226,7 @@ function SeletorRastro({ d, j }: { d: DetalheViaturaFrota; j: JanelaRastro }) {
         ? `desde ${quando(desde, d.janela.ate)}, quando foi vinculada à ocorrência${d.ocorrencia?.protocolo ? ` ${d.ocorrencia.protocolo}` : ""}`
         : `última hora, desde ${quando(desde, d.janela.ate)}`
       : `${ultimos(pendente)}, desde ${quando(desde, d.janela.ate)}`;
-  // Cinco marcas sob o slider: as pontas e três no meio.
-  const marcas = [...new Set([n, Math.round((n * 3) / 4), Math.round(n / 2), Math.round(n / 4), 1].filter((x) => x >= 1))];
+  const marcas = escala.marcas.map((m) => m / escala.passo).filter((x) => x >= 1 && x <= n);
   return (
     <div className="mb-2">
       <div className="flex items-baseline justify-between gap-2 text-[12px]">

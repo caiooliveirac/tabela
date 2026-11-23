@@ -66,7 +66,12 @@ export default function MapaRastroGoogle({ detalhe, mapsKey, mapId, alto = false
           mapId,
           clickableIcons: false,
           mapTypeControl: true,
-          mapTypeControlOptions: { mapTypeIds: ["roadmap", "satellite"], position: google.maps.ControlPosition.TOP_RIGHT },
+          // menu compacto: no mapa de 260 px os botões cobriam o rótulo do local
+          mapTypeControlOptions: {
+            mapTypeIds: ["roadmap", "satellite"],
+            style: google.maps.MapTypeControlStyle.DROPDOWN_MENU,
+            position: google.maps.ControlPosition.TOP_LEFT,
+          },
           streetViewControl: false,
           fullscreenControl: true,
         });
