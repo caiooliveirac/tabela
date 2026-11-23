@@ -14,7 +14,7 @@ import { useEffect, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { DetalheViaturaFrota } from "../../lib/types";
-import { COR, COR_FASE, COR_VINCULADA, NOME_FASE, corDoPonto, hora, horaSeg, marcosNoMapa } from "./formato";
+import { COR, COR_FASE, COR_VINCULADA, DEGRAU_PX, NOME_FASE, corDoPonto, empilhador, hora, horaSeg, marcosNoMapa } from "./formato";
 
 interface Props {
   detalhe: DetalheViaturaFrota;
@@ -72,6 +72,11 @@ export default function MapaRastro({ detalhe, alto = false, enquadrar = null, cu
     const d = detalhe;
     const pontos: L.LatLngExpression[] = [];
 
+    // Etiquetas vizinhas sobem em degraus; a da viatura fica no chão (registrada primeiro).
+    const degrau = empilhador([...d.rastro, ...(d.destino ? [d.destino] : []), ...(d.viatura.posicao ? [d.viatura.posicao] : [])]);
+    if (d.viatura.posicao) degrau(d.viatura.posicao.lat, d.viatura.posicao.lng);
+    const acima = (lat: number, lng: number): [number, number] => [0, -(8 + DEGRAU_PX * degrau(lat, lng))];
+
     // Cerca do destino: o pino e cada estacionamento/porta, com o raio de entrada.
     if (d.destino) {
       for (const c of [d.destino, ...d.destino.pontos]) {
@@ -85,7 +90,7 @@ export default function MapaRastro({ detalhe, alto = false, enquadrar = null, cu
         }).addTo(g);
       }
       L.circleMarker([d.destino.lat, d.destino.lng], { radius: 7, color: "#fff", weight: 2, fillColor: COR.alerta, fillOpacity: 1 })
-        .bindTooltip(`H ${d.destino.nome}`, { permanent: true, direction: "top", offset: [0, -8], className: "rastro-rotulo" })
+        .bindTooltip(`H ${d.destino.nome}`, { permanent: true, direction: "top", offset: acima(d.destino.lat, d.destino.lng), className: "rastro-rotulo" })
         .addTo(g);
       pontos.push([d.destino.lat, d.destino.lng]);
     }
@@ -127,7 +132,7 @@ export default function MapaRastro({ detalhe, alto = false, enquadrar = null, cu
         const l = f.local;
         L.circleMarker([l.lat, l.lng], { radius: 8, color: "#fff", weight: 2, fillColor: COR_FASE.local, fillOpacity: 1 })
           .bindTooltip(`Local ${hora(l.inicio)}${l.aberta ? " · ainda lá" : `–${hora(l.fim)}`}`, {
-            permanent: true, direction: "top", offset: [0, -8], className: "rastro-rotulo",
+            permanent: true, direction: "top", offset: acima(l.lat, l.lng), className: "rastro-rotulo",
           })
           .addTo(g);
         pontos.push([l.lat, l.lng]);
@@ -137,7 +142,7 @@ export default function MapaRastro({ detalhe, alto = false, enquadrar = null, cu
     // Os marcos com hora (saída da base, chegada e saída da unidade, volta à base).
     for (const k of marcosNoMapa(d)) {
       L.circleMarker([k.lat, k.lng], { radius: 5, color: "#fff", weight: 2, fillColor: k.cor, fillOpacity: 1 })
-        .bindTooltip(k.texto, { permanent: true, direction: "top", offset: [0, -6], className: "rastro-rotulo rastro-marco" })
+        .bindTooltip(k.texto, { permanent: true, direction: "top", offset: acima(k.lat, k.lng), className: "rastro-rotulo rastro-marco" })
         .addTo(g);
     }
 

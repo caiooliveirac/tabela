@@ -64,6 +64,31 @@ export function marcosNoMapa(d: DetalheViaturaFrota): { lat: number; lng: number
   });
 }
 
+/** Altura de um degrau de etiqueta empilhada no mapa do rastro (px). */
+export const DEGRAU_PX = 22;
+
+/**
+ * Etiquetas perto umas das outras se cobrem no zoom que enquadra o trajeto todo
+ * (local, unidade e a viatura a 300 m, no fim de um trajeto de 8 km). Cada
+ * etiqueta a menos de 1/12 da diagonal do trajeto de uma já posta sobe um
+ * degrau. Devolve (lat, lng) => degrau (0, 1, 2…); a primeira chamada fica no 0.
+ */
+export function empilhador(pontos: readonly { lat: number; lng: number }[]): (lat: number, lng: number) => number {
+  const metros = (a: { lat: number; lng: number }, b: { lat: number; lng: number }) =>
+    Math.hypot((a.lat - b.lat) * 111_320, (a.lng - b.lng) * 111_320 * Math.cos((a.lat * Math.PI) / 180));
+  const lats = pontos.map((p) => p.lat), lngs = pontos.map((p) => p.lng);
+  const diagonal = pontos.length
+    ? metros({ lat: Math.min(...lats), lng: Math.min(...lngs) }, { lat: Math.max(...lats), lng: Math.max(...lngs) })
+    : 0;
+  const raio = Math.max(60, diagonal / 12);
+  const postos: { lat: number; lng: number }[] = [];
+  return (lat, lng) => {
+    const n = postos.filter((p) => metros(p, { lat, lng }) < raio).length;
+    postos.push({ lat, lng });
+    return n;
+  };
+}
+
 /** Cor de um ponto do rastro (os dois mapas do detalhe: Google e a reserva Leaflet). */
 export function corDoPonto(d: DetalheViaturaFrota, p: DetalheViaturaFrota["rastro"][number]): string {
   if (p.fase) return p.fase === "retorno" && d.localizacao.estado === "fora-da-cerca" ? COR_RASTRO.foraAlerta : COR_FASE[p.fase];

@@ -10,7 +10,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { DetalheViaturaFrota } from "../../lib/types";
 import { garantirGoogleMaps } from "../../lib/googleMaps";
-import { COR, COR_FASE, COR_VINCULADA, NOME_FASE, corDoPonto, hora, horaSeg, marcosNoMapa } from "./formato";
+import { COR, COR_FASE, COR_VINCULADA, DEGRAU_PX, NOME_FASE, corDoPonto, empilhador, hora, horaSeg, marcosNoMapa } from "./formato";
 
 interface Props {
   detalhe: DetalheViaturaFrota;
@@ -115,6 +115,10 @@ export default function MapaRastroGoogle({ detalhe, mapsKey, mapId, alto = false
     };
     const marcador = (lat: number, lng: number, content: HTMLElement, zIndex: number, title?: string) =>
       por(new AdvancedMarkerElement({ map: m, position: { lat, lng }, content, zIndex, title }));
+    // Etiquetas vizinhas sobem em degraus; a da viatura fica no chão (registrada primeiro).
+    const degrau = empilhador([...d.rastro, ...(d.destino ? [d.destino] : []), ...(d.viatura.posicao ? [d.viatura.posicao] : [])]);
+    if (d.viatura.posicao) degrau(d.viatura.posicao.lat, d.viatura.posicao.lng);
+    const acima = (lat: number, lng: number) => 14 + DEGRAU_PX * degrau(lat, lng);
 
     // Cerca do destino: o prédio e cada estacionamento/porta aprendido.
     if (d.destino) {
@@ -125,7 +129,7 @@ export default function MapaRastroGoogle({ detalhe, mapsKey, mapId, alto = false
         }));
       }
       marcador(d.destino.lat, d.destino.lng, bolinha(COR.alerta, 14, 2, COR.alerta), 20);
-      marcador(d.destino.lat, d.destino.lng, etiqueta(`H ${d.destino.nome}`, 12), 21);
+      marcador(d.destino.lat, d.destino.lng, etiqueta(`H ${d.destino.nome}`, acima(d.destino.lat, d.destino.lng)), 21);
       limites.extend({ lat: d.destino.lat, lng: d.destino.lng });
     }
 
@@ -180,7 +184,7 @@ export default function MapaRastroGoogle({ detalhe, mapsKey, mapId, alto = false
       if (f.local) {
         const l = f.local;
         marcador(l.lat, l.lng, bolinha(COR_FASE.local, 16, 2, COR_FASE.local), 31);
-        marcador(l.lat, l.lng, etiqueta(`Local ${hora(l.inicio)}${l.aberta ? " · ainda lá" : `–${hora(l.fim)}`}`, 14), 32);
+        marcador(l.lat, l.lng, etiqueta(`Local ${hora(l.inicio)}${l.aberta ? " · ainda lá" : `–${hora(l.fim)}`}`, acima(l.lat, l.lng)), 32);
         limites.extend({ lat: l.lat, lng: l.lng });
       }
     }
@@ -188,7 +192,7 @@ export default function MapaRastroGoogle({ detalhe, mapsKey, mapId, alto = false
     // Os marcos com hora (saída da base, chegada e saída da unidade, volta à base): o que só estava na linha do tempo.
     for (const k of marcosNoMapa(d)) {
       marcador(k.lat, k.lng, bolinha(k.cor, 11, 2, k.cor), 35);
-      marcador(k.lat, k.lng, etiqueta(k.texto, 10, undefined, 10), 36);
+      marcador(k.lat, k.lng, etiqueta(k.texto, acima(k.lat, k.lng), undefined, 10), 36);
     }
 
     // Onde saiu da cerca: o primeiro ponto depois da saída.
@@ -196,7 +200,7 @@ export default function MapaRastroGoogle({ detalhe, mapsKey, mapId, alto = false
     const depois = saiu ? d.rastro.find((p) => p.em >= saiu) : undefined;
     if (saiu && depois) {
       marcador(depois.lat, depois.lng, bolinha(COR.alerta, 14, 2, COR.alerta), 33);
-      marcador(depois.lat, depois.lng, etiqueta(`Saiu da cerca ${hora(saiu)}`, 12), 34);
+      marcador(depois.lat, depois.lng, etiqueta(`Saiu da cerca ${hora(saiu)}`, acima(depois.lat, depois.lng)), 34);
     }
 
     // Posição atual e a distância até o hospital (tracejada).
