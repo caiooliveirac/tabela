@@ -205,7 +205,8 @@ export default function MapaRastroGoogle({ detalhe, mapsKey, mapId, alto = false
 
     // Enquadra uma vez por janela: a atualização de 30 s não tira o zoom de quem está olhando.
     if (!enquadrado.current && !limites.isEmpty()) {
-      m.fitBounds(limites, 36);
+      // margem maior em cima e à direita: os rótulos ficam acima do ponto e a tela cheia, no canto
+      m.fitBounds(limites, { top: 56, right: 60, bottom: 28, left: 32 });
       google.maps.event.addListenerOnce(m, "idle", () => {
         if ((m.getZoom() ?? 0) > 16) m.setZoom(16);
       });
