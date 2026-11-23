@@ -10,7 +10,7 @@
 // ═══════════════════════════════════════════════════════════════
 import { artigo, duracaoTexto, hhmm } from "./aviso.js";
 import type { HospitalFrota } from "./hospitais.js";
-import type { Ocorrencia } from "./ocorrencias.js";
+import type { Ocorrencia, SituacaoOcorrencia } from "./ocorrencias.js";
 import { ALERTA_MIN, distanciaLocal, hospitalNoRaio, RAIO_M, RAIO_SAIDA_M, RECENTE_MIN } from "./regras.js";
 
 /** Fora da cerca com o status de hospital há tanto tempo: vira aviso (painel). */
@@ -71,6 +71,36 @@ export function foraDaCerca(
         minutos: minEntre(saida.saida, agora),
         statusEm: o.statusEm,
     };
+}
+
+/** Como terminou o aviso de "fora da cerca" no grupo. "encerrado" = sem sinal, desativada, outra parada: fecha sem resposta. */
+export type FimForaDaCerca =
+    | { tipo: "status"; status: string; em: string | null }
+    | { tipo: "livre" }
+    | { tipo: "voltou"; hospitalNome: string; em: string }
+    | { tipo: "encerrado" };
+
+/**
+ * O aviso de "fora da cerca" da parada `paradaId` acabou? `null` = segue
+ * aberto — inclusive com o mapa de equipes mudo, quando ninguém sabe.
+ */
+export function fimForaDaCerca(
+    v: {
+        situacao: string;
+        foraDaCerca: ForaDaCerca | null;
+        noHospital: { naBase: boolean; hospitalNome: string; entrada: string } | null;
+        ocorrencia: SituacaoOcorrencia | null;
+    } | undefined,
+    paradaId: number,
+): FimForaDaCerca | null {
+    if (!v || v.situacao !== "mapa") return { tipo: "encerrado" };
+    if (v.foraDaCerca?.paradaId === paradaId) return null;
+    if (v.noHospital && !v.noHospital.naBase) return { tipo: "voltou", hospitalNome: v.noHospital.hospitalNome, em: v.noHospital.entrada };
+    if (v.foraDaCerca) return { tipo: "encerrado" };
+    if (!v.ocorrencia) return null;
+    const o = v.ocorrencia.ocorrencia;
+    if (!o) return { tipo: "livre" };
+    return { tipo: "status", status: o.status ?? "status novo", em: o.statusEm };
 }
 
 // ── Detalhe ──────────────────────────────────────────────────────

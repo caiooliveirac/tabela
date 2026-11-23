@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { baseOcupada, textoBaseOcupada, textoCobranca } from "./aviso.js";
+import { baseOcupada, textoBaseOcupada, textoCobranca, textoFimForaDaCerca, textoForaDaCerca } from "./aviso.js";
 
 const t = (hhmm: string) => new Date(`2026-10-01T${hhmm}:00-03:00`);
 const d = { nome: "SM01", hospitalNome: "HGE", entrada: t("14:00") };
@@ -86,4 +86,30 @@ test("na base mas em ocorrência: só depois de 40 min, contando da chegada ou d
     const nova = { ...v, ocorrencia: { ocorrencia: { ...o, status: "DESIGNADA", abertura: t("16:00").toISOString() } } };
     assert.equal(baseOcupada(nova, t("10:00"), t("16:30"), 40), null);
     assert.equal(baseOcupada(nova, t("10:00"), t("16:40"), 40)!.minutos, 40);
+});
+
+test("saiu da cerca: hospital, hora, status de chegada, ocorrência, distância e a ação", () => {
+    const d = (hhmm: string) => new Date(`2026-11-22T${hhmm}:00-03:00`);
+    const texto = textoForaDaCerca({
+        nome: "SM01", tipo: "USA", hospitalNome: "HGE", saiuEm: d("04:52"), minutos: 15, statusEm: d("04:13"),
+        naBase: false, distanciaM: 10429,
+        ocorrencia: {
+            protocolo: "0119", medico: "FULANO EXEMPLO", status: "CHEGADA AO HOSPITAL", statusEm: d("04:13").toISOString(),
+            abertura: null, risco: null, regulacaoSecundaria: false, endereco: null, bairro: null, queixa: null, hma: null,
+        },
+    });
+    assert.match(texto, /<b>SM01<\/b> \(USA\) saiu do <b>HGE<\/b> às 04:52 — há <b>15 min<\/b>/);
+    assert.match(texto, /"chegada ao hospital" \(desde 04:13\) · ocorrência <b>0119<\/b> · MR <b>Fulano Exemplo<\/b>/);
+    assert.match(texto, /Está a 10,4 km de lá/);
+    assert.match(texto, /confirmar com a equipe e atualizar o status/);
+    assert.match(textoForaDaCerca({ nome: "SM01", tipo: null, hospitalNome: "UPA Exemplo", saiuEm: d("04:52"), minutos: 20, statusEm: null, naBase: true, distanciaM: 900, ocorrencia: null }), /saiu da <b>UPA Exemplo<\/b>[\s\S]*Já está na própria base/);
+
+    const agora = d("05:30");
+    assert.equal(
+        textoFimForaDaCerca("SM01", d("04:52"), { tipo: "status", status: "DISPONÍVEL / RETORNO À BASE", em: d("05:20").toISOString() }, agora),
+        "✅ <b>SM01</b>: status atualizado — disponível / retorno à base às 05:20 — 28 min depois de sair",
+    );
+    assert.match(textoFimForaDaCerca("SM01", d("04:52"), { tipo: "livre" }, agora)!, /liberada no mapa de equipes às 05:30 — 38 min/);
+    assert.match(textoFimForaDaCerca("SM01", d("04:52"), { tipo: "voltou", hospitalNome: "HGE", em: d("05:10").toISOString() }, agora)!, /entrou no <b>HGE<\/b> às 05:10/);
+    assert.equal(textoFimForaDaCerca("SM01", d("04:52"), { tipo: "encerrado" }, agora), null);
 });

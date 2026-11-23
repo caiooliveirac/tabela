@@ -7,6 +7,7 @@
 // ═══════════════════════════════════════════════════════════════
 import { escapeHtml } from "../lib/telegram.js";
 import type { Ocorrencia, SituacaoOcorrencia } from "./ocorrencias.js";
+import type { FimForaDaCerca } from "./detalhe.js";
 
 export interface DadosAviso {
     nome: string;
@@ -161,6 +162,62 @@ export function textoBaseOcupada(d: BaseOcupada): string {
         `👉 Já encerrou e falta fechar no sistema${d.hospitalNome ? ", ou está com dificuldade de acolhimento aí" : ""}?\n` +
         `<a href="${PAINEL}">ver no painel</a>`
     );
+}
+
+// ── Saiu da cerca e o status segue "chegada ao hospital" (detalhe.ts) ──
+// Uma mensagem aos 15 min fora; respondida quando resolve (status novo,
+// liberada no mapa, voltou a um hospital). Sem sinal ou desativada: fecha calado.
+
+export interface DadosForaDaCerca {
+    nome: string;
+    tipo: string | null;
+    hospitalNome: string;
+    saiuEm: Date;
+    minutos: number;
+    statusEm: Date | null;
+    /** Já parada na própria base (o aviso "base ocupada" não sai junto). */
+    naBase: boolean;
+    distanciaM: number | null;
+    ocorrencia: Ocorrencia | null;
+}
+
+export function textoForaDaCerca(d: DadosForaDaCerca): string {
+    const o = d.ocorrencia;
+    const onde = d.naBase
+        ? "Já está na própria base"
+        : d.distanciaM !== null
+          ? `Está a ${d.distanciaM < 1000 ? `${d.distanciaM} m` : `${(d.distanciaM / 1000).toFixed(1).replace(".", ",")} km`} de lá`
+          : "Fora da cerca do hospital";
+    return (
+        `🚪 <b>${escapeHtml(d.nome)}</b>${d.tipo ? ` (${escapeHtml(d.tipo)})` : ""} saiu d${artigo(d.hospitalNome)} ` +
+        `<b>${escapeHtml(d.hospitalNome)}</b> às ${hhmm(d.saiuEm)} — há <b>${duracaoTexto(d.minutos)}</b>\n` +
+        `O mapa de equipes segue em "chegada ao hospital"${d.statusEm ? ` (desde ${hhmm(d.statusEm)})` : ""}` +
+        `${o?.protocolo ? ` · ocorrência <b>${escapeHtml(o.protocolo)}</b>` : ""}` +
+        `${o?.medico ? ` · MR <b>${escapeHtml(nomeProprio(o.medico))}</b>` : ""}\n` +
+        `📍 ${onde}\n` +
+        `👉 Provável liberação sem registro: confirmar com a equipe e atualizar o status.\n` +
+        `<a href="${PAINEL}">ver no painel</a>`
+    );
+}
+
+/** Resposta à mensagem quando resolve; `null` = fecha sem responder. */
+export function textoFimForaDaCerca(nome: string, saiuEm: Date, fim: FimForaDaCerca, agora: Date): string | null {
+    const quem = `<b>${escapeHtml(nome)}</b>`;
+    const depois = (em: Date) => ` — ${duracaoTexto(min(saiuEm, em))} depois de sair`;
+    switch (fim.tipo) {
+        case "status": {
+            const em = fim.em ? new Date(fim.em) : agora;
+            return `✅ ${quem}: status atualizado — ${escapeHtml(fim.status.toLowerCase())} às ${hhmm(em)}${depois(em)}`;
+        }
+        case "livre":
+            return `✅ ${quem} liberada no mapa de equipes às ${hhmm(agora)}${depois(agora)}`;
+        case "voltou": {
+            const em = new Date(fim.em);
+            return `↩ ${quem} entrou n${artigo(fim.hospitalNome)} <b>${escapeHtml(fim.hospitalNome)}</b> às ${hhmm(em)}${depois(em)}`;
+        }
+        case "encerrado":
+            return null;
+    }
 }
 
 // ── Cobrança da denúncia no grupo SAMU-Salvador (WhatsApp, pelo Tom) ──

@@ -158,7 +158,13 @@ porteiro libera `/tabela/api/frota/*`).
   liberação sem registro. `ViaturaFrota.foraDaCerca` traz a hora da saída; o
   painel mostra a caixa na hora e o aviso em qualquer aba a partir de
   `FORA_CERCA_MIN` (15 min). Em 14 dias até 22/11/2026: ~7 casos/dia com 15+ min,
-  19 com 2 h+. Sem Telegram por enquanto.
+  19 com 2 h+.
+- **Aviso no grupo da frota** (desde 22/11/2026, autorizado pelo dono): aos
+  15 min fora, uma mensagem por parada (`frota_alertas` tipo `fora-cerca`,
+  `textoForaDaCerca`); respondida quando resolve (`fimForaDaCerca`: status
+  novo, liberada no mapa, voltou a um hospital). Sem sinal ou desativada:
+  fecha sem resposta; mapa de equipes mudo: segue aberto. Viatura nessa
+  situação não gera também o "base ocupada".
 - **Chegada registrada sem GPS no hospital** (10+ min, nenhuma parada perto da
   hora): aviso âmbar no modal — destino fora da lista ou posição errada.
 - A última saída por viatura fica em memória (`ultimasSaidas`), recarregada no

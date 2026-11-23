@@ -17,10 +17,12 @@ import { db } from "../index.js";
 import { atrasoDaViradaH, CATALOGO, COORDENADAS_BASES, DESATIVADAS_ATE_SEGUNDA_ORDEM, MOTOS, numeroNoLimite } from "./catalogo.js";
 import { LOCAIS_FROTA, NO_ACOLHIMENTOS, type HospitalFrota, type PontoAprendido } from "./hospitais.js";
 import {
-    ALERTA_MIN, APRENDE_RAIO_M, aprenderPontos, avancarPermanencias, distanciaM, duracaoMin, ehMoto, RAIO_SAIDA_M,
+    ALERTA_MIN, APRENDE_RAIO_M, aprenderPontos, avancarPermanencias, distanciaLocal, distanciaM, duracaoMin, ehMoto, RAIO_SAIDA_M,
     type Evidencia, type Fechamento, type Permanencia,
 } from "./regras.js";
-import { baseOcupada, textoAviso, textoBalanco, textoBaseOcupada, textoCobranca, type DadosAviso } from "./aviso.js";
+import {
+    baseOcupada, textoAviso, textoBalanco, textoBaseOcupada, textoCobranca, textoFimForaDaCerca, textoForaDaCerca, type DadosAviso,
+} from "./aviso.js";
 import { editarChat, enviarChat, frotaChatId, notifyAdmin, reguladoresChatId } from "../lib/telegram.js";
 import { medicosPorBase, mesaAgora } from "./plantoes.js";
 import { atualizarEquipe, responsavelAgora } from "./equipe.js";
@@ -28,7 +30,9 @@ import {
     diagnosticoOcorrencias, lembreteFonteCaiu, ocorrenciaDe, receberOcorrencias, situacoesRecebidas, vigiarMapa, type esquemaOcorrencias,
     type Ocorrencia,
 } from "./ocorrencias.js";
-import { inicioJanela, montarDetalhe, type ParadaDetalhe, type SaidaCerca, type StatusDetalhe } from "./detalhe.js";
+import {
+    FORA_CERCA_MIN, fimForaDaCerca, inicioJanela, montarDetalhe, type ParadaDetalhe, type SaidaCerca, type StatusDetalhe,
+} from "./detalhe.js";
 import {
     avancarQuedas, bateriaBaixa, instaveisAgora, plantaoDe, ranking, resumoDevido,
     textoBateria, textoFimQueda, textoFrota, textoInstavel, textoQueda, textoResumo, textoSurto,
@@ -63,6 +67,11 @@ let dispositivos: DispositivoSamu[] = [];
 let abertas = new Map<string, Permanencia>();
 /** Última parada fora da base que fechou por saída, por chave — o "saiu da cerca" (detalhe.ts). */
 const ultimasSaidas = new Map<string, SaidaCerca>();
+/** Aviso "saiu da cerca" aberto no grupo, por parada (frota_alertas tipo 'fora-cerca'). */
+interface AvisoFora { alertaId: number; chave: string; paradaId: number; saiuEm: Date; chat: string | null; msgId: number | null }
+const foraAvisados = new Map<number, AvisoFora>();
+/** Paradas que já geraram o aviso (12 h): deploy ou status que vai e volta não repete. */
+const foraJaAvisada = new Set<number>();
 /** Rastro guardado por tantos dias (frota_posicoes). */
 const RASTRO_DIAS = 15;
 /** Hospitais e UPAs com os estacionamentos aprendidos. */
@@ -368,6 +377,17 @@ async function carregarAlertas(): Promise<void> {
         else if (r.tipo === "bateria") bateriaAvisada.add(`${r.chave}|${r.plantao}`);
         else resumosFeitos.add(String(r.chave));
     }
+    for (const r of await consultar(sql`
+        SELECT id, chave, inicio, chat_id, msg_id, fechado_em, (detalhe->>'parada')::int AS parada
+        FROM frota_alertas WHERE tipo = 'fora-cerca' AND criado_em > now() - interval '12 hours'`)) {
+        const parada = Number(r.parada);
+        foraJaAvisada.add(parada);
+        if (r.fechado_em != null) continue;
+        foraAvisados.set(parada, {
+            alertaId: Number(r.id), chave: String(r.chave), paradaId: parada, saiuEm: new Date(r.inicio as string),
+            chat: r.chat_id != null ? String(r.chat_id) : null, msgId: r.msg_id != null ? Number(r.msg_id) : null,
+        });
+    }
 }
 
 async function atualizarVinculos(): Promise<void> {
@@ -504,6 +524,7 @@ async function ciclo(): Promise<void> {
         // Telegram fora do ar não é falha de coleta.
         await avisar(r.fechadas, agora).catch((e) => registrarErro("aviso", e));
         await avisarBaseOcupada(agora).catch((e) => registrarErro("aviso base ocupada", e));
+        await avisarForaDaCerca(agora).catch((e) => registrarErro("aviso fora da cerca", e));
         await gravarMedicos().catch((e) => registrarErro("médico da parada", e));
         await gravarOcorrenciaDasParadas(agora).catch((e) => registrarErro("ocorrência da parada", e));
         await avisarSinal(agora).catch((e) => registrarErro("aviso de sinal", e));
@@ -578,6 +599,8 @@ async function avisarBaseOcupada(agora: Date): Promise<void> {
         // Base dentro de hospital/UPA: a permanência tem a entrada real (sobrevive ao deploy).
         const desde = v.noHospital?.naBase ? new Date(v.noHospital.entrada) : (naBaseDesde.get(v.chave) ?? agora);
         naBaseDesde.set(v.chave, desde);
+        // Saiu do hospital e voltou à base com o status de chegada: o aviso "saiu da cerca" já cobre.
+        if (v.foraDaCerca) continue;
         const b = baseOcupada(v, desde, agora, ALERTA_MIN);
         if (!b) continue;
         const protocolo = b.ocorrencia.protocolo ?? "";
@@ -592,6 +615,50 @@ async function avisarBaseOcupada(agora: Date): Promise<void> {
     }
     // Saiu da base (ou sumiu do mapa): o cronômetro recomeça na próxima chegada.
     for (const c of naBaseDesde.keys()) if (!naBaseAgora.has(c)) naBaseDesde.delete(c);
+}
+
+/**
+ * Saiu da cerca e o mapa de equipes segue em "chegada ao hospital" há 15+ min
+ * (detalhe.ts): uma mensagem por parada no grupo da frota, respondida quando
+ * resolve (status novo, liberada, voltou a um hospital). Sem sinal ou
+ * desativada: fecha sem resposta.
+ */
+async function avisarForaDaCerca(agora: Date): Promise<void> {
+    if (!AVISOS) return;
+    const viaturas = painelAtual(agora).viaturas;
+    const porChave = new Map(viaturas.map((v) => [v.chave, v]));
+    for (const a of [...foraAvisados.values()]) {
+        const fim = fimForaDaCerca(porChave.get(a.chave), a.paradaId);
+        if (!fim) continue;
+        foraAvisados.delete(a.paradaId);
+        await db.execute(sql`
+            UPDATE frota_alertas SET fechado_em = ${agora.toISOString()}, motivo_fim = ${fim.tipo}
+            WHERE id = ${a.alertaId}`);
+        const texto = textoFimForaDaCerca(descreverChave(a.chave).nome, a.saiuEm, fim, agora);
+        if (texto && a.msgId && a.chat) await mandar(texto, a.msgId, a.chat);
+    }
+    for (const v of viaturas) {
+        const f = v.foraDaCerca;
+        if (!f || v.foraDoCatalogo || f.minutos < FORA_CERCA_MIN || foraJaAvisada.has(f.paradaId)) continue;
+        foraJaAvisada.add(f.paradaId);
+        const o = v.ocorrencia?.ocorrencia ?? null;
+        const h = locais.find((x) => x.id === f.hospitalId);
+        const id = await registrarAlerta({
+            tipo: "fora-cerca", chave: v.chave, inicio: new Date(f.saiuEm),
+            detalhe: { parada: f.paradaId, hospital: f.hospitalId, protocolo: o?.protocolo ?? null, minutos: f.minutos },
+        });
+        const m = await mandar(textoForaDaCerca({
+            nome: v.nome, tipo: v.tipo, hospitalNome: f.hospitalNome, saiuEm: new Date(f.saiuEm), minutos: f.minutos,
+            statusEm: f.statusEm ? new Date(f.statusEm) : null,
+            naBase: v.naBase || Boolean(v.noHospital?.naBase),
+            distanciaM: v.posicao && h ? Math.round(distanciaLocal(v.posicao, h)) : null,
+            ocorrencia: o,
+        }));
+        await marcarAvisado(id, m);
+        foraAvisados.set(f.paradaId, {
+            alertaId: id, chave: v.chave, paradaId: f.paradaId, saiuEm: new Date(f.saiuEm), chat: m?.chat ?? null, msgId: m?.id ?? null,
+        });
+    }
 }
 
 async function avisar(fechadas: Fechamento[], agora: Date): Promise<void> {
@@ -636,7 +703,7 @@ async function avisar(fechadas: Fechamento[], agora: Date): Promise<void> {
 }
 
 async function registrarAlerta(a: {
-    tipo: "queda" | "instavel" | "surto" | "bateria" | "resumo";
+    tipo: "queda" | "instavel" | "surto" | "bateria" | "resumo" | "fora-cerca";
     chave: string;
     inicio: Date;
     silenciado?: string | null;

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { LOCAIS_FROTA } from "./hospitais.js";
 import type { Ocorrencia } from "./ocorrencias.js";
 import {
-    FORA_CERCA_MIN, JANELA_MAX_H, foraDaCerca, inicioJanela, montarDetalhe,
+    FORA_CERCA_MIN, JANELA_MAX_H, fimForaDaCerca, foraDaCerca, inicioJanela, montarDetalhe,
     type ParadaDetalhe, type SaidaCerca, type ViaturaAgora,
 } from "./detalhe.js";
 
@@ -150,4 +150,18 @@ test("janela: abertura menos 10 min, a parada aberta entra, nunca mais que 12 h"
     assert.equal(inicioJanela(null, [], null, agora).getTime(), t("03:47").getTime());
     const antiga = new Date(agora.getTime() - 20 * 3_600_000).toISOString();
     assert.equal(inicioJanela({ abertura: antiga }, [], null, agora).getTime(), agora.getTime() - JANELA_MAX_H * 3_600_000);
+});
+
+test("fim do aviso fora da cerca: status novo, liberada, voltou; mapa mudo segue aberto; sem sinal fecha calado", () => {
+    const f = foraDaCerca(oc("CHEGADA AO HOSPITAL", t("04:13")), false, saida, LOCAIS_FROTA, t("05:10"))!;
+    const base = { situacao: "mapa", foraDaCerca: null, noHospital: null };
+    assert.equal(fimForaDaCerca({ ...base, foraDaCerca: f, ocorrencia: { ocorrencia: oc("CHEGADA AO HOSPITAL", t("04:13")) } }, 7), null);
+    assert.equal(fimForaDaCerca({ ...base, ocorrencia: null }, 7), null);
+    assert.deepEqual(fimForaDaCerca({ ...base, ocorrencia: { ocorrencia: null } }, 7), { tipo: "livre" });
+    const disp = oc("DISPONÍVEL / RETORNO À BASE", t("05:20"));
+    assert.deepEqual(fimForaDaCerca({ ...base, ocorrencia: { ocorrencia: disp } }, 7), { tipo: "status", status: disp.status, em: disp.statusEm });
+    const dentro = { naBase: false, hospitalNome: "Hospital Exemplo", entrada: t("05:30").toISOString() };
+    assert.deepEqual(fimForaDaCerca({ ...base, noHospital: dentro, ocorrencia: null }, 7), { tipo: "voltou", hospitalNome: "Hospital Exemplo", em: dentro.entrada });
+    assert.deepEqual(fimForaDaCerca({ ...base, situacao: "sem-sinal", ocorrencia: null }, 7), { tipo: "encerrado" });
+    assert.deepEqual(fimForaDaCerca(undefined, 7), { tipo: "encerrado" });
 });
