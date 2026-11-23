@@ -137,7 +137,7 @@ local. Só contagem e minuto — nada de paciente, protocolo, endereço ou médi
   porta. A UPA Cabula tem `raio` próprio de 50 m
   (`upas.ts`) e não aprende estacionamento: na dúvida, é HGRS. O passado foi regravado por `scripts/corrigir-cabula-hgrs.sh`.
 - **Não tem quilômetro rodado**: o rastro (`frota_posicoes`) só existe desde
-  22/11/2026 e só por 15 dias.
+  22/11/2026 e só por 5 dias (`RASTRO_DIAS`, `detalhe.ts`).
 
 ## Detalhe da viatura e "saiu da cerca" (`detalhe.ts`, testado em `detalhe.test.ts`)
 
@@ -150,9 +150,16 @@ porteiro libera `/tabela/api/frota/*`).
 
 - **Rastro:** `frota_posicoes` (chave, em, lat, lng), lido a cada 30 s
   (`coletarRastro`, separado do ciclo de 2 min: o tablet manda a cada ~60 s),
-  15 dias (limpa junto do aprendizado, a cada 30 min). Janela do
-  modal: abertura da ocorrência −10 min (sem ocorrência, 3 h), até 12 h.
-  Mapa em Leaflet + OSM (`MapaRastro.tsx`), sem chave do Google.
+  5 dias (`RASTRO_DIAS`; limpa junto do aprendizado, a cada 30 min).
+- **Janela do modal** (`janelaDoRastro`): em ocorrência, desde a vinculação
+  da viatura a ela (o primeiro status dela nesta ocorrência); fora de
+  ocorrência, a última hora. O seletor do modal (slider) volta 1 h … 5 dias
+  (`?horas=N`, só os passos além do padrão); o mesmo vale para a linha do
+  tempo. O protocolo tem 4 dígitos e recomeça todo dia, e `frota_ocorrencias`
+  é única por (chave, protocolo): status de antes da abertura é de outra
+  ocorrência e não conta para a vinculação. Acolhimentos só cruza as paradas
+  das últimas 24 h, por mais que o seletor volte.
+  Mapa em Leaflet + OSM (`MapaRastro.tsx`, rastro em canvas), sem chave do Google.
 - **Fora da cerca** (`foraDaCerca`): o mapa de equipes segue em "CHEGADA AO
   HOSPITAL", mas a última parada fora da base fechou por saída depois do status
   (folga de 10 min) e a viatura não está em outro hospital/UPA. Provável
@@ -369,7 +376,7 @@ o convite.
 última confirmação e posição, saída, motivo, quando alertou, onde o GPS parou),
 `frota_alertas` (quedas de sinal, instabilidade, surto, bateria e resumos),
 `frota_desativacoes` (fora de operação informada no painel), `frota_posicoes`
-(rastro, 15 dias) e `frota_estado` (último vínculo).
+(rastro, 5 dias) e `frota_estado` (último vínculo).
 Criadas no boot com `IF NOT EXISTS`.
 
 ## Ligar e desligar

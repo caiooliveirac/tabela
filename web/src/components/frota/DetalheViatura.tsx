@@ -57,6 +57,15 @@ const dataHora = (iso: string) =>
   new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", timeZone: "America/Bahia" });
 const minEntre = (a: string, b: string) => Math.max(0, Math.round((Date.parse(b) - Date.parse(a)) / 60_000));
 const metros = (m: number) => (m < 1000 ? `${m} m` : `${(m / 1000).toFixed(1).replace(".", ",")} km`);
+/** Hora se for de hoje (o dia de `ate`); senão dia e hora. */
+const quando = (iso: string, ate: string) =>
+  new Date(iso).toLocaleDateString("pt-BR", { timeZone: "America/Bahia" }) === new Date(ate).toLocaleDateString("pt-BR", { timeZone: "America/Bahia" })
+    ? hora(iso)
+    : dataHora(iso);
+
+/** Quanto o seletor volta no rastro (horas). Só entram os que vão além do padrão. */
+const PASSOS_H = [1, 2, 4, 8, 12, 24, 48, 72, 120];
+const rotuloHoras = (h: number) => (h < 24 ? `${h} h` : h === 24 ? "1 dia" : `${h / 24} dias`);
 
 function Selo({ cor, children }: { cor: string; children: ReactNode }) {
   return (
@@ -101,7 +110,7 @@ function Tabela({ titulo, linhas }: { titulo: string; linhas: [string, ReactNode
 }
 
 function LinhaDoTempo({ d }: { d: DetalheViaturaFrota }) {
-  if (!d.linha.length) return <div className="text-[13px] text-slate-400 p-3">Nada registrado desde {hora(d.janela.desde)}.</div>;
+  if (!d.linha.length) return <div className="text-[13px] text-slate-400 p-3">Nada registrado desde {quando(d.janela.desde, d.janela.ate)}.</div>;
   return (
     <ol className="relative">
       {d.linha.map((e, i) => {
@@ -146,11 +155,84 @@ function Legenda() {
   );
 }
 
-function Mapa({ d, alto }: { d: DetalheViaturaFrota; alto?: boolean }) {
+/** Janela do rastro: o seletor que volta no tempo (padrão à direita, até a retenção à esquerda). */
+export interface JanelaRastro {
+  horas: number | null;
+  onHoras: (h: number | null) => void;
+  carregando: boolean;
+}
+
+function SeletorRastro({ d, j }: { d: DetalheViaturaFrota; j: JanelaRastro }) {
+  const { horas, onHoras } = j;
+  const ate = Date.parse(d.janela.ate);
+  const padrao = Date.parse(d.janela.padrao);
+  const opcoes: (number | null)[] = [...PASSOS_H.filter((h) => h <= d.janela.maxHoras && ate - h * 3_600_000 < padrao).reverse(), null];
+  const [pendente, setPendente] = useState<number | null>(horas);
+  useEffect(() => setPendente(horas), [horas]);
+  // Arrastar não pede a cada passo: pede quando para.
+  useEffect(() => {
+    if (pendente === horas) return;
+    const t = window.setTimeout(() => onHoras(pendente), 350);
+    return () => window.clearTimeout(t);
+  }, [pendente, horas, onHoras]);
+  if (opcoes.length < 2) return null;
+  const i = opcoes.indexOf(pendente);
+  const pos = i >= 0 ? i : opcoes.length - 1;
+  const desde = pendente === null ? d.janela.padrao : new Date(ate - pendente * 3_600_000).toISOString();
+  const nomePadrao = d.janela.motivo === "vinculacao" ? "ocorrência" : "1 h";
+  const texto =
+    pendente === null
+      ? d.janela.motivo === "vinculacao"
+        ? `desde ${quando(desde, d.janela.ate)}, quando foi vinculada à ocorrência${d.ocorrencia?.protocolo ? ` ${d.ocorrencia.protocolo}` : ""}`
+        : `última hora, desde ${quando(desde, d.janela.ate)}`
+      : `últimas ${rotuloHoras(pendente)}, desde ${quando(desde, d.janela.ate)}`;
   return (
-    <Suspense fallback={<div className={`w-full ${alto ? "h-[46vh]" : "h-[260px]"} rounded-lg border border-slate-200 bg-slate-50`} />}>
-      <MapaRastro detalhe={d} alto={alto} />
-    </Suspense>
+    <div className="mb-2">
+      <div className="flex items-baseline justify-between gap-2 text-[12px]">
+        <span className="font-bold text-slate-800">Rastro: {texto}</span>
+        <span className="shrink-0 text-[11px] text-slate-400">
+          {j.carregando ? "carregando…" : `${d.rastro.length} posições`}
+          {pendente !== null && (
+            <button onClick={() => setPendente(null)} className="ml-2 font-bold text-sky-700 bg-transparent border-none cursor-pointer p-0 text-[11px]">
+              voltar ao padrão
+            </button>
+          )}
+        </span>
+      </div>
+      <input
+        type="range"
+        min={0}
+        max={opcoes.length - 1}
+        step={1}
+        value={pos}
+        onChange={(e) => setPendente(opcoes[Number(e.target.value)])}
+        aria-label="Voltar no tempo do rastro"
+        aria-valuetext={texto}
+        className="w-full cursor-pointer accent-slate-700"
+      />
+      <div className="flex justify-between text-[10px] text-slate-400 tabular-nums select-none">
+        {opcoes.map((h, k) => (
+          <button
+            key={h ?? "padrao"}
+            onClick={() => setPendente(h)}
+            className={`bg-transparent border-none p-0 cursor-pointer text-[10px] ${k === pos ? "font-black text-slate-800" : "text-slate-400"}`}
+          >
+            {h === null ? nomePadrao : h < 24 ? `${h}h` : `${h / 24}d`}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function Mapa({ d, j, alto }: { d: DetalheViaturaFrota; j: JanelaRastro; alto?: boolean }) {
+  return (
+    <>
+      <SeletorRastro d={d} j={j} />
+      <Suspense fallback={<div className={`w-full ${alto ? "h-[46vh]" : "h-[260px]"} rounded-lg border border-slate-200 bg-slate-50`} />}>
+        <MapaRastro detalhe={d} alto={alto} enquadrar={j.horas} />
+      </Suspense>
+    </>
   );
 }
 
@@ -198,7 +280,7 @@ function Aviso({ d, onAba, onVerNoMapa }: { d: DetalheViaturaFrota; onAba: (a: A
   );
 }
 
-function Conteudo({ d, aba, setAba, onVerNoMapa }: { d: DetalheViaturaFrota; aba: Aba; setAba: (a: Aba) => void; onVerNoMapa?: () => void }) {
+function Conteudo({ d, j, aba, setAba, onVerNoMapa }: { d: DetalheViaturaFrota; j: JanelaRastro; aba: Aba; setAba: (a: Aba) => void; onVerNoMapa?: () => void }) {
   const v = d.viatura;
   const o = d.ocorrencia;
   const p = d.permanencia;
@@ -328,9 +410,9 @@ function Conteudo({ d, aba, setAba, onVerNoMapa }: { d: DetalheViaturaFrota; aba
           <div className="grid lg:grid-cols-2 gap-3">
             <Tabela titulo="Permanência e localização" linhas={geral} />
             <div className="border border-slate-200 rounded-lg overflow-hidden">
-              <div className="px-3 py-2 bg-slate-50 border-b border-slate-200 text-[12px] font-extrabold text-slate-700">Rastro desde {hora(d.janela.desde)}</div>
+              <div className="px-3 py-2 bg-slate-50 border-b border-slate-200 text-[12px] font-extrabold text-slate-700">Rastro do GPS</div>
               <div className="p-2">
-                <Mapa d={d} />
+                <Mapa d={d} j={j} />
                 <Legenda />
               </div>
             </div>
@@ -345,7 +427,7 @@ function Conteudo({ d, aba, setAba, onVerNoMapa }: { d: DetalheViaturaFrota; aba
       {aba === "local" && (
         <div className="grid lg:grid-cols-[3fr_2fr] gap-3">
           <div className="min-w-0">
-            <Mapa d={d} alto />
+            <Mapa d={d} j={j} alto />
             <Legenda />
           </div>
           <Tabela
@@ -357,8 +439,8 @@ function Conteudo({ d, aba, setAba, onVerNoMapa }: { d: DetalheViaturaFrota; aba
               ["Cerca", d.destino
                 ? `${d.limites.raioM} m do prédio${d.destino.pontos.length ? ` e de ${d.destino.pontos.length} estacionamento(s)/porta(s)` : ""}; sai a ${d.limites.raioSaidaM} m`
                 : "—"],
-              ["Fonte GPS", <>SAMU+ <span className="text-slate-500 text-[11px]">(tablet da viatura, posição a cada 2 min)</span></>],
-              ["Rastro", d.rastro.length ? `${d.rastro.length} posições desde ${hora(d.rastro[0].em)}` : "Sem posições guardadas na janela"],
+              ["Fonte GPS", <>SAMU+ <span className="text-slate-500 text-[11px]">(tablet da viatura, cerca de uma posição por minuto; guardado por {Math.round(d.janela.maxHoras / 24)} dias)</span></>],
+              ["Rastro", d.rastro.length ? `${d.rastro.length} posições desde ${quando(d.rastro[0].em, d.janela.ate)}` : "Sem posições guardadas na janela"],
               ["Última posição", posicao],
             ]}
           />
@@ -368,7 +450,7 @@ function Conteudo({ d, aba, setAba, onVerNoMapa }: { d: DetalheViaturaFrota; aba
       {aba === "tempo" && (
         <div className="border border-slate-200 rounded-lg overflow-hidden">
           <div className="px-3 py-2 bg-slate-50 border-b border-slate-200 text-[12px] font-extrabold text-slate-700">
-            Linha do tempo da unidade <span className="font-semibold text-slate-400">· status da equipe e cerca do GPS desde {hora(d.janela.desde)}</span>
+            Linha do tempo da unidade <span className="font-semibold text-slate-400">· status da equipe e cerca do GPS desde {quando(d.janela.desde, d.janela.ate)}</span>
           </div>
           <LinhaDoTempo d={d} />
         </div>
@@ -447,9 +529,13 @@ interface Props {
 }
 
 export default function DetalheViatura({ chave, onClose, onVerNoMapa }: Props) {
-  const { data: d, isLoading, error } = useDetalheViatura(chave);
+  const [horas, setHoras] = useState<number | null>(null);
+  const { data: d, isLoading, error, isPlaceholderData } = useDetalheViatura(chave, horas);
   const [aba, setAba] = useState<Aba>("geral");
-  useEffect(() => setAba("geral"), [chave]);
+  useEffect(() => {
+    setAba("geral");
+    setHoras(null);
+  }, [chave]);
   useEffect(() => {
     if (!chave) return;
     const esc = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -505,7 +591,7 @@ export default function DetalheViatura({ chave, onClose, onVerNoMapa }: Props) {
         {/* ── Corpo ── */}
         <div className="flex-1 overflow-y-auto px-4 sm:px-5 py-4 flex flex-col gap-3">
           {d ? (
-            <Conteudo d={d} aba={aba} setAba={setAba} onVerNoMapa={verNoMapa} />
+            <Conteudo d={d} j={{ horas, onHoras: setHoras, carregando: isPlaceholderData }} aba={aba} setAba={setAba} onVerNoMapa={verNoMapa} />
           ) : (
             <div className="text-[13px] text-slate-500 py-10 text-center">
               {isLoading ? "Carregando o detalhe da viatura…" : `Detalhe indisponível: ${error?.message ?? "sem resposta"}`}

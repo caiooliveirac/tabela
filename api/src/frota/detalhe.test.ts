@@ -3,11 +3,12 @@ import assert from "node:assert/strict";
 import { LOCAIS_FROTA } from "./hospitais.js";
 import type { Ocorrencia } from "./ocorrencias.js";
 import {
-    FORA_CERCA_MIN, JANELA_MAX_H, fimForaDaCerca, foraDaCerca, inicioJanela, montarDetalhe,
+    FORA_CERCA_MIN, JANELA_LIVRE_MIN, RASTRO_DIAS, fimForaDaCerca, foraDaCerca, janelaDoRastro, montarDetalhe, type Janela,
     type ParadaDetalhe, type SaidaCerca, type ViaturaAgora,
 } from "./detalhe.js";
 
 const t = (hhmm: string) => new Date(`2026-11-22T${hhmm}:00-03:00`);
+const jan = (desde: Date): Janela => ({ desde, padrao: desde, motivo: "vinculacao", horas: null });
 const H = LOCAIS_FROTA.find((h) => h.tipo === "hospital")!;
 /** ~10 km ao norte do hospital. */
 const LONGE = { lat: H.lat + 0.09, lng: H.lng };
@@ -55,7 +56,7 @@ test("detalhe fora da cerca: aviso crítico com a mensagem, saída marcada na li
         { status: "DESIGNADA", em: t("03:08") },
         { status: "CHEGADA AO HOSPITAL", em: t("04:13") },
     ];
-    const desde = inicioJanela(o, status, null, agora);
+    const janela = janelaDoRastro({ ...o, ativa: true }, status, agora);
     const d = montarDetalhe({
         viatura: viatura({ foraDaCerca: f }),
         ocorrencia: { ...o, ativa: true },
@@ -66,7 +67,7 @@ test("detalhe fora da cerca: aviso crítico com a mensagem, saída marcada na li
             { em: t("06:47"), ...LONGE },
         ],
         locais: LOCAIS_FROTA,
-        desde,
+        janela,
         agora,
     });
     assert.equal(d.localizacao.estado, "fora-da-cerca");
@@ -90,7 +91,7 @@ test("fora da cerca recente é atenção, não crítico", () => {
     const f = foraDaCerca(o, false, saida, LOCAIS_FROTA, agora)!;
     const d = montarDetalhe({
         viatura: viatura({ foraDaCerca: f }), ocorrencia: { ...o, ativa: true }, status: [], paradas: [parada({})],
-        posicoes: [], locais: LOCAIS_FROTA, desde: t("02:29"), agora,
+        posicoes: [], locais: LOCAIS_FROTA, janela: jan(t("02:29")), agora,
     });
     assert.equal(d.aviso?.nivel, "atencao");
 });
@@ -104,7 +105,7 @@ test("detalhe dentro da cerca com 40+ min: parada atual e aviso de retenção", 
             noHospital: { id: 7, hospitalId: H.id, entrada: t("04:10").toISOString(), minutos: 50, alerta: true, naBase: false },
         }),
         ocorrencia: { ...oc("CHEGADA AO HOSPITAL", t("04:13")), ativa: true },
-        status: [], paradas: [p], posicoes: [], locais: LOCAIS_FROTA, desde: t("02:29"), agora,
+        status: [], paradas: [p], posicoes: [], locais: LOCAIS_FROTA, janela: jan(t("02:29")), agora,
     });
     assert.equal(d.localizacao.estado, "na-cerca");
     assert.equal(d.destino?.papel, "atual");
@@ -119,7 +120,7 @@ test("chegada registrada sem o GPS ter passado por hospital: aviso de atenção"
         viatura: viatura({}),
         ocorrencia: { ...oc("CHEGADA AO HOSPITAL", t("04:30")), ativa: true },
         status: [{ status: "CHEGADA AO HOSPITAL", em: t("04:30") }],
-        paradas: [], posicoes: [], locais: LOCAIS_FROTA, desde: t("02:29"), agora,
+        paradas: [], posicoes: [], locais: LOCAIS_FROTA, janela: jan(t("02:29")), agora,
     });
     assert.equal(d.destino, null);
     assert.equal(d.localizacao.estado, "a-caminho");
@@ -137,19 +138,53 @@ test("chegada registrada na própria base que fica na UPA: sem aviso de GPS", ()
         ocorrencia: { ...oc("CHEGADA AO HOSPITAL", t("04:30")), ativa: true },
         status: [{ status: "CHEGADA AO HOSPITAL", em: t("04:30") }],
         paradas: [parada({ id: 9, naBase: true, entrada: t("04:31"), saida: null, motivoFim: null })],
-        posicoes: [], locais: LOCAIS_FROTA, desde: t("02:29"), agora,
+        posicoes: [], locais: LOCAIS_FROTA, janela: jan(t("02:29")), agora,
     });
     assert.equal(d.localizacao.estado, "na-base");
     assert.equal(d.aviso, null);
 });
 
-test("janela: abertura menos 10 min, a parada aberta entra, nunca mais que 12 h", () => {
+test("janela: em ocorrência, desde a vinculação; fora dela, a última hora", () => {
     const agora = t("06:47");
-    assert.equal(inicioJanela({ abertura: t("02:39").toISOString() }, [], null, agora).getTime(), t("02:29").getTime());
-    assert.equal(inicioJanela(null, [], t("02:00"), agora).getTime(), t("02:00").getTime());
-    assert.equal(inicioJanela(null, [], null, agora).getTime(), t("03:47").getTime());
-    const antiga = new Date(agora.getTime() - 20 * 3_600_000).toISOString();
-    assert.equal(inicioJanela({ abertura: antiga }, [], null, agora).getTime(), agora.getTime() - JANELA_MAX_H * 3_600_000);
+    const o = { abertura: t("02:39").toISOString(), ativa: true };
+    const status = [
+        { status: "DESIGNADA", em: t("03:08") },
+        { status: "CHEGADA AO HOSPITAL", em: t("04:13") },
+    ];
+    const j = janelaDoRastro(o, status, agora);
+    assert.equal(j.motivo, "vinculacao");
+    assert.equal(j.desde.getTime(), t("03:08").getTime());
+    assert.equal(j.padrao.getTime(), t("03:08").getTime());
+    // encerrada ou sem ocorrência: a última hora
+    for (const oc of [{ ...o, ativa: false }, null]) {
+        const l = janelaDoRastro(oc, status, agora);
+        assert.equal(l.motivo, "ultima-hora");
+        assert.equal(l.desde.getTime(), agora.getTime() - JANELA_LIVRE_MIN * 60_000);
+    }
+});
+
+test("janela: protocolo repetido de outro dia não puxa a vinculação para trás", () => {
+    const agora = t("06:47");
+    const ontem = new Date(t("03:00").getTime() - 24 * 3_600_000);
+    const status = [
+        { status: "DESIGNADA", em: ontem },
+        { status: "DESIGNADA", em: t("05:50") },
+    ];
+    assert.equal(janelaDoRastro({ abertura: t("05:40").toISOString(), ativa: true }, status, agora).desde.getTime(), t("05:50").getTime());
+    // sem abertura: só status das últimas 24 h
+    assert.equal(janelaDoRastro({ abertura: null, ativa: true }, status, agora).desde.getTime(), t("05:50").getTime());
+});
+
+test("janela: o seletor volta horas, nunca menos que o padrão nem mais que a retenção", () => {
+    const agora = t("06:47");
+    const o = { abertura: t("02:39").toISOString(), ativa: true };
+    const status = [{ status: "DESIGNADA", em: t("03:08") }];
+    const h = (n: number) => agora.getTime() - n * 3_600_000;
+    assert.equal(janelaDoRastro(o, status, agora, 8).desde.getTime(), h(8));
+    assert.equal(janelaDoRastro(o, status, agora, 8).horas, 8);
+    assert.equal(janelaDoRastro(o, status, agora, 1).desde.getTime(), t("03:08").getTime());
+    assert.equal(janelaDoRastro(o, status, agora, 999).desde.getTime(), h(RASTRO_DIAS * 24));
+    assert.equal(janelaDoRastro(null, [], agora, 2).desde.getTime(), h(2));
 });
 
 test("fim do aviso fora da cerca: status novo, liberada, voltou; mapa mudo segue aberto; sem sinal fecha calado", () => {
@@ -180,7 +215,7 @@ test("detalhe: MR de cada status na linha do tempo, MRs em ordem e a notificaç�
             { status: "CHEGADA AO HOSPITAL", em: t("04:13"), medico: "FULANO EXEMPLO" },
             { status: "DISPONÍVEL / RETORNO À BASE", em: t("05:40"), medico: "BELTRANA EXEMPLO" },
         ],
-        paradas: [parada({ saida: t("05:35"), alertaEm: t("04:50") })], posicoes: [], locais: LOCAIS_FROTA, desde: t("02:29"), agora,
+        paradas: [parada({ saida: t("05:35"), alertaEm: t("04:50") })], posicoes: [], locais: LOCAIS_FROTA, janela: jan(t("02:29")), agora,
         acolhimentos: { ligado: true, erro: null, porParada: new Map([[7, notificacao]]), cobre: () => true },
     });
     assert.deepEqual(d.medicos, ["Fulano Exemplo", "Beltrana Exemplo"]);
@@ -196,7 +231,7 @@ test("detalhe: MR de cada status na linha do tempo, MRs em ordem e a notificaç�
 
     const sem = montarDetalhe({
         viatura: viatura({}), ocorrencia: o, status: [], paradas: [parada({ alertaEm: t("04:50") })], posicoes: [], locais: LOCAIS_FROTA,
-        desde: t("02:29"), agora, acolhimentos: { ligado: true, erro: null, porParada: new Map(), cobre: () => true },
+        janela: jan(t("02:29")), agora, acolhimentos: { ligado: true, erro: null, porParada: new Map(), cobre: () => true },
     });
     assert.equal(sem.acolhimento.semNotificacao, true);
 });

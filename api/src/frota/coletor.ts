@@ -31,7 +31,7 @@ import {
     type Ocorrencia,
 } from "./ocorrencias.js";
 import {
-    FORA_CERCA_MIN, fimForaDaCerca, inicioJanela, montarDetalhe,
+    FORA_CERCA_MIN, RASTRO_DIAS, fimForaDaCerca, janelaDoRastro, montarDetalhe,
     type AcolhimentoDetalhe, type ParadaDetalhe, type SaidaCerca, type StatusDetalhe,
 } from "./detalhe.js";
 import {
@@ -73,8 +73,6 @@ interface AvisoFora { alertaId: number; chave: string; paradaId: number; saiuEm:
 const foraAvisados = new Map<number, AvisoFora>();
 /** Paradas que já geraram o aviso (12 h): deploy ou status que vai e volta não repete. */
 const foraJaAvisada = new Set<number>();
-/** Rastro guardado por tantos dias (frota_posicoes). */
-const RASTRO_DIAS = 15;
 /** Hospitais e UPAs com os estacionamentos aprendidos. */
 let locais: readonly HospitalFrota[] = LOCAIS_FROTA;
 let aprendidoEm = 0;
@@ -253,7 +251,7 @@ async function criarTabelas(): Promise<void> {
             PRIMARY KEY (chave, protocolo)
         )`);
     // Rastro do GPS (detalhe da viatura): cada posição nova que o SAMU+ manda,
-    // a cada 2 min, por 15 dias. A mesma posição repetida não duplica.
+    // ~1 por minuto, por RASTRO_DIAS (detalhe.ts). A mesma posição repetida não duplica.
     await db.execute(sql`
         CREATE TABLE IF NOT EXISTS frota_posicoes (
             chave varchar(60)      NOT NULL,
@@ -1437,9 +1435,10 @@ const isoOuNull = (x: unknown) => (x == null ? null : new Date(x as string).toIS
 /**
  * Detalhe de uma viatura (modal da aba Frota): a ocorrência de agora — ou a
  * última das 3 h, já encerrada —, os status dela, as paradas e o rastro desde
- * a abertura (detalhe.ts). `null` = chave fora do painel.
+ * a vinculação à ocorrência ou da última hora; `horas` (seletor do modal)
+ * volta mais (janelaDoRastro, detalhe.ts). `null` = chave fora do painel.
  */
-export async function detalheViatura(chave: string, agora = new Date()) {
+export async function detalheViatura(chave: string, agora = new Date(), horas: number | null = null) {
     const painel = painelAtual(agora);
     const v = painel.viaturas.find((x) => x.chave === chave);
     if (!v) return null;
@@ -1479,7 +1478,8 @@ export async function detalheViatura(chave: string, agora = new Date()) {
         ocorrencia.statusEm = status.at(-1)!.em.toISOString();
     }
 
-    const desde = inicioJanela(ocorrencia, status, v.noHospital ? new Date(v.noHospital.entrada) : null, agora);
+    const janela = janelaDoRastro(ocorrencia, status, agora, horas);
+    const desde = janela.desde;
     const paradas: ParadaDetalhe[] = (
         await consultar(sql`
             SELECT id, hospital_id, entrada, ultima_vez, saida, motivo_fim, alerta_em, na_base
@@ -1507,8 +1507,10 @@ export async function detalheViatura(chave: string, agora = new Date()) {
     const cobre = (hospitalId: string) => v.tipo === "USA" && NO_ACOLHIMENTOS.has(hospitalId);
     const porParada = new Map<number, AcolhimentoDetalhe>();
     let erroAcolhimentos: string | null = null;
+    // Só as paradas das últimas 24 h: voltar dias no seletor não pede dias ao Acolhimentos a cada 30 s.
+    const desdeAcolhimentos = Math.max(desde.getTime(), agora.getTime() - 24 * 3_600_000);
     const candidatas = paradas
-        .filter((p) => !p.naBase && cobre(p.hospitalId))
+        .filter((p) => !p.naBase && cobre(p.hospitalId) && (p.saida ?? agora).getTime() >= desdeAcolhimentos)
         .map((p) => ({
             id: p.id, chave, hospitalId: p.hospitalId, entrada: p.entrada.toISOString(),
             fim: (p.saida ?? (p.motivoFim === null ? agora : p.ultimaVez)).toISOString(),
@@ -1516,7 +1518,7 @@ export async function detalheViatura(chave: string, agora = new Date()) {
         }));
     if (candidatas.length && acolhimentosLigado()) {
         try {
-            const lidos = await buscarAcolhimentos(inicioBusca(desde, candidatas), agora);
+            const lidos = await buscarAcolhimentos(inicioBusca(new Date(desdeAcolhimentos), candidatas), agora);
             for (const [id, a] of cruzar(candidatas, lidos, agora.getTime()).casadas) {
                 const r = resumo(a, agora.getTime());
                 porParada.set(id, { chegada: r.chegada, passagem: r.passagem, liberada: r.liberada, minutos: r.minutos, maca: r.maca, motivos: r.motivos });
@@ -1530,7 +1532,7 @@ export async function detalheViatura(chave: string, agora = new Date()) {
         viatura: v,
         equipe: equipeAgora(v.tipo, v.codigo),
         ...montarDetalhe({
-            viatura: v, ocorrencia, status, paradas, posicoes: posicoesRastro, locais, desde, agora,
+            viatura: v, ocorrencia, status, paradas, posicoes: posicoesRastro, locais, janela, agora,
             acolhimentos: { ligado: acolhimentosLigado(), erro: erroAcolhimentos, porParada, cobre },
         }),
     };

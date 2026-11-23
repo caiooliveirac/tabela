@@ -44,12 +44,15 @@ export function useReativarViatura() {
 }
 
 /** Detalhe de uma viatura (modal): ocorrência, parada, rastro e linha do tempo. Atualiza junto com a coleta. */
-export function useDetalheViatura(chave: string | null) {
+/** `horas`: o seletor do modal voltando no rastro (null = janela padrão do servidor). */
+export function useDetalheViatura(chave: string | null, horas: number | null = null) {
   return useQuery({
-    queryKey: ["frota", "viatura", chave],
-    queryFn: () => api.getDetalheViatura(chave!),
+    queryKey: ["frota", "viatura", chave, horas],
+    queryFn: () => api.getDetalheViatura(chave!, horas),
     enabled: chave !== null,
     refetchInterval: 30_000,
+    // Mexer no seletor mantém o rastro na tela até o novo chegar (só da mesma viatura).
+    placeholderData: (anterior, consulta) => (consulta?.queryKey[2] === chave ? anterior : undefined),
   });
 }
 

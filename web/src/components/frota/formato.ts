@@ -107,12 +107,11 @@ export function duracao(min: number): string {
   return `${Math.floor(min / 1440)} dias`;
 }
 
+// Um formatador só: o rastro de dias chama isto milhares de vezes a cada 30 s.
+const HORA = new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Bahia" });
+
 export function hora(iso: string): string {
-  return new Date(iso).toLocaleTimeString("pt-BR", {
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: "America/Bahia",
-  });
+  return HORA.format(new Date(iso));
 }
 
 export function ha(iso: string | null, agora = Date.now()): string {

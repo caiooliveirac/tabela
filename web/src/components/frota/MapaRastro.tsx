@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════
 // Mapa do detalhe da viatura: a cerca do hospital (150 m do prédio e de cada
-// estacionamento aprendido), o rastro do GPS desde a abertura da ocorrência
-// e a posição atual. Leaflet + OpenStreetMap, como o mapa do Destino: sem
+// estacionamento aprendido), o rastro do GPS da janela escolhida no modal
+// (vinculação à ocorrência ou última hora, até dias atrás) e a posição atual. Leaflet + OpenStreetMap, como o mapa do Destino: sem
 // chave no navegador.
 //
 // Cor do rastro: violeta a caminho, azul dentro da cerca, vermelho depois de
@@ -16,7 +16,12 @@ import { COR, COR_RASTRO, hora } from "./formato";
 interface Props {
   detalhe: DetalheViaturaFrota;
   alto?: boolean;
+  /** Muda quando a pessoa escolhe outra janela no seletor: o mapa reenquadra o rastro novo. */
+  enquadrar?: number | null;
 }
+
+const DIA = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", timeZone: "America/Bahia" });
+const dia = (iso: string) => DIA.format(new Date(iso));
 
 function corDoPonto(d: DetalheViaturaFrota, p: { em: string; local: string | null }): string {
   if (d.destino && p.local === d.destino.id) return COR_RASTRO.dentro;
@@ -25,10 +30,12 @@ function corDoPonto(d: DetalheViaturaFrota, p: { em: string; local: string | nul
   return COR_RASTRO.caminho;
 }
 
-export default function MapaRastro({ detalhe, alto = false }: Props) {
+export default function MapaRastro({ detalhe, alto = false, enquadrar = null }: Props) {
   const div = useRef<HTMLDivElement>(null);
   const mapa = useRef<L.Map | null>(null);
   const camada = useRef<L.LayerGroup | null>(null);
+  // Dias de rastro são milhares de pontos: canvas, não um elemento SVG por ponto.
+  const canvas = useRef<L.Canvas | null>(null);
   const enquadrado = useRef(false);
 
   useEffect(() => {
@@ -39,6 +46,7 @@ export default function MapaRastro({ detalhe, alto = false }: Props) {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     }).addTo(m);
     camada.current = L.layerGroup().addTo(m);
+    canvas.current = L.canvas({ padding: 0.5 });
     mapa.current = m;
     // Dentro do modal o tamanho só se firma depois da animação de abertura.
     const t = window.setTimeout(() => m.invalidateSize(), 60);
@@ -47,9 +55,14 @@ export default function MapaRastro({ detalhe, alto = false }: Props) {
       m.remove();
       mapa.current = null;
       camada.current = null;
+      canvas.current = null;
       enquadrado.current = false;
     };
   }, []);
+
+  useEffect(() => {
+    enquadrado.current = false;
+  }, [enquadrar]);
 
   useEffect(() => {
     const m = mapa.current;
@@ -77,11 +90,12 @@ export default function MapaRastro({ detalhe, alto = false }: Props) {
       pontos.push([d.destino.lat, d.destino.lng]);
     }
 
-    // Rastro: trechos da mesma cor viram uma linha só.
+    // Rastro: trechos da mesma cor viram uma linha só. Ponto de outro dia leva a data no balão.
+    const hoje = dia(d.janela.ate);
     let trecho: L.LatLngExpression[] = [];
     let corTrecho = "";
     const fechar = () => {
-      if (trecho.length > 1) L.polyline(trecho, { color: corTrecho, weight: 4, opacity: 0.85 }).addTo(g);
+      if (trecho.length > 1) L.polyline(trecho, { color: corTrecho, weight: 4, opacity: 0.85, renderer: canvas.current ?? undefined }).addTo(g);
     };
     for (const p of d.rastro) {
       const cor = corDoPonto(d, p);
@@ -94,8 +108,8 @@ export default function MapaRastro({ detalhe, alto = false }: Props) {
       } else {
         trecho.push(ll);
       }
-      L.circleMarker(ll, { radius: 3, color: cor, weight: 1, fillColor: "#fff", fillOpacity: 1 })
-        .bindTooltip(hora(p.em))
+      L.circleMarker(ll, { radius: 3, color: cor, weight: 1, fillColor: "#fff", fillOpacity: 1, renderer: canvas.current ?? undefined })
+        .bindTooltip(dia(p.em) === hoje ? hora(p.em) : `${dia(p.em)} ${hora(p.em)}`)
         .addTo(g);
       pontos.push(ll);
     }
@@ -126,7 +140,7 @@ export default function MapaRastro({ detalhe, alto = false }: Props) {
       pontos.push(ll);
     }
 
-    // Enquadra uma vez: a atualização de 30 s não tira o zoom de quem está olhando.
+    // Enquadra uma vez por janela: a atualização de 30 s não tira o zoom de quem está olhando.
     if (!enquadrado.current && pontos.length) {
       m.fitBounds(L.latLngBounds(pontos), { padding: [28, 28], maxZoom: 16 });
       enquadrado.current = true;

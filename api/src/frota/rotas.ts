@@ -8,6 +8,7 @@ import {
 import { ErroDesativacao, esquemaDesativar, esquemaMotivo, esquemaReativar } from "./desativacoes.js";
 import { ErroAtivacao, esquemaAtivar, esquemaEncerrar } from "./ativacoes.js";
 import { esquemaOcorrencias } from "./ocorrencias.js";
+import { RASTRO_DIAS } from "./detalhe.js";
 
 const router = Router();
 
@@ -176,8 +177,10 @@ router.get("/viaturas/:chave", async (req, res) => {
         res.status(400).json({ error: "chave inválida" });
         return;
     }
+    // ?horas=N: o seletor do modal voltando no rastro (até RASTRO_DIAS); sem ele, a janela padrão.
+    const horas = Number(req.query.horas);
     try {
-        const d = await detalheViatura(chave);
+        const d = await detalheViatura(chave, new Date(), Number.isInteger(horas) && horas > 0 && horas <= RASTRO_DIAS * 24 ? horas : null);
         if (!d) {
             res.status(404).json({ error: "viatura fora do painel" });
             return;

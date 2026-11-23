@@ -532,7 +532,16 @@ export interface DetalheViaturaFrota {
     tom: TomEventoFrota;
   }[];
   rastro: { em: string; lat: number; lng: number; local: string | null }[];
-  janela: { desde: string; ate: string };
+  janela: {
+    desde: string;
+    ate: string;
+    /** Começo padrão: vinculação à ocorrência ou a última hora. */
+    padrao: string;
+    motivo: "vinculacao" | "ultima-hora";
+    /** Horas pedidas pelo seletor (null = padrão) e o máximo que ele volta (retenção do rastro). */
+    horas: number | null;
+    maxHoras: number;
+  };
   limites: { raioM: number; raioSaidaM: number; alertaMin: number; foraCercaMin: number };
 }
 
