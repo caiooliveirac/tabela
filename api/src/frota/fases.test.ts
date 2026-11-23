@@ -136,3 +136,20 @@ test("fases: voltou à base sem unidade (atendimento sem remoção)", () => {
     assert.equal(f.tempos.retorno?.minutos, 9);
     assert.equal(faseEm(f, t("10:45")), "retorno");
 });
+
+test("fases: unidade curta conta (3+ min ou com o botão da equipe); passar pela cerca, não", () => {
+    const pos = [
+        ...trecho("09:55", "10:00", BASE),
+        ...trecho("10:01", "10:09", BASE, LOCAL),
+        ...trecho("10:10", "10:30", LOCAL),
+        ...trecho("10:31", "10:40", LOCAL, HOSP),
+        ...trecho("10:41", "10:44", HOSP),
+        ...trecho("10:45", "10:59", HOSP, BASE),
+    ];
+    const curta = (min: number) => parada({ entrada: t("10:41"), saida: new Date(t("10:41").getTime() + min * 60_000) });
+    const f = (min: number, botao: Date | null = null) =>
+        fasesDaOcorrencia({ vinculacao: t("10:00"), ativa: false, posicoes: pos, paradas: [curta(min)], base: BASE, chegadaUnidadeRegistrada: botao, agora: t("11:00") });
+    assert.equal(f(4).unidade?.hospitalId, "hge");
+    assert.equal(f(2).unidade, null);
+    assert.equal(f(2, t("10:43")).unidade?.hospitalId, "hge");
+});

@@ -1562,6 +1562,7 @@ export async function detalheViatura(chave: string, agora = new Date(), horas: n
                       paradas,
                       base: v.base ? COORDENADAS_BASES[v.base] ?? null : null,
                       chegadaRegistrada: status.find((x) => /CHEGADA AO LOCAL/i.test(x.status) && x.em >= vinculacaoRecente)?.em ?? null,
+                      chegadaUnidadeRegistrada: status.find((x) => /CHEGADA AO HOSPITAL/i.test(x.status) && x.em >= vinculacaoRecente)?.em ?? null,
                       agora,
                   })
                 : null,

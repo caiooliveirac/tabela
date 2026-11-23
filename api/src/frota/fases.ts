@@ -18,8 +18,9 @@
 //   do local ela pode parar longe numa unidade fora da nossa lista). As outras
 //   ficam como paradas intermediárias — sem o ponto da ocorrência não dá para
 //   dizer se foi trânsito ou procura do endereço.
-// - Unidade: a primeira parada em hospital/UPA (cerca de 150 m) com 5 min ou
-//   mais depois da partida. Sem parada de rua antes e com outra unidade
+// - Unidade: a primeira parada em hospital/UPA (cerca de 150 m) com 3 min ou
+//   mais depois da partida (passar pela cerca dá ~2 min), ou de qualquer
+//   duração se a equipe registrou "chegada ao hospital" nela. Sem parada de rua antes e com outra unidade
 //   depois, a primeira foi o local (transferência: pegou na UPA).
 // - Retorno: da saída da unidade (ou do local, sem unidade) até voltar à base.
 //
@@ -34,8 +35,8 @@ export const PARADA_MIN = 5;
 export const PARADA_RAIO_M = 80;
 /** Paradas tão perto uma da outra são a mesma (falha de sinal no meio). */
 export const JUNTAR_M = 150;
-/** Parada em hospital/UPA mais curta que isto é passagem, não a unidade. */
-export const UNIDADE_MIN = 5;
+/** Parada em hospital/UPA mais curta que isto é passagem, não a unidade (sem o botão da equipe). */
+export const UNIDADE_MIN = 3;
 /** Sem o botão de chegada: a primeira parada de rua tão longa é o local. */
 export const LOCAL_MIN = 10;
 
@@ -131,6 +132,8 @@ export function fasesDaOcorrencia(e: {
     base: { lat: number; lng: number } | null;
     /** "CHEGADA AO LOCAL" apertada pela equipe nesta ocorrência: diz qual parada foi o local. */
     chegadaRegistrada?: Date | null;
+    /** "CHEGADA AO HOSPITAL" apertada: a parada em que ela cai é a unidade, por curta que seja. */
+    chegadaUnidadeRegistrada?: Date | null;
     agora: Date;
 }): Fases {
     const { vinculacao, agora } = e;
@@ -147,9 +150,13 @@ export function fasesDaOcorrencia(e: {
     const partida = saiu?.em ?? null;
     const desde = partida ?? vinculacao;
 
-    // Unidade: hospital/UPA com 5+ min depois da partida.
+    // Unidade: hospital/UPA com 3+ min depois da partida, ou a do botão "chegada ao hospital".
+    const regUnidade = e.chegadaUnidadeRegistrada?.getTime() ?? NaN;
+    const doBotao = (p: ParadaDetalhe) =>
+        p.entrada.getTime() - 5 * MIN <= regUnidade && regUnidade <= fimDa(p, agora).getTime() + 5 * MIN;
     const cercas = e.paradas
-        .filter((p) => !p.naBase && p.entrada.getTime() > desde.getTime() - MIN && (p.motivoFim === null || minutos(p.entrada, fimDa(p, agora)) >= UNIDADE_MIN))
+        .filter((p) => !p.naBase && p.entrada.getTime() > desde.getTime() - MIN &&
+            (p.motivoFim === null || minutos(p.entrada, fimDa(p, agora)) >= UNIDADE_MIN || doBotao(p)))
         .sort((a, b) => a.entrada.getTime() - b.entrada.getTime());
     // Voltou à base sem passar por unidade (atendimento sem remoção).
     // (Voltar em menos de 10 min é arrancada falsa, não atendimento.)

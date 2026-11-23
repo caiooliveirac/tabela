@@ -169,7 +169,8 @@ porteiro libera `/tabela/api/frota/*`).
   (paradas a até 150 m uma da outra se juntam); qual delas é o local: a que
   contém a "chegada ao local" apertada, senão a primeira de 10+ min. As outras
   viram paradas intermediárias ("procurando o endereço?" se antes do local e a
-  até 1 km dele). Unidade: a primeira cerca de hospital/UPA com 5+ min; sem
+  até 1 km dele). Unidade: a primeira cerca de hospital/UPA com 3+ min (passar
+  pela cerca dá ~2 min) ou a do botão "chegada ao hospital"; sem
   parada de rua e com outra unidade depois, a primeira foi o local
   (transferência). Retorno: até voltar à base. O detalhe traz `fases` (marcos,
   `tempos` saída/resposta/no local/transporte/na unidade/retorno, o que a
