@@ -31,9 +31,10 @@ import {
     type Ocorrencia,
 } from "./ocorrencias.js";
 import {
-    FORA_CERCA_MIN, RASTRO_DIAS, fimForaDaCerca, janelaDoRastro, montarDetalhe,
+    FORA_CERCA_MIN, RASTRO_DIAS, fimForaDaCerca, janelaDoRastro, montarDetalhe, vinculacaoDa,
     type AcolhimentoDetalhe, type ParadaDetalhe, type SaidaCerca, type StatusDetalhe,
 } from "./detalhe.js";
+import { fasesDaOcorrencia } from "./fases.js";
 import {
     avancarQuedas, bateriaBaixa, instaveisAgora, plantaoDe, ranking, resumoDevido,
     textoBateria, textoFimQueda, textoFrota, textoInstavel, textoQueda, textoResumo, textoSurto,
@@ -618,12 +619,17 @@ async function avisarBaseOcupada(agora: Date): Promise<void> {
         const b = baseOcupada(v, desde, agora, ALERTA_MIN);
         if (!b) continue;
         const protocolo = b.ocorrencia.protocolo ?? "";
-        const k = `${v.chave}|${protocolo}`;
+        // O protocolo (4 dígitos) recomeça todo dia: o aviso vale por ocorrência (abertura), não pelo número para sempre.
+        const k = `${v.chave}|${protocolo}|${b.ocorrencia.abertura ?? ""}`;
         if (baseOcupadaAvisada.has(k)) continue;
-        const [ja] = await consultar(sql`SELECT 1 AS x FROM frota_base_ocupada WHERE chave = ${v.chave} AND protocolo = ${protocolo}`);
+        const [ja] = await consultar(sql`
+            SELECT 1 AS x FROM frota_base_ocupada
+            WHERE chave = ${v.chave} AND protocolo = ${protocolo} AND avisado_em > now() - interval '12 hours'`);
         if (!ja) {
             if (!(await mandar(textoBaseOcupada(b)))) continue; // falhou: tenta na próxima coleta
-            await db.execute(sql`INSERT INTO frota_base_ocupada (chave, protocolo) VALUES (${v.chave}, ${protocolo}) ON CONFLICT DO NOTHING`);
+            await db.execute(sql`
+                INSERT INTO frota_base_ocupada (chave, protocolo) VALUES (${v.chave}, ${protocolo})
+                ON CONFLICT (chave, protocolo) DO UPDATE SET avisado_em = now()`);
         }
         baseOcupadaAvisada.add(k);
     }
@@ -899,6 +905,17 @@ export async function registrarOcorrencias(envio: z.infer<typeof esquemaOcorrenc
         for (const [chave, s] of situacoesRecebidas()) {
             const o = s.ocorrencia;
             if (!o?.protocolo) continue;
+            // O protocolo tem 4 dígitos e recomeça todo dia: o mesmo número na mesma
+            // viatura, sumido há 6 h ou com outra abertura, é outra ocorrência. A linha
+            // antiga é arquivada ("0854@20261122-21727", com o id: nunca colide) e
+            // leva os status dela; a de agora nasce limpa.
+            await db.execute(sql`
+                UPDATE frota_ocorrencias
+                SET protocolo = protocolo || '@' || to_char(primeira_vez AT TIME ZONE 'America/Bahia', 'YYYYMMDD') || '-' || id
+                WHERE chave = ${chave} AND protocolo = ${o.protocolo}
+                  AND (ultima_vez < ${agora.toISOString()}::timestamptz - interval '6 hours'
+                       OR (abertura IS NOT NULL AND ${o.abertura}::timestamptz IS NOT NULL
+                           AND abs(extract(epoch FROM abertura - ${o.abertura}::timestamptz)) > 3600))`);
             const [linha] = await consultar(sql`
                 INSERT INTO frota_ocorrencias
                     (chave, protocolo, medico, risco, regulacao_secundaria, abertura, endereco, bairro, queixa, hma, primeira_vez, ultima_vez)
@@ -1480,11 +1497,15 @@ export async function detalheViatura(chave: string, agora = new Date(), horas: n
 
     const janela = janelaDoRastro(ocorrencia, status, agora, horas);
     const desde = janela.desde;
+    // Fases pelo GPS (fases.ts): precisam do rastro desde a vinculação, mesmo que a janela mostre menos.
+    const vinculacao = vinculacaoDa(ocorrencia, status, agora);
+    const vinculacaoRecente = vinculacao && agora.getTime() - vinculacao.getTime() <= 12 * 3_600_000 ? vinculacao : null;
+    const desdePosicoes = vinculacaoRecente && vinculacaoRecente < desde ? new Date(vinculacaoRecente.getTime() - 10 * 60_000) : desde;
     const paradas: ParadaDetalhe[] = (
         await consultar(sql`
             SELECT id, hospital_id, entrada, ultima_vez, saida, motivo_fim, alerta_em, na_base
             FROM frota_permanencias
-            WHERE chave = ${chave} AND (motivo_fim IS NULL OR COALESCE(saida, ultima_vez) >= ${desde.toISOString()})
+            WHERE chave = ${chave} AND (motivo_fim IS NULL OR COALESCE(saida, ultima_vez) >= ${desdePosicoes.toISOString()})
             ORDER BY entrada`)
     ).map((r) => ({
         id: Number(r.id),
@@ -1499,7 +1520,7 @@ export async function detalheViatura(chave: string, agora = new Date(), horas: n
     const posicoesRastro = (
         await consultar(sql`
             SELECT em, lat, lng FROM frota_posicoes
-            WHERE chave = ${chave} AND em >= ${desde.toISOString()}
+            WHERE chave = ${chave} AND em >= ${desdePosicoes.toISOString()}
             ORDER BY em`)
     ).map((r) => ({ em: new Date(r.em as string), lat: Number(r.lat), lng: Number(r.lng) }));
 
@@ -1533,6 +1554,17 @@ export async function detalheViatura(chave: string, agora = new Date(), horas: n
         equipe: equipeAgora(v.tipo, v.codigo),
         ...montarDetalhe({
             viatura: v, ocorrencia, status, paradas, posicoes: posicoesRastro, locais, janela, agora,
+            fases: vinculacaoRecente
+                ? fasesDaOcorrencia({
+                      vinculacao: vinculacaoRecente,
+                      ativa: ocorrencia?.ativa ?? false,
+                      posicoes: posicoesRastro,
+                      paradas,
+                      base: v.base ? COORDENADAS_BASES[v.base] ?? null : null,
+                      chegadaRegistrada: status.find((x) => /CHEGADA AO LOCAL/i.test(x.status) && x.em >= vinculacaoRecente)?.em ?? null,
+                      agora,
+                  })
+                : null,
             acolhimentos: { ligado: acolhimentosLigado(), erro: erroAcolhimentos, porParada, cobre },
         }),
     };

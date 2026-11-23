@@ -468,6 +468,42 @@ export type EstadoLocalizacaoFrota =
 
 export type TomEventoFrota = "neutro" | "info" | "ok" | "atencao" | "critico";
 
+export type FaseRastroFrota = "antes" | "resposta" | "local" | "transporte" | "unidade" | "retorno" | "depois";
+
+export interface ParadaRuaFrota {
+  inicio: string;
+  fim: string;
+  lat: number;
+  lng: number;
+  minutos: number;
+  aberta: boolean;
+  hospitalId: string | null;
+}
+
+export interface TempoFaseFrota {
+  minutos: number;
+  aberto: boolean;
+}
+
+export interface FasesFrota {
+  vinculacao: string;
+  naBase: boolean;
+  partida: string | null;
+  local: ParadaRuaFrota | null;
+  intermediarias: ParadaRuaFrota[];
+  unidade: { hospitalId: string; nome: string; entrada: string; saida: string | null } | null;
+  chegadaBase: string | null;
+  tempos: {
+    saida: TempoFaseFrota | null;
+    resposta: TempoFaseFrota | null;
+    noLocal: TempoFaseFrota | null;
+    transporte: TempoFaseFrota | null;
+    naUnidade: TempoFaseFrota | null;
+    retorno: TempoFaseFrota | null;
+  };
+  registrado: { saidaBase: string | null; chegadaLocal: string | null; saidaLocal: string | null; chegadaUnidade: string | null; saidaUnidade: string | null };
+}
+
 /** GET /frota/viaturas/:chave — o modal de detalhe (api/src/frota/detalhe.ts). */
 export interface DetalheViaturaFrota {
   viatura: ViaturaFrota;
@@ -526,12 +562,14 @@ export interface DetalheViaturaFrota {
   };
   linha: {
     em: string;
-    tipo: "abertura" | "status" | "entrou" | "alerta" | "saiu" | "sem-sinal" | "desativada" | "acolhimento" | "posicao";
+    tipo: "abertura" | "status" | "entrou" | "alerta" | "saiu" | "sem-sinal" | "desativada" | "acolhimento" | "posicao" | "fase";
     titulo: string;
     detalhe: string | null;
     tom: TomEventoFrota;
   }[];
-  rastro: { em: string; lat: number; lng: number; local: string | null }[];
+  rastro: { em: string; lat: number; lng: number; local: string | null; fase: FaseRastroFrota | null }[];
+  /** Fases da ocorrência pelo GPS (api/src/frota/fases.ts); null = sem ocorrência recente. */
+  fases: FasesFrota | null;
   janela: {
     desde: string;
     ate: string;

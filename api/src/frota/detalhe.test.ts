@@ -6,6 +6,7 @@ import {
     FORA_CERCA_MIN, JANELA_LIVRE_MIN, RASTRO_DIAS, fimForaDaCerca, foraDaCerca, janelaDoRastro, montarDetalhe, type Janela,
     type ParadaDetalhe, type SaidaCerca, type ViaturaAgora,
 } from "./detalhe.js";
+import type { Fases } from "./fases.js";
 
 const t = (hhmm: string) => new Date(`2026-11-22T${hhmm}:00-03:00`);
 const jan = (desde: Date): Janela => ({ desde, padrao: desde, motivo: "vinculacao", horas: null });
@@ -234,4 +235,38 @@ test("detalhe: MR de cada status na linha do tempo, MRs em ordem e a notificaç�
         janela: jan(t("02:29")), agora, acolhimentos: { ligado: true, erro: null, porParada: new Map(), cobre: () => true },
     });
     assert.equal(sem.acolhimento.semNotificacao, true);
+});
+
+test("detalhe com fases: marcos pelo GPS na linha do tempo, com o que a equipe apertou ao lado, e a fase de cada ponto", () => {
+    const agora = t("06:47");
+    const status = [
+        { status: "DESIGNADA", em: t("03:08") },
+        { status: "CHEGADA AO LOCAL", em: t("03:41") },
+        { status: "CHEGADA AO HOSPITAL", em: t("04:13") },
+    ];
+    const LOCAL = { lat: LONGE.lat, lng: LONGE.lng + 0.02 };
+    const fases: Fases = {
+        vinculacao: t("03:08"), naBase: true, partida: t("03:12"),
+        local: { inicio: t("03:35"), fim: t("03:58"), ...LOCAL, minutos: 23, aberta: false },
+        intermediarias: [{ inicio: t("03:20"), fim: t("03:27"), lat: LOCAL.lat + 0.004, lng: LOCAL.lng, minutos: 7, aberta: false }],
+        unidade: { paradaId: 7, hospitalId: H.id, entrada: t("04:10"), saida: t("04:52") },
+        chegadaBase: null,
+        tempos: { saida: { minutos: 4, aberto: false }, resposta: { minutos: 27, aberto: false }, noLocal: { minutos: 23, aberto: false },
+                  transporte: { minutos: 12, aberto: false }, naUnidade: { minutos: 42, aberto: false }, retorno: { minutos: 115, aberto: true } },
+    };
+    const d = montarDetalhe({
+        viatura: viatura({}), ocorrencia: { ...oc("CHEGADA AO HOSPITAL", t("04:13")), ativa: true }, status, paradas: [parada({})],
+        posicoes: [{ em: t("03:00"), ...LONGE }, { em: t("03:40"), ...LOCAL }, { em: t("04:05"), ...LONGE }, { em: t("05:30"), ...LONGE }],
+        locais: LOCAIS_FROTA, janela: jan(t("03:08")), agora, fases,
+    });
+    const fase = (titulo: RegExp) => d.linha.find((x) => x.tipo === "fase" && titulo.test(x.titulo));
+    assert.equal(fase(/^Saiu da base/)?.detalhe, "pelo GPS");
+    assert.match(fase(/^Chegou ao local/)!.detalhe!, /parada de 23 min · equipe registrou 03:41 \(\+6 min\)/);
+    assert.match(fase(/^Saiu do local/)!.detalhe!, /23 min no local/);
+    // parada de 7 min a ~450 m, antes do local: talvez procurando o endereço
+    assert.equal(fase(/^Parada de 7 min a/)?.tom, "atencao");
+    // o ponto de antes da vinculação fica fora da janela; os outros têm fase
+    assert.deepEqual(d.rastro.map((p) => p.fase), ["local", "transporte", "retorno"]);
+    assert.equal(d.fases?.registrado.chegadaLocal, t("03:41").toISOString());
+    assert.equal(d.fases?.tempos.resposta?.minutos, 27);
 });

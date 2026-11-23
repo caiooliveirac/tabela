@@ -4,14 +4,16 @@
 // (vinculação à ocorrência ou última hora, até dias atrás) e a posição atual. Leaflet + OpenStreetMap, como o mapa do Destino: sem
 // chave no navegador.
 //
-// Cor do rastro: violeta a caminho, azul dentro da cerca, vermelho depois de
-// sair com o status ainda de hospital (cinza se o status já mudou).
+// Cor do rastro: com ocorrência, uma cor por fase (fases.ts da API) — laranja
+// até o local, marrom no local, violeta até a unidade, azul na unidade, verde
+// no retorno; vermelho só no retorno com o status ainda de hospital. Sem
+// ocorrência recente: violeta a caminho, azul na cerca, cinza depois.
 // ═══════════════════════════════════════════════════════════════
 import { useEffect, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { DetalheViaturaFrota } from "../../lib/types";
-import { COR, COR_RASTRO, hora } from "./formato";
+import { COR, COR_FASE, COR_RASTRO, hora } from "./formato";
 
 interface Props {
   detalhe: DetalheViaturaFrota;
@@ -23,7 +25,8 @@ interface Props {
 const DIA = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", timeZone: "America/Bahia" });
 const dia = (iso: string) => DIA.format(new Date(iso));
 
-function corDoPonto(d: DetalheViaturaFrota, p: { em: string; local: string | null }): string {
+function corDoPonto(d: DetalheViaturaFrota, p: DetalheViaturaFrota["rastro"][number]): string {
+  if (p.fase) return p.fase === "retorno" && d.localizacao.estado === "fora-da-cerca" ? COR_RASTRO.foraAlerta : COR_FASE[p.fase];
   if (d.destino && p.local === d.destino.id) return COR_RASTRO.dentro;
   const saiu = d.localizacao.saiuEm ?? d.permanencia?.saida ?? null;
   if (saiu && p.em > saiu) return d.localizacao.estado === "fora-da-cerca" ? COR_RASTRO.foraAlerta : COR_RASTRO.fora;
@@ -114,6 +117,25 @@ export default function MapaRastro({ detalhe, alto = false, enquadrar = null }: 
       pontos.push(ll);
     }
     fechar();
+
+    // O local da ocorrência e as paradas de 5+ min fora dele (pelo GPS).
+    const f = d.fases;
+    if (f) {
+      for (const p of f.intermediarias) {
+        L.circleMarker([p.lat, p.lng], { radius: 6, color: "#fff", weight: 2, fillColor: COR.atrasada, fillOpacity: 1 })
+          .bindTooltip(`Parada de ${p.minutos} min · ${hora(p.inicio)}`)
+          .addTo(g);
+      }
+      if (f.local) {
+        const l = f.local;
+        L.circleMarker([l.lat, l.lng], { radius: 8, color: "#fff", weight: 2, fillColor: COR_FASE.local, fillOpacity: 1 })
+          .bindTooltip(`Local ${hora(l.inicio)}${l.aberta ? " · ainda lá" : `–${hora(l.fim)}`}`, {
+            permanent: true, direction: "top", offset: [0, -8], className: "rastro-rotulo",
+          })
+          .addTo(g);
+        pontos.push([l.lat, l.lng]);
+      }
+    }
 
     // Onde saiu da cerca: o primeiro ponto do rastro depois da saída.
     const saiu = d.localizacao.saiuEm;

@@ -175,7 +175,10 @@ export const COORDENADAS_BASES: Readonly<Record<string, { lat: number; lng: numb
     FTC: { lat: -12.93414, lng: -38.392223 },
     "PAU MIÚDO": { lat: -12.959059, lng: -38.487838 },
     CAJAZEIRAS: { lat: -12.898305, lng: -38.389943 },
-    "BOCA DO RIO ROSA GARCIA": { lat: -12.983681, lng: -38.438684 },
+    // Corrigida pelo GPS em 23/11/2026: BR05, BR60, BR61, BR62 e BR63 estacionam todas
+    // aqui (2.740 posições em 30 h), a 220 m do ponto da ChecagemdeBases (-12.983681,
+    // -38.438684) — com ele nenhuma das cinco aparecia "na base".
+    "BOCA DO RIO ROSA GARCIA": { lat: -12.981724, lng: -38.438413 },
     "CAMPUS CABULA": { lat: -12.959085, lng: -38.452476 },
     "JORGE AMADO": { lat: -12.936804, lng: -38.410645 },
     "SÃO CRISTÓVÃO": { lat: -12.907002, lng: -38.36447 },

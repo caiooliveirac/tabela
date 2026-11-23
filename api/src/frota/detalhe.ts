@@ -11,7 +11,8 @@
 import { artigo, duracaoTexto, hhmm, nomeProprio } from "./aviso.js";
 import type { HospitalFrota } from "./hospitais.js";
 import type { Ocorrencia, SituacaoOcorrencia } from "./ocorrencias.js";
-import { ALERTA_MIN, distanciaLocal, hospitalNoRaio, RAIO_M, RAIO_SAIDA_M, RECENTE_MIN } from "./regras.js";
+import { faseEm, type FaseRastro, type Fases, type ParadaRua } from "./fases.js";
+import { ALERTA_MIN, distanciaLocal, distanciaM as distancia, hospitalNoRaio, RAIO_M, RAIO_SAIDA_M, RECENTE_MIN } from "./regras.js";
 
 /** Fora da cerca com o status de hospital há tanto tempo: vira aviso (painel). */
 export const FORA_CERCA_MIN = 15;
@@ -163,7 +164,8 @@ export type Tom = "neutro" | "info" | "ok" | "atencao" | "critico";
 
 export interface EventoLinha {
     em: string;
-    tipo: "abertura" | "status" | "entrou" | "alerta" | "saiu" | "sem-sinal" | "desativada" | "acolhimento" | "posicao";
+    /** "fase": marco das fases pelo GPS (fases.ts) — partida, local, parada no caminho, volta à base. */
+    tipo: "abertura" | "status" | "entrou" | "alerta" | "saiu" | "sem-sinal" | "desativada" | "acolhimento" | "posicao" | "fase";
     titulo: string;
     detalhe: string | null;
     tom: Tom;
@@ -175,6 +177,33 @@ export interface PontoRastro {
     lng: number;
     /** Hospital ou UPA em cujo raio (150 m) o ponto está; `null` = na rua. */
     local: string | null;
+    /** Fase da ocorrência naquele instante (cor do rastro); `null` = sem ocorrência. */
+    fase: FaseRastro | null;
+}
+
+export interface ParadaRuaDetalhe {
+    inicio: string;
+    fim: string;
+    lat: number;
+    lng: number;
+    minutos: number;
+    aberta: boolean;
+    /** Transferência: o local foi dentro desta unidade. */
+    hospitalId: string | null;
+}
+
+/** Fases da ocorrência pelo GPS (fases.ts), prontas para o modal. */
+export interface FasesDetalhe {
+    vinculacao: string;
+    naBase: boolean;
+    partida: string | null;
+    local: ParadaRuaDetalhe | null;
+    intermediarias: ParadaRuaDetalhe[];
+    unidade: { hospitalId: string; nome: string; entrada: string; saida: string | null } | null;
+    chegadaBase: string | null;
+    tempos: Fases["tempos"];
+    /** O que a equipe apertou para cada marco (null = não apertou). */
+    registrado: { saidaBase: string | null; chegadaLocal: string | null; saidaLocal: string | null; chegadaUnidade: string | null; saidaUnidade: string | null };
 }
 
 export interface DetalheMontado {
@@ -222,6 +251,7 @@ export interface DetalheMontado {
     };
     linha: EventoLinha[];
     rastro: PontoRastro[];
+    fases: FasesDetalhe | null;
     janela: {
         desde: string;
         ate: string;
@@ -261,14 +291,25 @@ export function janelaDoRastro(
     horas: number | null = null,
 ): Janela {
     const minimo = agora.getTime() - RASTRO_DIAS * 24 * 3_600_000;
-    const abertura = ocorrencia?.abertura ? Date.parse(ocorrencia.abertura) : NaN;
-    const corte = Number.isNaN(abertura) ? agora.getTime() - 24 * 3_600_000 : abertura - 10 * MIN;
-    const destas = status.map((s) => s.em.getTime()).filter((t) => t >= corte && t <= agora.getTime());
-    const vinculo = ocorrencia?.ativa && destas.length ? Math.min(...destas) : NaN;
+    const v = ocorrencia?.ativa ? vinculacaoDa(ocorrencia, status, agora) : null;
+    const vinculo = v ? v.getTime() : NaN;
     const motivo: MotivoJanela = Number.isNaN(vinculo) ? "ultima-hora" : "vinculacao";
     const padrao = Math.max(minimo, motivo === "vinculacao" ? vinculo : agora.getTime() - JANELA_LIVRE_MIN * MIN);
     const pedido = horas && horas > 0 ? Math.max(minimo, agora.getTime() - horas * 3_600_000) : padrao;
     return { desde: new Date(Math.min(padrao, pedido)), padrao: new Date(padrao), motivo, horas: horas && horas > 0 ? horas : null };
+}
+
+/**
+ * Quando a viatura foi vinculada à ocorrência: o primeiro status dela nesta
+ * ocorrência. Status de antes da abertura (ou, sem abertura, de mais de 24 h)
+ * é de outra com o mesmo protocolo de 4 dígitos.
+ */
+export function vinculacaoDa(ocorrencia: Pick<Ocorrencia, "abertura"> | null, status: readonly StatusDetalhe[], agora: Date): Date | null {
+    if (!ocorrencia) return null;
+    const abertura = ocorrencia.abertura ? Date.parse(ocorrencia.abertura) : NaN;
+    const corte = Number.isNaN(abertura) ? agora.getTime() - 24 * 3_600_000 : abertura - 10 * MIN;
+    const destas = status.map((s) => s.em.getTime()).filter((t) => t >= corte && t <= agora.getTime());
+    return destas.length ? new Date(Math.min(...destas)) : null;
 }
 
 /** "CHEGADA AO HOSPITAL" → "Chegada ao hospital (registrada)". O que a equipe aperta no app ou o rádio lança. */
@@ -298,6 +339,8 @@ export function montarDetalhe(e: {
     agora: Date;
     /** Notificações do Acolhimentos por id de parada; `cobre(hospitalId)` = USA e hospital do Acolhimentos. */
     acolhimentos?: { ligado: boolean; erro: string | null; porParada: ReadonlyMap<number, AcolhimentoDetalhe>; cobre: (hospitalId: string) => boolean };
+    /** Fases pelo GPS da ocorrência (fases.ts, `fasesDaOcorrencia`). */
+    fases?: Fases | null;
 }): DetalheMontado {
     const { viatura: v, ocorrencia: oc, agora } = e;
     const local = (id: string) => e.locais.find((h) => h.id === id);
@@ -494,6 +537,50 @@ export function montarDetalhe(e: {
             });
         }
     }
+    // ── Marcos pelo GPS (fases.ts): o que a viatura fez, com o que a equipe apertou ao lado ──
+    const f = e.fases ?? null;
+    const reg = (re: RegExp) =>
+        f ? status.find((x) => re.test(x.status.toUpperCase()) && x.em.getTime() >= f.vinculacao.getTime() - MIN)?.em ?? null : null;
+    const registrado = f
+        ? {
+              saidaBase: reg(/SA[IÍ]DA DA BASE/), chegadaLocal: reg(/CHEGADA AO LOCAL/), saidaLocal: reg(/SA[IÍ]DA DO LOCAL/),
+              chegadaUnidade: reg(NO_HOSPITAL), saidaUnidade: reg(/SA[IÍ]DA DO HOSPITAL/),
+          }
+        : null;
+    const naJanela = (d: Date) => d.getTime() >= e.janela.desde.getTime();
+    const perto = (tipo: EventoLinha["tipo"], d: Date) => linha.some((x) => x.tipo === tipo && Math.abs(Date.parse(x.em) - d.getTime()) <= 3 * MIN);
+    const apertou = (gps: Date, r: Date | null) => {
+        if (!r) return "";
+        const m = Math.round((r.getTime() - gps.getTime()) / MIN);
+        return ` · equipe registrou ${hhmm(r)} (${m === 0 ? "no mesmo minuto" : `${m > 0 ? "+" : "−"}${Math.abs(m)} min`})`;
+    };
+    if (f && registrado) {
+        const ev = (em: Date, titulo: string, detalhe: string, tom: Tom = "neutro") => {
+            if (naJanela(em)) linha.push({ em: em.toISOString(), tipo: "fase", titulo, detalhe, tom });
+        };
+        // base dentro de hospital/UPA já tem "Saiu da base"/"Chegou à base" pela parada
+        if (f.partida && f.naBase && !perto("saiu", f.partida)) ev(f.partida, "Saiu da base", "pelo GPS" + apertou(f.partida, registrado.saidaBase));
+        if (f.partida && !f.naBase) ev(f.partida, "Começou a andar", "pelo GPS · estava fora da base na vinculação");
+        const l = f.local;
+        if (l) {
+            const onde = l.hospitalId ? ` (n${artigo(nomeLocal(l.hospitalId))} ${nomeLocal(l.hospitalId)})` : "";
+            ev(l.inicio, `Chegou ao local${onde}`,
+               `pelo GPS · ${l.aberta ? "parada há" : "parada de"} ${duracaoTexto(l.minutos)}` +
+               (registrado.chegadaLocal ? apertou(l.inicio, registrado.chegadaLocal) : " · equipe não registrou a chegada"), "info");
+            if (!l.aberta && !l.hospitalId) ev(l.fim, "Saiu do local", `pelo GPS · ${duracaoTexto(l.minutos)} no local` + apertou(l.fim, registrado.saidaLocal));
+        }
+        for (const p of f.intermediarias) {
+            const antes = !l || p.inicio < l.inicio;
+            const d = l ? distancia(p, l) : null;
+            const procura = antes && d !== null && d <= 1000;
+            ev(p.inicio,
+               procura ? `Parada de ${duracaoTexto(p.minutos)} a ${km(d!)} do local` : `Parada de ${duracaoTexto(p.minutos)} ${antes ? "no caminho" : "depois do local"}`,
+               procura ? "pelo GPS · antes de chegar ao local: procurando o endereço?" : "pelo GPS · fora do local",
+               procura ? "atencao" : "neutro");
+        }
+        if (f.chegadaBase && !perto("entrou", f.chegadaBase)) ev(f.chegadaBase, "Chegou à base", "pelo GPS");
+    }
+
     const ac = e.acolhimentos;
     for (const p of paradas) {
         const n = ac?.porParada.get(p.id);
@@ -529,13 +616,20 @@ export function montarDetalhe(e: {
             tom: estado === "fora-da-cerca" ? "critico" : estado === "sem-sinal" ? "atencao" : "neutro",
         });
     }
+    // Status e paradas de antes da janela (carregados para as fases) ficam fora; a abertura tem regra própria.
+    for (let i = linha.length - 1; i >= 0; i--) {
+        if (linha[i].tipo !== "abertura" && Date.parse(linha[i].em) < e.janela.desde.getTime()) linha.splice(i, 1);
+    }
     linha.sort((a, b) => Date.parse(a.em) - Date.parse(b.em));
 
     // ── Rastro ──
     const rastro = e.posicoes
         .filter((p) => p.em.getTime() >= e.janela.desde.getTime())
         .sort((a, b) => a.em.getTime() - b.em.getTime())
-        .map((p) => ({ em: p.em.toISOString(), lat: p.lat, lng: p.lng, local: hospitalNoRaio(p, e.locais)?.id ?? null }));
+        .map((p) => ({ em: p.em.toISOString(), lat: p.lat, lng: p.lng, local: hospitalNoRaio(p, e.locais)?.id ?? null, fase: faseEm(f, p.em) }));
+    const ruaDetalhe = (p: ParadaRua): ParadaRuaDetalhe => ({
+        inicio: p.inicio.toISOString(), fim: p.fim.toISOString(), lat: p.lat, lng: p.lng, minutos: p.minutos, aberta: p.aberta, hospitalId: p.hospitalId ?? null,
+    });
 
     const medicos: string[] = [];
     for (const m of [...status.map((x) => x.medico), oc?.medico]) {
@@ -567,6 +661,21 @@ export function montarDetalhe(e: {
         aviso,
         linha,
         rastro,
+        fases: f && registrado
+            ? {
+                  vinculacao: f.vinculacao.toISOString(),
+                  naBase: f.naBase,
+                  partida: f.partida?.toISOString() ?? null,
+                  local: f.local ? ruaDetalhe(f.local) : null,
+                  intermediarias: f.intermediarias.map(ruaDetalhe),
+                  unidade: f.unidade
+                      ? { hospitalId: f.unidade.hospitalId, nome: nomeLocal(f.unidade.hospitalId), entrada: f.unidade.entrada.toISOString(), saida: f.unidade.saida?.toISOString() ?? null }
+                      : null,
+                  chegadaBase: f.chegadaBase?.toISOString() ?? null,
+                  tempos: f.tempos,
+                  registrado: Object.fromEntries(Object.entries(registrado).map(([k, v]) => [k, v?.toISOString() ?? null])) as FasesDetalhe["registrado"],
+              }
+            : null,
         janela: {
             desde: e.janela.desde.toISOString(),
             ate: agora.toISOString(),

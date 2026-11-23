@@ -160,6 +160,29 @@ porteiro libera `/tabela/api/frota/*`).
   ocorrência e não conta para a vinculação. Acolhimentos só cruza as paradas
   das últimas 24 h, por mais que o seletor volte.
   Mapa em Leaflet + OSM (`MapaRastro.tsx`, rastro em canvas), sem chave do Google.
+- **Fases pelo GPS** (`fases.ts`, testado em `fases.test.ts`): o que a viatura
+  fez, não o que a equipe apertou (em nov/2026 a equipe registrou "saída da
+  base" em 0% das ocorrências, "chegada ao local" em 40%, "saída do local" em
+  2%). Partida: estava a 150 m da própria base (`COORDENADAS_BASES` ou parada
+  de base) e passou de 200 m; fora da base, quando andou 80 m. Local: parada
+  de 5+ min a até 80 m, fora de cerca e da base, entre a partida e a unidade
+  (paradas a até 150 m uma da outra se juntam); qual delas é o local: a que
+  contém a "chegada ao local" apertada, senão a primeira de 10+ min. As outras
+  viram paradas intermediárias ("procurando o endereço?" se antes do local e a
+  até 1 km dele). Unidade: a primeira cerca de hospital/UPA com 5+ min; sem
+  parada de rua e com outra unidade depois, a primeira foi o local
+  (transferência). Retorno: até voltar à base. O detalhe traz `fases` (marcos,
+  `tempos` saída/resposta/no local/transporte/na unidade/retorno, o que a
+  equipe registrou) e a `fase` de cada ponto do rastro; o modal pinta o rastro
+  por fase e mostra os tempos. Sem o ponto da ocorrência (a ponte do mapa só
+  manda endereço e bairro) tudo é estimativa: a linha do tempo diz "pelo GPS".
+  Validado no rastro real de 23/11 (158 ocorrências): GPS e botão de chegada
+  com mediana de +5 min (a equipe aperta depois).
+- **Protocolo repetido:** 4 dígitos, recomeça todo dia; `frota_ocorrencias` é
+  única por (chave, protocolo). O mesmo número sumido há 6 h ou com outra
+  abertura arquiva a linha antiga (`protocolo@AAAAMMDD-id`, com os status
+  dela) e a de agora nasce limpa. O aviso de base ocupada vale por 12 h, não
+  pelo número para sempre.
 - **Fora da cerca** (`foraDaCerca`): o mapa de equipes segue em "CHEGADA AO
   HOSPITAL", mas a última parada fora da base fechou por saída depois do status
   (folga de 10 min) e a viatura não está em outro hospital/UPA. Provável

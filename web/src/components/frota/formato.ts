@@ -1,7 +1,7 @@
 // Cores e textos da aba Frota. Cor carrega estado: verde/âmbar é a idade da
 // posição (a mesma régua do painel de destino), azul é "parada em hospital",
 // vermelho é só o alerta de 40 min. Violeta é "em ocorrência" (mapa de equipes).
-import type { ViaturaFrota } from "../../lib/types";
+import type { FaseRastroFrota, ViaturaFrota } from "../../lib/types";
 
 export const COR = {
   recente: "#16a34a",
@@ -24,6 +24,30 @@ export const COR_RASTRO = {
   foraAlerta: COR.alerta,
   fora: "#64748b",
 } as const;
+
+/**
+ * Cor de cada fase da ocorrência no rastro (fases.ts da API): ida ao local,
+ * o local, transporte, unidade, retorno. Vermelho fica só para o "saiu da
+ * unidade e o status segue chegada ao hospital" (COR_RASTRO.foraAlerta).
+ */
+export const COR_FASE: Record<FaseRastroFrota, string> = {
+  antes: "#cbd5e1",
+  resposta: "#ea580c",
+  local: "#92400e",
+  transporte: COR.ocorrencia,
+  unidade: COR.hospital,
+  retorno: COR.livre,
+  depois: "#94a3b8",
+};
+export const NOME_FASE: Record<FaseRastroFrota, string> = {
+  antes: "antes da ocorrência",
+  resposta: "até o local",
+  local: "no local",
+  transporte: "até a unidade",
+  unidade: "na unidade",
+  retorno: "retorno",
+  depois: "de volta à base",
+};
 
 export type EstadoOcorrencia = "ocorrencia" | "retornando" | "livre";
 

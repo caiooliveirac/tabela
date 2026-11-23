@@ -8,9 +8,9 @@
 // registrada sem o GPS no hospital, sem sinal. Regras em api/src/frota/detalhe.ts.
 // ═══════════════════════════════════════════════════════════════
 import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
-import type { DetalheViaturaFrota, EstadoLocalizacaoFrota, FonteEquipeFrota, TomEventoFrota, ViaturaFrota } from "../../lib/types";
+import type { DetalheViaturaFrota, EstadoLocalizacaoFrota, FaseRastroFrota, FonteEquipeFrota, TempoFaseFrota, TomEventoFrota, ViaturaFrota } from "../../lib/types";
 import { useDetalheViatura } from "../../hooks/useFrota";
-import { COR, COR_RASTRO, artigo, corRisco, duracao, frase, hora, nomeProprio, textoResponsavel } from "./formato";
+import { COR, COR_FASE, COR_RASTRO, NOME_FASE, artigo, corRisco, duracao, frase, hora, nomeProprio, textoResponsavel } from "./formato";
 
 const MapaRastro = lazy(() => import("./MapaRastro"));
 
@@ -136,14 +136,22 @@ function LinhaDoTempo({ d }: { d: DetalheViaturaFrota }) {
   );
 }
 
-function Legenda() {
-  const itens: [string, string, boolean][] = [
-    [COR_RASTRO.caminho, "a caminho", false],
-    [COR_RASTRO.dentro, "dentro da cerca", false],
-    [COR_RASTRO.foraAlerta, "fora, status de hospital", false],
-    [COR_RASTRO.fora, "depois de liberar", false],
-    [COR.alerta, "distância até o hospital", true],
-  ];
+function Legenda({ d }: { d: DetalheViaturaFrota }) {
+  // Com ocorrência: uma cor por fase (fases.ts da API); sem ela, a régua antiga.
+  const fases: FaseRastroFrota[] = ["resposta", "local", "transporte", "unidade", "retorno"];
+  const itens: [string, string, boolean][] = d.fases
+    ? [
+        ...fases.map((f): [string, string, boolean] => [COR_FASE[f], NOME_FASE[f], false]),
+        [COR_RASTRO.foraAlerta, "fora, status de hospital", false],
+        [COR.alerta, "distância até o hospital", true],
+      ]
+    : [
+        [COR_RASTRO.caminho, "a caminho", false],
+        [COR_RASTRO.dentro, "dentro da cerca", false],
+        [COR_RASTRO.foraAlerta, "fora, status de hospital", false],
+        [COR_RASTRO.fora, "depois de liberar", false],
+        [COR.alerta, "distância até o hospital", true],
+      ];
   return (
     <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-500 mt-2">
       {itens.map(([cor, nome, tracejado]) => (
@@ -220,6 +228,44 @@ function SeletorRastro({ d, j }: { d: DetalheViaturaFrota; j: JanelaRastro }) {
           >
             {h === null ? nomePadrao : h < 24 ? `${h}h` : `${h / 24}d`}
           </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Os intervalos da ocorrência medidos pelo rastro (não pelo botão da equipe). */
+function TemposFases({ d }: { d: DetalheViaturaFrota }) {
+  const f = d.fases;
+  if (!f) return null;
+  const t = f.tempos;
+  const itens: [FaseRastroFrota, string, TempoFaseFrota | null, string][] = [
+    ["resposta", "Saída da base", t.saida, f.naBase ? "da vinculação à saída" : "estava fora da base"],
+    ["resposta", "Até o local", t.resposta, "da vinculação à chegada"],
+    ["local", "No local", t.noLocal, f.local?.hospitalId ? "dentro da unidade de origem" : "parada principal"],
+    ["transporte", "Até a unidade", t.transporte, f.unidade ? f.unidade.nome : "sem unidade"],
+    ["unidade", "Na unidade", t.naUnidade, f.unidade ? `desde ${hora(f.unidade.entrada)}` : "—"],
+    ["retorno", "Retorno", t.retorno, f.chegadaBase ? `na base às ${hora(f.chegadaBase)}` : "até a base"],
+  ];
+  return (
+    <div className="border border-slate-200 rounded-lg overflow-hidden">
+      <div className="px-3 py-2 bg-slate-50 border-b border-slate-200 text-[12px] font-extrabold text-slate-700">
+        Tempos da ocorrência pelo GPS{" "}
+        <span className="font-semibold text-slate-400">· estimados pelo rastro desde a vinculação ({hora(f.vinculacao)}); o que a equipe apertou está na linha do tempo</span>
+      </div>
+      <div className="grid grid-cols-3 lg:grid-cols-6">
+        {itens.map(([fase, rotulo, tempo, sub]) => (
+          <div key={rotulo} className="px-3 py-2 border-t lg:border-t-0 lg:border-l first:border-l-0 border-slate-100">
+            <div className="flex items-center gap-1 text-[10px] font-extrabold uppercase tracking-wide text-slate-500">
+              <span className="inline-block w-[10px] h-[3px] rounded" style={{ backgroundColor: COR_FASE[fase] }} />
+              {rotulo}
+            </div>
+            <div className="text-[15px] font-black tabular-nums text-slate-900">
+              {tempo ? duracao(tempo.minutos) : "—"}
+              {tempo?.aberto && <span className="ml-1 text-[10px] font-bold text-slate-400">em curso</span>}
+            </div>
+            <div className="text-[10px] text-slate-400 truncate" title={sub}>{sub}</div>
+          </div>
         ))}
       </div>
     </div>
@@ -408,13 +454,14 @@ function Conteudo({ d, j, aba, setAba, onVerNoMapa }: { d: DetalheViaturaFrota; 
 
       {aba === "geral" && (
         <>
+          <TemposFases d={d} />
           <div className="grid lg:grid-cols-2 gap-3">
             <Tabela titulo="Permanência e localização" linhas={geral} />
             <div className="border border-slate-200 rounded-lg overflow-hidden">
               <div className="px-3 py-2 bg-slate-50 border-b border-slate-200 text-[12px] font-extrabold text-slate-700">Rastro do GPS</div>
               <div className="p-2">
                 <Mapa d={d} j={j} />
-                <Legenda />
+                <Legenda d={d} />
               </div>
             </div>
           </div>
@@ -429,7 +476,7 @@ function Conteudo({ d, j, aba, setAba, onVerNoMapa }: { d: DetalheViaturaFrota; 
         <div className="grid lg:grid-cols-[3fr_2fr] gap-3">
           <div className="min-w-0">
             <Mapa d={d} j={j} alto />
-            <Legenda />
+            <Legenda d={d} />
           </div>
           <Tabela
             titulo="Dados da localização"
@@ -442,12 +489,17 @@ function Conteudo({ d, j, aba, setAba, onVerNoMapa }: { d: DetalheViaturaFrota; 
                 : "—"],
               ["Fonte GPS", <>SAMU+ <span className="text-slate-500 text-[11px]">(tablet da viatura, cerca de uma posição por minuto; guardado por {Math.round(d.janela.maxHoras / 24)} dias)</span></>],
               ["Rastro", d.rastro.length ? `${d.rastro.length} posições desde ${quando(d.rastro[0].em, d.janela.ate)}` : "Sem posições guardadas na janela"],
+              ["Local (GPS)", d.fases?.local
+                ? `${hora(d.fases.local.inicio)}${d.fases.local.aberta ? " · ainda lá" : `–${hora(d.fases.local.fim)}`} · ${duracao(d.fases.local.minutos)}` +
+                  (d.fases.intermediarias.length ? ` · mais ${d.fases.intermediarias.length} parada(s) de 5+ min` : "")
+                : d.fases ? "Nenhuma parada de 5+ min fora de hospital/UPA" : "—"],
               ["Última posição", posicao],
             ]}
           />
         </div>
       )}
 
+      {aba === "tempo" && <TemposFases d={d} />}
       {aba === "tempo" && (
         <div className="border border-slate-200 rounded-lg overflow-hidden">
           <div className="px-3 py-2 bg-slate-50 border-b border-slate-200 text-[12px] font-extrabold text-slate-700">
