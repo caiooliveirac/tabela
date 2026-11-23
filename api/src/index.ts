@@ -2,6 +2,7 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import { createServer } from "http";
+import { setDefaultAutoSelectFamilyAttemptTimeout } from "net";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 
@@ -20,6 +21,11 @@ import { startChefiaBot } from "./bot/chefiaBot.js";
 import { initUpaRestrictions } from "./services/upa-restrictions.js";
 import { initBairroRotas, initLocaisNaoEncontrados } from "./services/locais-store.js";
 import { initUpaRestrictionNotices, startUpaRestrictionsBroadcast } from "./lib/upaRestrictionsBot.js";
+
+// O container não tem IPv6 e abrir conexão com o Telegram leva ~160 ms. Com o
+// padrão do Node 20 (250 ms por endereço), um pico de rede derrubava o envio
+// com "fetch failed / ETIMEDOUT" (aviso da frota perdido em 23/11/2026).
+setDefaultAutoSelectFamilyAttemptTimeout(2_000);
 
 const PORT = parseInt(process.env.PORT || "3000", 10);
 const DATABASE_URL =

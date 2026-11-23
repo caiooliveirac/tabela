@@ -14,6 +14,32 @@
 // grupo e outro app (~/plantoes) — ver docs/upa-restricoes.md.
 // ═══════════════════════════════════════════════════════════════
 
+// Erro antes de a conexão abrir: a requisição não chegou ao Telegram, então
+// repetir uma vez não duplica mensagem. Erro depois disso (resposta lenta,
+// conexão caída no meio) não se repete: o envio pode ter saído.
+const FALHA_DE_CONEXAO = new Set(["ETIMEDOUT", "ECONNREFUSED", "ENETUNREACH", "EHOSTUNREACH", "EAI_AGAIN", "UND_ERR_CONNECT_TIMEOUT"]);
+const ESPERA_NOVA_TENTATIVA_MS = 1_000;
+
+async function postar(metodo: string, corpo: object, timeoutMs?: number): Promise<Response> {
+    const url = `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/${metodo}`;
+    const chamar = () =>
+        fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(corpo),
+            ...(timeoutMs ? { signal: AbortSignal.timeout(timeoutMs) } : {}),
+        });
+    try {
+        return await chamar();
+    } catch (e) {
+        const codigo = (e as { cause?: { code?: string } }).cause?.code ?? "";
+        if (!FALHA_DE_CONEXAO.has(codigo)) throw e;
+        console.warn(`[telegram] ${metodo}: conexão falhou (${codigo}), nova tentativa`);
+        await new Promise((r) => setTimeout(r, ESPERA_NOVA_TENTATIVA_MS));
+        return chamar();
+    }
+}
+
 export function reguladoresChatId(): string {
     return (process.env.TELEGRAM_REGULADORES_CHAT_ID || "").trim();
 }
@@ -25,15 +51,11 @@ async function sendHtml(chat: string, html: string, label: string): Promise<bool
         return false;
     }
     try {
-        const r = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                chat_id: chat,
-                text: html,
-                parse_mode: "HTML",
-                disable_web_page_preview: true,
-            }),
+        const r = await postar("sendMessage", {
+            chat_id: chat,
+            text: html,
+            parse_mode: "HTML",
+            disable_web_page_preview: true,
         });
         const d = (await r.json().catch(() => ({}))) as { ok?: boolean; description?: string };
         if (!d.ok) {
@@ -78,18 +100,17 @@ export async function enviarChat(chat: string, html: string, respondeA?: number 
     const token = process.env.TELEGRAM_BOT_TOKEN;
     if (!token || !chat) return null;
     try {
-        const r = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
+        const r = await postar(
+            "sendMessage",
+            {
                 chat_id: chat,
                 text: html,
                 parse_mode: "HTML",
                 disable_web_page_preview: true,
                 ...(respondeA ? { reply_parameters: { message_id: respondeA, allow_sending_without_reply: true } } : {}),
-            }),
-            signal: AbortSignal.timeout(15_000),
-        });
+            },
+            15_000,
+        );
         const d = (await r.json().catch(() => ({}))) as { ok?: boolean; result?: { message_id?: number }; description?: string };
         if (!d.ok || !d.result?.message_id) {
             console.error(`[telegram] envio ao chat ${chat} falhou:`, d.description);
@@ -106,12 +127,11 @@ export async function editarChat(chat: string, messageId: number, html: string):
     const token = process.env.TELEGRAM_BOT_TOKEN;
     if (!token || !chat) return false;
     try {
-        const r = await fetch(`https://api.telegram.org/bot${token}/editMessageText`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ chat_id: chat, message_id: messageId, text: html, parse_mode: "HTML", disable_web_page_preview: true }),
-            signal: AbortSignal.timeout(15_000),
-        });
+        const r = await postar(
+            "editMessageText",
+            { chat_id: chat, message_id: messageId, text: html, parse_mode: "HTML", disable_web_page_preview: true },
+            15_000,
+        );
         const d = (await r.json().catch(() => ({}))) as { ok?: boolean; description?: string };
         // "message is not modified" não é erro: o texto já estava assim.
         if (!d.ok && !/not modified/i.test(d.description ?? "")) {
