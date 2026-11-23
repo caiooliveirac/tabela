@@ -10,7 +10,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { DetalheViaturaFrota } from "../../lib/types";
 import { garantirGoogleMaps } from "../../lib/googleMaps";
-import { COR, COR_FASE, NOME_FASE, corDoPonto, hora, horaSeg } from "./formato";
+import { COR, COR_FASE, COR_VINCULADA, NOME_FASE, corDoPonto, hora, horaSeg, marcosNoMapa } from "./formato";
 
 interface Props {
   detalhe: DetalheViaturaFrota;
@@ -36,11 +36,13 @@ function bolinha(cor: string, tam: number, borda = 2, fundo?: string): HTMLEleme
   return el;
 }
 
-/** Etiqueta acima do ponto, como a do mapa da frota. */
-function etiqueta(texto: string, distancia = 10): HTMLElement {
+/** Etiqueta acima do ponto, como a do mapa da frota. `destaque`: fundo e borda (viatura vinculada). */
+function etiqueta(texto: string, distancia = 10, destaque?: { fundo: string; borda: string }, tamanho = 11): HTMLElement {
   const el = document.createElement("div");
   el.textContent = texto;
-  el.style.cssText = `font:800 11px/1.2 'DM Sans',sans-serif;color:#0f172a;background:#fff;padding:2px 6px;border-radius:6px;box-shadow:0 1px 4px rgba(15,23,42,.25);white-space:nowrap;margin-bottom:${distancia}px;pointer-events:none`;
+  el.style.cssText =
+    `font:800 ${tamanho}px/1.2 'DM Sans',sans-serif;color:#0f172a;background:${destaque?.fundo ?? "#fff"};padding:2px 6px;border-radius:6px;` +
+    `box-shadow:0 1px 4px rgba(15,23,42,.25)${destaque ? `,0 0 0 1.5px ${destaque.borda}` : ""};white-space:nowrap;margin-bottom:${distancia}px;pointer-events:none`;
   return el;
 }
 
@@ -183,6 +185,12 @@ export default function MapaRastroGoogle({ detalhe, mapsKey, mapId, alto = false
       }
     }
 
+    // Os marcos com hora (saída da base, chegada e saída da unidade, volta à base): o que só estava na linha do tempo.
+    for (const k of marcosNoMapa(d)) {
+      marcador(k.lat, k.lng, bolinha(k.cor, 11, 2, k.cor), 35);
+      marcador(k.lat, k.lng, etiqueta(k.texto, 10, undefined, 10), 36);
+    }
+
     // Onde saiu da cerca: o primeiro ponto depois da saída.
     const saiu = d.localizacao.saiuEm;
     const depois = saiu ? d.rastro.find((p) => p.em >= saiu) : undefined;
@@ -202,8 +210,13 @@ export default function MapaRastroGoogle({ detalhe, mapsKey, mapId, alto = false
         }));
       }
       const fora = d.localizacao.estado === "fora-da-cerca";
-      marcador(ll.lat, ll.lng, bolinha(fora ? COR.alerta : "#ea580c", 18, 3, fora ? COR.alerta : "#ea580c"), 40);
-      marcador(ll.lat, ll.lng, etiqueta(`${v.nome} · ${hora(v.posicao.em)}`, 16), 41);
+      // Ainda vinculada à ocorrência: brilho verde neon em volta e etiqueta verde.
+      const vinculada = Boolean(d.ocorrencia?.ativa);
+      const ponto = bolinha(fora ? COR.alerta : "#ea580c", 18, 3, fora ? COR.alerta : "#ea580c");
+      if (vinculada) ponto.style.boxShadow = `0 0 0 4px rgba(34,197,94,.45),0 0 14px 6px ${COR_VINCULADA}`;
+      marcador(ll.lat, ll.lng, ponto, 40);
+      const sufixo = vinculada ? ` · em ocorrência${d.ocorrencia?.protocolo ? ` ${d.ocorrencia.protocolo}` : ""}` : d.ocorrencia ? " · ocorrência encerrada" : "";
+      marcador(ll.lat, ll.lng, etiqueta(`${v.nome} · ${hora(v.posicao.em)}${sufixo}`, 18, vinculada ? { fundo: "#dcfce7", borda: COR_VINCULADA } : undefined), 41);
       limites.extend(ll);
     }
 

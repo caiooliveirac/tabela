@@ -266,7 +266,7 @@ test("detalhe com fases: marcos pelo GPS na linha do tempo, com o que a equipe a
         vinculacao: t("03:08"), naBase: true, partida: t("03:12"),
         local: { inicio: t("03:35"), fim: t("03:58"), ...LOCAL, minutos: 23, aberta: false },
         intermediarias: [{ inicio: t("03:20"), fim: t("03:27"), lat: LOCAL.lat + 0.004, lng: LOCAL.lng, minutos: 7, aberta: false }],
-        unidade: { paradaId: 7, hospitalId: H.id, entrada: t("04:10"), saida: t("04:52") },
+        unidade: { paradaId: 7, hospitalId: H.id, entrada: t("04:10"), saida: t("04:52"), naBase: false },
         chegadaBase: null,
         tempos: { saida: { minutos: 4, aberto: false }, resposta: { minutos: 27, aberto: false }, noLocal: { minutos: 23, aberto: false },
                   transporte: { minutos: 12, aberto: false }, naUnidade: { minutos: 42, aberto: false }, retorno: { minutos: 115, aberto: true } },
@@ -286,4 +286,32 @@ test("detalhe com fases: marcos pelo GPS na linha do tempo, com o que a equipe a
     assert.deepEqual(d.rastro.map((p) => p.fase), ["local", "transporte", "retorno"]);
     assert.equal(d.fases?.registrado.chegadaLocal, t("03:41").toISOString());
     assert.equal(d.fases?.tempos.resposta?.minutos, 27);
+});
+
+test("detalhe: base dentro da UPA com \"chegada ao hospital\" — mostra a UPA e pergunta se levou o paciente ou encerrou", () => {
+    const agora = t("15:15");
+    const status = [
+        { status: "DESIGNADA", em: t("12:43") },
+        { status: "DISPONÍVEL / RETORNO À BASE", em: t("14:58") },
+        { status: "CHEGADA AO HOSPITAL", em: t("15:00") },
+    ];
+    const base = parada({ id: 21, entrada: t("14:59"), ultimaVez: t("15:15"), saida: null, motivoFim: null, naBase: true });
+    const fases: Fases = {
+        vinculacao: t("12:43"), naBase: false, partida: t("12:44"), local: null, intermediarias: [],
+        unidade: { paradaId: 21, hospitalId: H.id, entrada: t("14:59"), saida: null, naBase: true }, chegadaBase: null,
+        tempos: { saida: null, resposta: null, noLocal: null, transporte: null, naUnidade: { minutos: 16, aberto: true }, retorno: null },
+    };
+    const d = montarDetalhe({
+        viatura: viatura({ naBase: true, noHospital: { id: 21, hospitalId: H.id, entrada: t("14:59").toISOString(), minutos: 16, alerta: false, naBase: true }, posicao: { lat: H.lat, lng: H.lng, em: agora.toISOString(), idadeMin: 0 } }),
+        ocorrencia: { ...oc("CHEGADA AO HOSPITAL", t("15:00")), ativa: true }, status, paradas: [base],
+        posicoes: [], locais: LOCAIS_FROTA, janela: jan(t("12:43")), agora, fases,
+    });
+    assert.equal(d.localizacao.estado, "na-cerca");
+    assert.match(d.localizacao.titulo, /onde fica a base/);
+    assert.equal(d.destino?.id, H.id);
+    assert.equal(d.permanencia?.aberta, true);
+    assert.equal(d.aviso?.nivel, "atencao");
+    assert.match(d.aviso!.texto, /"Disponível \/ retorno à base" às 14:58 e "Chegada ao hospital" às 15:00/);
+    assert.ok(d.linha.some((x) => x.tipo === "entrou" && /onde fica a base/.test(x.titulo)));
+    assert.equal(d.fases?.unidade?.naBase, true);
 });

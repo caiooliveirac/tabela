@@ -178,7 +178,14 @@ porteiro libera `/tabela/api/frota/*`).
   até 1 km dele). Unidade: a primeira cerca de hospital/UPA com 3+ min (passar
   pela cerca dá ~2 min) ou a do botão "chegada ao hospital"; sem
   parada de rua e com outra unidade depois, a primeira foi o local
-  (transferência). Retorno: até voltar à base. O detalhe traz `fases` (marcos,
+  (transferência). Base dentro de hospital/UPA (Periperi na UPA Adroaldo
+  Albergaria): a parada de base é a unidade quando o "chegada ao hospital" cai
+  nela; o detalhe mostra a UPA ("onde fica a base") e, com a ocorrência ainda
+  vinculada, um aviso para confirmar se levou o paciente ou encerrou (cita o
+  "Disponível" apertado antes, quando houver). Retorno: até voltar à base.
+  No mapa: marcos com hora (saída da base, chegada/saída da unidade, volta à
+  base) e, enquanto vinculada, a viatura com brilho verde neon e a caixa do
+  rastro em verde, com a faixa "Vinculada à ocorrência N · status …". O detalhe traz `fases` (marcos,
   `tempos` saída/resposta/no local/transporte/na unidade/retorno, o que a
   equipe registrou) e a `fase` de cada ponto do rastro; o modal pinta o rastro
   por fase e mostra os tempos. Sem o ponto da ocorrência (a ponte do mapa só

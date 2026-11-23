@@ -39,6 +39,31 @@ export const COR_FASE: Record<FaseRastroFrota, string> = {
   retorno: COR.livre,
   depois: "#94a3b8",
 };
+/** Verde neon da viatura ainda vinculada à ocorrência (mapa do rastro e a caixa dele). */
+export const COR_VINCULADA = "#22c55e";
+
+/**
+ * Os marcos da ocorrência pelo GPS plotados no mapa, com a hora: saída da base,
+ * chegada e saída da unidade, volta à base (o local tem a etiqueta própria).
+ * Cada um no ponto do rastro daquela hora; fora da janela, não aparece.
+ */
+export function marcosNoMapa(d: DetalheViaturaFrota): { lat: number; lng: number; texto: string; cor: string }[] {
+  const f = d.fases;
+  if (!f || !d.rastro.length) return [];
+  const no = (iso: string | null) => (iso && iso >= d.rastro[0].em ? d.rastro.find((p) => p.em >= iso) ?? null : null);
+  const u = f.unidade;
+  const marcos: [string | null, string, string][] = [
+    [f.partida, f.naBase ? "Saiu da base" : "Partiu", COR_FASE.resposta],
+    [u?.entrada ?? null, u?.naBase ? "Chegou à unidade (base)" : "Chegou à unidade", COR_FASE.unidade],
+    [u?.saida ?? null, "Saiu da unidade", COR_FASE.retorno],
+    [f.chegadaBase, "Chegou à base", COR_FASE.retorno],
+  ];
+  return marcos.flatMap(([em, nome, cor]) => {
+    const p = no(em);
+    return p ? [{ lat: p.lat, lng: p.lng, texto: `${nome} ${hora(em!)}`, cor }] : [];
+  });
+}
+
 /** Cor de um ponto do rastro (os dois mapas do detalhe: Google e a reserva Leaflet). */
 export function corDoPonto(d: DetalheViaturaFrota, p: DetalheViaturaFrota["rastro"][number]): string {
   if (p.fase) return p.fase === "retorno" && d.localizacao.estado === "fora-da-cerca" ? COR_RASTRO.foraAlerta : COR_FASE[p.fase];

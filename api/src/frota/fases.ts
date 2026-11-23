@@ -20,7 +20,9 @@
 //   dizer se foi trânsito ou procura do endereço.
 // - Unidade: a primeira parada em hospital/UPA (cerca de 150 m) com 3 min ou
 //   mais depois da partida (passar pela cerca dá ~2 min), ou de qualquer
-//   duração se a equipe registrou "chegada ao hospital" nela. Sem parada de rua antes e com outra unidade
+//   duração se a equipe registrou "chegada ao hospital" nela. Base dentro de
+//   hospital/UPA (Periperi na UPA Adroaldo Albergaria): a parada de base é a
+//   unidade quando o "chegada ao hospital" cai nela — senão é a volta à base. Sem parada de rua antes e com outra unidade
 //   depois, a primeira foi o local (transferência: pegou na UPA).
 // - Retorno: da saída da unidade (ou do local, sem unidade) até voltar à base.
 //
@@ -69,7 +71,8 @@ export interface Fases {
     partida: Date | null;
     local: ParadaRua | null;
     intermediarias: ParadaRua[];
-    unidade: { paradaId: number; hospitalId: string; entrada: Date; saida: Date | null } | null;
+    /** `naBase`: a unidade é a mesma cerca da base (base dentro de hospital/UPA). */
+    unidade: { paradaId: number; hospitalId: string; entrada: Date; saida: Date | null; naBase: boolean } | null;
     chegadaBase: Date | null;
     tempos: {
         /** Vinculação → saída da base (só quem estava na base). */
@@ -155,13 +158,13 @@ export function fasesDaOcorrencia(e: {
     const doBotao = (p: ParadaDetalhe) =>
         p.entrada.getTime() - 5 * MIN <= regUnidade && regUnidade <= fimDa(p, agora).getTime() + 5 * MIN;
     const cercas = e.paradas
-        .filter((p) => !p.naBase && p.entrada.getTime() > desde.getTime() - MIN &&
+        .filter((p) => (!p.naBase || doBotao(p)) && p.entrada.getTime() > desde.getTime() - MIN &&
             (p.motivoFim === null || minutos(p.entrada, fimDa(p, agora)) >= UNIDADE_MIN || doBotao(p)))
         .sort((a, b) => a.entrada.getTime() - b.entrada.getTime());
     // Voltou à base sem passar por unidade (atendimento sem remoção).
     // (Voltar em menos de 10 min é arrancada falsa, não atendimento.)
     const voltaSemUnidade = partida
-        ? depois.find((p) => p.em.getTime() - partida.getTime() >= 10 * MIN && naBase(p, RAIO_M) && (!cercas[0] || p.em < cercas[0].entrada))
+        ? depois.find((p) => p.em.getTime() - partida.getTime() >= 10 * MIN && naBase(p, RAIO_M) && (!cercas[0] || p.em.getTime() < cercas[0].entrada.getTime() - 2 * MIN))
         : undefined;
     let u: ParadaDetalhe | null = voltaSemUnidade ? null : (cercas[0] ?? null);
 
@@ -186,7 +189,7 @@ export function fasesDaOcorrencia(e: {
         };
         u = cercas[1];
     }
-    const unidade = u ? { paradaId: u.id, hospitalId: u.hospitalId, entrada: u.entrada, saida: u.motivoFim === "saiu" ? u.saida : null } : null;
+    const unidade = u ? { paradaId: u.id, hospitalId: u.hospitalId, entrada: u.entrada, saida: u.motivoFim === "saiu" ? u.saida : null, naBase: u.naBase } : null;
 
     // Volta à base depois de tudo.
     const desdeRetorno = unidade?.saida ?? (unidade ? null : local && !local.aberta ? local.fim : null);

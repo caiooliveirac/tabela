@@ -177,3 +177,6 @@ body {
   border-radius: 6px;
   box-shadow: 0 1px 4px rgba(15, 23, 42, .25);
 }
+.leaflet-tooltip.rastro-marco { font-size: 10px; }
+/* viatura ainda vinculada à ocorrência (mapa do rastro, reserva Leaflet) */
+.leaflet-tooltip.rastro-vinculada { background: #dcfce7; border-color: #22c55e; }

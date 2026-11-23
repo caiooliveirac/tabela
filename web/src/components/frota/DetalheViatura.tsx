@@ -11,7 +11,7 @@ import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
 import type { DetalheViaturaFrota, EstadoLocalizacaoFrota, FaseRastroFrota, FonteEquipeFrota, TempoFaseFrota, TomEventoFrota, ViaturaFrota } from "../../lib/types";
 import { useDetalheViatura } from "../../hooks/useFrota";
 import { useEncaminhamentoConfig } from "../../hooks/useEncaminhamento";
-import { COR, COR_FASE, COR_RASTRO, NOME_FASE, artigo, corRisco, duracao, frase, hora, horaSeg, nomeProprio, textoResponsavel } from "./formato";
+import { COR, COR_FASE, COR_RASTRO, COR_VINCULADA, NOME_FASE, artigo, corRisco, duracao, frase, hora, horaSeg, nomeProprio, textoResponsavel } from "./formato";
 
 // Google Maps (chave e mapId da aba Frota); o Leaflet só sem chave ou se o Google falhar.
 const MapaRastroGoogle = lazy(() => import("./MapaRastroGoogle"));
@@ -426,8 +426,33 @@ function Mapa({ d, j, alto }: { d: DetalheViaturaFrota; j: JanelaRastro; alto?: 
   const [googleFalhou, setGoogleFalhou] = useState(false);
   const mapsKey = googleFalhou ? null : (cfg?.mapsKey ?? null);
   const fundo = <div className={`w-full ${alto ? "h-[46vh] min-h-[320px]" : "h-[260px]"} rounded-lg border border-slate-200 bg-slate-50`} />;
+  const o = d.ocorrencia;
+  const vinculada = Boolean(o?.ativa);
   return (
-    <>
+    // Ainda vinculada à ocorrência: a caixa do rastro ganha fundo e contorno verde neon.
+    <div
+      className={vinculada ? "rounded-lg p-2" : ""}
+      style={vinculada ? { backgroundColor: "#f0fdf4", boxShadow: `0 0 0 2px ${COR_VINCULADA}, 0 0 14px rgba(34,197,94,.45)` } : undefined}
+    >
+      {o && (
+        <div
+          className={`mb-2 flex items-center gap-2 rounded-md px-2 py-1 text-[12px] font-bold ${vinculada ? "text-green-900" : "text-slate-500 bg-slate-100"}`}
+          style={vinculada ? { backgroundColor: "#dcfce7", boxShadow: `inset 0 0 0 1.5px ${COR_VINCULADA}` } : undefined}
+        >
+          <span
+            className="shrink-0 w-[9px] h-[9px] rounded-full"
+            style={{ backgroundColor: vinculada ? COR_VINCULADA : "#94a3b8", boxShadow: vinculada ? `0 0 8px 2px ${COR_VINCULADA}` : undefined }}
+          />
+          <span className="min-w-0">
+            {vinculada ? `Vinculada à ocorrência ${o.protocolo ?? ""}` : `Ocorrência ${o.protocolo ?? ""} encerrada no mapa de equipes`}
+            {o.status && o.statusEm && (
+              <span className="font-semibold">
+                {" "}· {vinculada ? "status" : "último status"} “{frase(o.status)}” às {hora(o.statusEm)}
+              </span>
+            )}
+          </span>
+        </div>
+      )}
       <SeletorRastro d={d} j={j} />
       <Suspense fallback={fundo}>
         {mapsKey ? (
@@ -446,7 +471,7 @@ function Mapa({ d, j, alto }: { d: DetalheViaturaFrota; j: JanelaRastro; alto?: 
           fundo
         )}
       </Suspense>
-    </>
+    </div>
   );
 }
 

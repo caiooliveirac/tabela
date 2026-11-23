@@ -14,7 +14,7 @@ import { useEffect, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { DetalheViaturaFrota } from "../../lib/types";
-import { COR, COR_FASE, NOME_FASE, corDoPonto, hora, horaSeg } from "./formato";
+import { COR, COR_FASE, COR_VINCULADA, NOME_FASE, corDoPonto, hora, horaSeg, marcosNoMapa } from "./formato";
 
 interface Props {
   detalhe: DetalheViaturaFrota;
@@ -134,6 +134,13 @@ export default function MapaRastro({ detalhe, alto = false, enquadrar = null, cu
       }
     }
 
+    // Os marcos com hora (saída da base, chegada e saída da unidade, volta à base).
+    for (const k of marcosNoMapa(d)) {
+      L.circleMarker([k.lat, k.lng], { radius: 5, color: "#fff", weight: 2, fillColor: k.cor, fillOpacity: 1 })
+        .bindTooltip(k.texto, { permanent: true, direction: "top", offset: [0, -6], className: "rastro-rotulo rastro-marco" })
+        .addTo(g);
+    }
+
     // Onde saiu da cerca: o primeiro ponto do rastro depois da saída.
     const saiu = d.localizacao.saiuEm;
     const depois = saiu ? d.rastro.find((p) => p.em >= saiu) : undefined;
@@ -153,8 +160,14 @@ export default function MapaRastro({ detalhe, alto = false, enquadrar = null, cu
           .bindTooltip(km, { sticky: true })
           .addTo(g);
       }
-      L.circleMarker(ll, { radius: 9, color: "#fff", weight: 3, fillColor: d.localizacao.estado === "fora-da-cerca" ? COR.alerta : "#ea580c", fillOpacity: 1 })
-        .bindTooltip(`${v.nome} · ${hora(v.posicao.em)}`, { permanent: true, direction: "top", offset: [0, -10], className: "rastro-rotulo" })
+      // Ainda vinculada à ocorrência: halo verde neon e etiqueta verde.
+      const vinculada = Boolean(d.ocorrencia?.ativa);
+      if (vinculada) L.circleMarker(ll, { radius: 16, stroke: false, fillColor: COR_VINCULADA, fillOpacity: 0.35 }).addTo(g);
+      const sufixo = vinculada ? ` · em ocorrência${d.ocorrencia?.protocolo ? ` ${d.ocorrencia.protocolo}` : ""}` : d.ocorrencia ? " · ocorrência encerrada" : "";
+      L.circleMarker(ll, { radius: 9, color: vinculada ? COR_VINCULADA : "#fff", weight: 3, fillColor: d.localizacao.estado === "fora-da-cerca" ? COR.alerta : "#ea580c", fillOpacity: 1 })
+        .bindTooltip(`${v.nome} · ${hora(v.posicao.em)}${sufixo}`, {
+          permanent: true, direction: "top", offset: [0, -10], className: vinculada ? "rastro-rotulo rastro-vinculada" : "rastro-rotulo",
+        })
         .addTo(g);
       pontos.push(ll);
     }

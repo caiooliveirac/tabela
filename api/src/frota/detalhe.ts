@@ -199,7 +199,8 @@ export interface FasesDetalhe {
     partida: string | null;
     local: ParadaRuaDetalhe | null;
     intermediarias: ParadaRuaDetalhe[];
-    unidade: { hospitalId: string; nome: string; entrada: string; saida: string | null } | null;
+    /** `naBase`: a unidade é a mesma cerca da base (base dentro de hospital/UPA). */
+    unidade: { hospitalId: string; nome: string; entrada: string; saida: string | null; naBase: boolean } | null;
     chegadaBase: string | null;
     tempos: Fases["tempos"];
     /** O que a equipe apertou para cada marco (null = não apertou). */
@@ -351,11 +352,16 @@ export function montarDetalhe(e: {
 
     // ── Destino: a parada aberta fora da base; senão, a última do caso ──
     const fora = paradas.filter((p) => !p.naBase);
-    const aberta = v.noHospital && !v.noHospital.naBase ? fora.find((p) => p.id === v.noHospital!.id) ?? null : null;
+    // Base dentro de hospital/UPA (Periperi na UPA Adroaldo Albergaria) com o "chegada ao hospital"
+    // apertado nela: a parada de base é a unidade (fases.ts) — o detalhe mostra a UPA, não "na base".
+    const baseUnidade = e.fases?.unidade?.naBase ? paradas.find((p) => p.id === e.fases!.unidade!.paradaId) ?? null : null;
+    const aberta = v.noHospital && !v.noHospital.naBase
+        ? fora.find((p) => p.id === v.noHospital!.id) ?? null
+        : baseUnidade && baseUnidade.motivoFim === null ? baseUnidade : null;
     const doCaso = v.foraDaCerca
         ? fora.find((p) => p.id === v.foraDaCerca!.paradaId) ?? null
         : null;
-    const parada = aberta ?? doCaso ?? fora.at(-1) ?? null;
+    const parada = aberta ?? doCaso ?? baseUnidade ?? fora.at(-1) ?? null;
     const h = parada ? local(parada.hospitalId) : undefined;
     const destino = parada && h
         ? {
@@ -392,7 +398,7 @@ export function montarDetalhe(e: {
         titulo = "Sem posição do GPS";
     } else if (aberta && h) {
         estado = "na-cerca";
-        titulo = `Dentro da cerca d${artigo(h.nome)} ${h.nome}`;
+        titulo = `Dentro da cerca d${artigo(h.nome)} ${h.nome}${aberta.naBase ? " (onde fica a base)" : ""}`;
     } else if (v.foraDaCerca) {
         estado = "fora-da-cerca";
         titulo = `Fora da cerca desde ${hhmm(new Date(v.foraDaCerca.saiuEm))}`;
@@ -429,6 +435,24 @@ export function montarDetalhe(e: {
             mensagem:
                 `${v.nome} saiu ${onde} às ${hhmm(new Date(f.saiuEm))} e o mapa de equipes ainda mostra ` +
                 `"Chegada ao hospital"${caso}. Favor confirmar a liberação e atualizar o status.`,
+        };
+    } else if (aberta?.naBase && oc?.ativa && h) {
+        // Na base que fica na UPA e a ocorrência segue vinculada: levou o paciente ou encerrou?
+        const disp = chegadaReg
+            ? [...status].reverse().find((s) => /DISPON/i.test(s.status) && s.em <= chegadaReg.em && chegadaReg.em.getTime() - s.em.getTime() <= 15 * MIN)
+            : undefined;
+        const onde = `${artigo(h.nome)} ${h.nome}`;
+        aviso = {
+            nivel: "atencao",
+            titulo: `N${onde}, onde fica a base, e ainda vinculada à ocorrência`,
+            texto:
+                (disp && chegadaReg
+                    ? `A equipe apertou "Disponível / retorno à base" às ${hhmm(disp.em)} e "Chegada ao hospital" às ${hhmm(chegadaReg.em)}. `
+                    : `O status segue "Chegada ao hospital". `) +
+                `Levou o paciente para ${onde} ou encerrou e voltou à base? Confirme com a equipe e atualize o status.`,
+            mensagem:
+                `${v.nome} está n${onde} (onde fica a base) e o mapa de equipes ainda mostra "Chegada ao hospital"${caso}. ` +
+                `Levou paciente para a unidade ou a ocorrência já terminou? Favor atualizar o status.`,
         };
     } else if (aberta && permanencia?.alerta && h) {
         aviso = {
@@ -496,9 +520,9 @@ export function montarDetalhe(e: {
             linha.push({
                 em: p.entrada.toISOString(),
                 tipo: "entrou",
-                titulo: p.naBase ? `Chegou à base (junto ${de})` : `Entrou na cerca ${de}`,
-                detalhe: p.naBase ? null : `GPS a até ${local(p.hospitalId)?.raio ?? RAIO_M} m`,
-                tom: p.naBase ? "neutro" : "info",
+                titulo: p === baseUnidade ? `Entrou na cerca ${de} (onde fica a base)` : p.naBase ? `Chegou à base (junto ${de})` : `Entrou na cerca ${de}`,
+                detalhe: p.naBase && p !== baseUnidade ? null : `GPS a até ${local(p.hospitalId)?.raio ?? RAIO_M} m`,
+                tom: p.naBase && p !== baseUnidade ? "neutro" : "info",
             });
         }
         if (p.alertaEm && !p.naBase) {
@@ -672,7 +696,7 @@ export function montarDetalhe(e: {
                   local: f.local ? ruaDetalhe(f.local) : null,
                   intermediarias: f.intermediarias.map(ruaDetalhe),
                   unidade: f.unidade
-                      ? { hospitalId: f.unidade.hospitalId, nome: nomeLocal(f.unidade.hospitalId), entrada: f.unidade.entrada.toISOString(), saida: f.unidade.saida?.toISOString() ?? null }
+                      ? { hospitalId: f.unidade.hospitalId, nome: nomeLocal(f.unidade.hospitalId), entrada: f.unidade.entrada.toISOString(), saida: f.unidade.saida?.toISOString() ?? null, naBase: f.unidade.naBase }
                       : null,
                   chegadaBase: f.chegadaBase?.toISOString() ?? null,
                   tempos: f.tempos,

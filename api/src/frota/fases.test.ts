@@ -153,3 +153,28 @@ test("fases: unidade curta conta (3+ min ou com o botão da equipe); passar pela
     assert.equal(f(2).unidade, null);
     assert.equal(f(2, t("10:43")).unidade?.hospitalId, "hge");
 });
+
+test("fases: base dentro da UPA — com o \"chegada ao hospital\" nela, a UPA é a unidade, não a volta à base", () => {
+    const UPA_BASE = BASE; // a base fica dentro da cerca da UPA
+    const pos = [
+        ...trecho("09:40", "09:44", LOCAL, LOCAL),
+        ...trecho("09:45", "09:55", { lat: -12.97, lng: -38.48 }, LOCAL),
+        ...trecho("09:56", "11:56", LOCAL),
+        ...trecho("11:57", "11:59", LOCAL, UPA_BASE),
+        ...trecho("12:00", "12:15", UPA_BASE),
+    ];
+    const baseNaUpa = parada({ id: 9, hospitalId: "upa_x", entrada: t("11:59"), naBase: true });
+    baseNaUpa.motivoFim = null;
+    baseNaUpa.saida = null;
+    const f = (botao: Date | null) =>
+        fasesDaOcorrencia({ vinculacao: t("09:43"), ativa: true, posicoes: pos, paradas: [baseNaUpa], base: UPA_BASE, chegadaUnidadeRegistrada: botao, agora: t("12:15") });
+    const com = f(t("12:00"));
+    assert.equal(com.unidade?.hospitalId, "upa_x");
+    assert.equal(com.unidade?.naBase, true);
+    assert.equal(com.chegadaBase, null);
+    assert.equal(faseEm(com, t("12:10")), "unidade");
+    // sem o botão: voltou à base
+    const sem = f(null);
+    assert.equal(sem.unidade, null);
+    assert.equal(faseEm(sem, t("12:10")), "depois");
+});

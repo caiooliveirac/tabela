@@ -491,7 +491,8 @@ export interface FasesFrota {
   partida: string | null;
   local: ParadaRuaFrota | null;
   intermediarias: ParadaRuaFrota[];
-  unidade: { hospitalId: string; nome: string; entrada: string; saida: string | null } | null;
+  /** `naBase`: a unidade é a mesma cerca da base (base dentro de hospital/UPA). */
+  unidade: { hospitalId: string; nome: string; entrada: string; saida: string | null; naBase: boolean } | null;
   chegadaBase: string | null;
   tempos: {
     saida: TempoFaseFrota | null;
