@@ -65,7 +65,8 @@ const quando = (iso: string, ate: string) =>
 
 /** Quanto o seletor volta no rastro (horas). Só entram os que vão além do padrão. */
 const PASSOS_H = [1, 2, 4, 8, 12, 24, 48, 72, 120];
-const rotuloHoras = (h: number) => (h < 24 ? `${h} h` : h === 24 ? "1 dia" : `${h / 24} dias`);
+/** "últimas 8 h", "último dia", "últimos 3 dias". */
+const ultimas = (h: number) => (h < 24 ? `últimas ${h} h` : h === 24 ? "último dia" : `últimos ${h / 24} dias`);
 
 function Selo({ cor, children }: { cor: string; children: ReactNode }) {
   return (
@@ -185,7 +186,7 @@ function SeletorRastro({ d, j }: { d: DetalheViaturaFrota; j: JanelaRastro }) {
       ? d.janela.motivo === "vinculacao"
         ? `desde ${quando(desde, d.janela.ate)}, quando foi vinculada à ocorrência${d.ocorrencia?.protocolo ? ` ${d.ocorrencia.protocolo}` : ""}`
         : `última hora, desde ${quando(desde, d.janela.ate)}`
-      : `últimas ${rotuloHoras(pendente)}, desde ${quando(desde, d.janela.ate)}`;
+      : `${ultimas(pendente)}, desde ${quando(desde, d.janela.ate)}`;
   return (
     <div className="mb-2">
       <div className="flex items-baseline justify-between gap-2 text-[12px]">
