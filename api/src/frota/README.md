@@ -424,10 +424,12 @@ avisa. Ver `GET /tabela/api/frota` (atrás do login único).
 ## Adesão à denúncia (`adesaoDenuncias`, `GET /frota/adesao?dias=`)
 
 Para a gestão cobrar quem não registra: cada USA 40+ min em hospital (não UPA,
-não a própria base) com chegada nos últimos 1–31 dias, `registrada` ou não no
+não a própria base) com chegada nos últimos 1–184 dias (`periodo.ts`), `registrada` ou não no
 Acolhimentos (mesmo cruzamento da linha do tempo), com o médico da hora da
-retenção (`frota_permanencias.medico`, gravado desde 01/10/2026). Quem lê é o
-painel do Acolhimentos (perfis ADMIN/COORD), pela porta local. O serviço do
+retenção (`frota_permanencias.medico`, gravado desde 01/10/2026). Quem lê, pela
+porta local: o painel do Acolhimentos (perfis ADMIN/COORD, 14 dias) e o ranking
+de médicos do plantões → Escalas (histórico inteiro; lá a retenção é atribuída
+ao médico pela ocupação da base, não pelo nome gravado aqui). O serviço do
 Acolhimentos aceita 7 dias por chamada: `buscarAcolhimentos` pede em pedaços
 de 6. Acolhimentos fora do ar: 503.
 

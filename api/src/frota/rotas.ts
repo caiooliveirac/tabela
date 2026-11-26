@@ -9,6 +9,7 @@ import { ErroDesativacao, esquemaDesativar, esquemaMotivo, esquemaReativar } fro
 import { ErroAtivacao, esquemaAtivar, esquemaEncerrar } from "./ativacoes.js";
 import { esquemaOcorrencias } from "./ocorrencias.js";
 import { RASTRO_DIAS } from "./detalhe.js";
+import { diasDaAdesao } from "./periodo.js";
 
 const router = Router();
 
@@ -254,11 +255,13 @@ router.get("/balanco", async (_req, res) => {
     }
 });
 
-// Adesão à denúncia (1–31 dias, padrão 14): USA retida 40+ min, registrada ou
-// não no Acolhimentos, com o médico. Quem lê é o painel do Acolhimentos (gestão),
-// pela porta local. 503 quando o Acolhimentos não responde.
+// Adesão à denúncia (1–184 dias, padrão 14): USA retida 40+ min, registrada ou
+// não no Acolhimentos, com o médico. Quem lê, pela porta local: o painel do
+// Acolhimentos (gestão, 14 dias) e o ranking de médicos do plantões → Escalas
+// (histórico inteiro, por isso o teto igual ao da /retencao).
+// 503 quando o Acolhimentos não responde.
 router.get("/adesao", async (req, res) => {
-    const dias = Math.min(31, Math.max(1, Number(req.query.dias) || 14));
+    const dias = diasDaAdesao(req.query.dias);
     try {
         res.json(await adesaoDenuncias(dias));
     } catch (e) {
